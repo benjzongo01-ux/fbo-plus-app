@@ -1,4 +1,6 @@
-package com.benjo.fboplus.ui.theme
+﻿package com.benjo.fboplus.ui.screens
+
+import com.benjo.fboplus.ui.theme.*
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
@@ -34,8 +36,8 @@ fun nomMois(moisAnnee: String): String {
     val mois = parts.getOrNull(0)?.toIntOrNull() ?: return moisAnnee
     val annee = parts.getOrNull(1) ?: return moisAnnee
     val noms = listOf(
-        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+        "Janvier", "FÃ©vrier", "Mars", "Avril", "Mai", "Juin",
+        "Juillet", "AoÃ»t", "Septembre", "Octobre", "Novembre", "DÃ©cembre"
     )
     return "${noms.getOrElse(mois - 1) { moisAnnee }} $annee"
 }
@@ -73,8 +75,8 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
     val periodes = listOf("7J", "30J", "12M")
 
     val nomsCourtsMois = listOf(
-        "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
-        "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
+        "Jan", "FÃ©v", "Mar", "Avr", "Mai", "Juin",
+        "Juil", "AoÃ»t", "Sep", "Oct", "Nov", "DÃ©c"
     )
 
     val joursSemaine = listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")
@@ -159,7 +161,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── HEADER ──
+            // â”€â”€ HEADER â”€â”€
             item {
                 Column {
                     Text(
@@ -176,7 +178,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                 }
             }
 
-            // ── RÉSUMÉ GLOBAL ──
+            // â”€â”€ RÃ‰SUMÃ‰ GLOBAL â”€â”€
             item {
                 Box(
                     modifier = Modifier
@@ -192,7 +194,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                 ) {
                     Column {
                         Text(
-                            "📊 Résumé global",
+                            "ðŸ“Š RÃ©sumÃ© global",
                             color = GoldPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -236,7 +238,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Bénéfice Total", color = WhiteFaint, fontSize = 11.sp)
+                                Text("BÃ©nÃ©fice Total", color = WhiteFaint, fontSize = 11.sp)
                                 Text(
                                     "%,d FCFA".format(toutesCommandes.sumOf { it.beneficeTotal }),
                                     color = GreenPrimary,
@@ -249,7 +251,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                         HorizontalDivider(color = GoldPrimary.copy(0.15f))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "${toutesCommandes.size} commande(s) · ${commandesParMois.size} mois",
+                            "${toutesCommandes.size} commande(s) Â· ${commandesParMois.size} mois",
                             color = WhiteSub,
                             fontSize = 12.sp
                         )
@@ -257,7 +259,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                 }
             }
 
-            // ── GRAPHIQUE COURBE ──
+            // â”€â”€ GRAPHIQUE COURBE â”€â”€
             item {
                 val interactionSource = remember { MutableInteractionSource() }
 
@@ -277,14 +279,14 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                         ) {
                             Column {
                                 Text(
-                                    "📈 Évolution des ventes",
+                                    "ðŸ“ˆ Ã‰volution des ventes",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = GoldPrimary
                                 )
                                 Text(
                                     if (indexSelectionne != null && indexSelectionne!! < dataPoints.size)
-                                        "${dataPoints[indexSelectionne!!].first} — %,d FCFA".format(
+                                        "${dataPoints[indexSelectionne!!].first} â€” %,d FCFA".format(
                                             dataPoints[indexSelectionne!!].second
                                         )
                                     else
@@ -335,10 +337,10 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("📉", fontSize = 32.sp)
+                                    Text("ðŸ“‰", fontSize = 32.sp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        "Aucune donnée pour cette période",
+                                        "Aucune donnÃ©e pour cette pÃ©riode",
                                         color = WhiteFaint,
                                         fontSize = 13.sp
                                     )
@@ -381,7 +383,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                     )
                                 )
 
-                                // Courbe dorée
+                                // Courbe dorÃ©e
                                 for (i in 0 until pts.size - 1) {
                                     drawLine(
                                         brush = Brush.linearGradient(
@@ -397,7 +399,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                     )
                                 }
 
-                                // Point sélectionné
+                                // Point sÃ©lectionnÃ©
                                 indexSelectionne?.let { idx ->
                                     if (idx < pts.size) {
                                         drawLine(
@@ -450,7 +452,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
-                                    Text("CA période", fontSize = 10.sp, color = WhiteFaint)
+                                    Text("CA pÃ©riode", fontSize = 10.sp, color = WhiteFaint)
                                     Text(
                                         "%,d F".format(totalPeriode),
                                         fontWeight = FontWeight.Bold,
@@ -482,7 +484,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                 }
             }
 
-            // ── LISTE DES MOIS ──
+            // â”€â”€ LISTE DES MOIS â”€â”€
             if (commandesParMois.isEmpty()) {
                 item {
                     Box(
@@ -535,7 +537,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (estSelectionne) Text("📈 ", fontSize = 13.sp)
+                                            if (estSelectionne) Text("ðŸ“ˆ ", fontSize = 13.sp)
                                             Text(
                                                 nomMois(mois),
                                                 fontWeight = FontWeight.ExtraBold,
@@ -671,7 +673,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text(
                                                         commande.lignes.joinToString(", ") {
-                                                            "${it.produitNom} ×${it.quantite}"
+                                                            "${it.produitNom} Ã—${it.quantite}"
                                                         },
                                                         fontSize = 10.sp,
                                                         color = WhiteFaint,

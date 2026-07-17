@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.benjo.fboplus.ui.theme.FBOPlusTheme
-import com.benjo.fboplus.ui.theme.FBONavigation
+import com.benjo.fboplus.ui.navigation.FBONavigation
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,4 +1,15 @@
-package com.benjo.fboplus.ui.theme
+﻿package com.benjo.fboplus.ui.navigation
+
+import com.benjo.fboplus.ui.theme.*
+
+import com.benjo.fboplus.ui.screens.HomeScreen
+import com.benjo.fboplus.ui.screens.VentesScreen
+import com.benjo.fboplus.ui.screens.StatsScreen
+import com.benjo.fboplus.ui.screens.ProfilScreen
+import com.benjo.fboplus.ui.screens.PathologieScreen
+import com.benjo.fboplus.ui.screens.HistoriqueScreen
+import com.benjo.fboplus.ui.screens.NouvelleCommandeScreen
+import com.benjo.fboplus.ui.screens.ModifierCommandeScreen
 
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
@@ -48,7 +59,7 @@ fun FBONavigation() {
                 ) {
                     val items = listOf(
                         Triple("catalogue",   Icons.Filled.Home,        "Accueil"),
-                        Triple("pathologies", Icons.Filled.Favorite,    "Santé"),
+                        Triple("pathologies", Icons.Filled.Favorite,    "SantÃ©"),
                         Triple("ventes",      Icons.Filled.ShoppingCart, "Ventes"),
                         Triple("stats",       Icons.Filled.BarChart,     "Stats"),
                         Triple("profil",      Icons.Filled.Person,       "Profil"),
@@ -122,7 +133,7 @@ fun FBONavigation() {
             composable(route = "nouvelle_commande") {
                 NouvelleCommandeScreen(
                     ventesViewModel = ventesViewModel,
-                    profilViewModel = profilViewModel,   // ← ligne ajoutée
+                    profilViewModel = profilViewModel,   // â† ligne ajoutÃ©e
                     onCommandeValidee = { navController.popBackStack() },
                     onAnnuler = {
                         ventesViewModel.annulerCommande()

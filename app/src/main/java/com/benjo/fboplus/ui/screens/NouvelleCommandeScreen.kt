@@ -1,6 +1,9 @@
-package com.benjo.fboplus.ui.theme
+﻿package com.benjo.fboplus.ui.screens
+
+import com.benjo.fboplus.ui.theme.*
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,27 +22,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.benjo.fboplus.data.Product
 import com.benjo.fboplus.data.reductionPourGrade
 import com.benjo.fboplus.viewmodel.ProfilViewModel
 import com.benjo.fboplus.viewmodel.VentesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModifierCommandeScreen(
+fun NouvelleCommandeScreen(
     ventesViewModel: VentesViewModel,
     profilViewModel: ProfilViewModel,
-    onCommandeMiseAJour: () -> Unit,
+    onCommandeValidee: () -> Unit,
     onAnnuler: () -> Unit
 ) {
     val lignes by ventesViewModel.commandeEnCours.collectAsState()
     val titre by ventesViewModel.titreCommande.collectAsState()
     val profil by profilViewModel.profil.collectAsState()
     var recherche by remember { mutableStateOf("") }
-    var recapExpanded by remember { mutableStateOf(true) }
+    var recapExpanded by remember { mutableStateOf(false) }
 
     val produitsTries = remember { ventesViewModel.getProduitsTries() }
     val produitsFiltres = remember(recherche) {
@@ -50,7 +57,7 @@ fun ModifierCommandeScreen(
         }
     }
 
-    // ── Calcul du prix de validation selon le grade du profil ──
+    // â”€â”€ Calcul du prix de validation selon le grade du profil â”€â”€
     val reduction = reductionPourGrade(profil.grade)
     val caCommande = lignes.sumOf { it.montantTotal }
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
@@ -62,7 +69,7 @@ fun ModifierCommandeScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── TOP BAR ──
+            // â”€â”€ TOP BAR â”€â”€
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -78,7 +85,7 @@ fun ModifierCommandeScreen(
                         )
                     }
                     Text(
-                        "Modifier la Commande",
+                        "Nouvelle Commande",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 20.sp,
                         color = WhitePrimary
@@ -86,7 +93,7 @@ fun ModifierCommandeScreen(
                 }
             }
 
-            // ── LISTE PRODUITS ──
+            // â”€â”€ LISTE PRODUITS â”€â”€
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -145,11 +152,7 @@ fun ModifierCommandeScreen(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "👆 Cliquez pour ajouter · ✕ dans le récap pour retirer",
-                    fontSize = 11.sp,
-                    color = WhiteFaint
-                )
+                Text("ðŸ‘† Cliquez sur un produit pour l'ajouter", fontSize = 11.sp, color = WhiteFaint)
                 Spacer(modifier = Modifier.height(6.dp))
 
                 LazyColumn(
@@ -173,7 +176,7 @@ fun ModifierCommandeScreen(
                 }
             }
 
-            // ── PARTIE BASSE ──
+            // â”€â”€ PARTIE BASSE â”€â”€
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -183,7 +186,7 @@ fun ModifierCommandeScreen(
                 Column {
                     if (lignes.isNotEmpty()) {
 
-                        // Barre résumé cliquable
+                        // Barre rÃ©sumÃ© cliquable
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -214,7 +217,7 @@ fun ModifierCommandeScreen(
                                     Text("${lignes.size} art.", fontSize = 12.sp, color = WhiteFaint)
                                 }
                                 Text(
-                                    if (recapExpanded) "▲ Réduire" else "▼ Voir",
+                                    if (recapExpanded) "â–²" else "â–¼ Voir",
                                     fontSize = 12.sp,
                                     color = GoldPrimary,
                                     fontWeight = FontWeight.Bold
@@ -232,7 +235,7 @@ fun ModifierCommandeScreen(
                             )
                         }
 
-                        // Détail dépliable
+                        // DÃ©tail dÃ©pliable
                         AnimatedVisibility(visible = recapExpanded) {
                             Box(
                                 modifier = Modifier
@@ -253,7 +256,7 @@ fun ModifierCommandeScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "${ligne.produitNom} ×${ligne.quantite}",
+                                                "${ligne.produitNom} Ã—${ligne.quantite}",
                                                 fontSize = 12.sp,
                                                 color = WhiteSub,
                                                 modifier = Modifier.weight(1f)
@@ -310,7 +313,7 @@ fun ModifierCommandeScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Bouton enregistrer
+                    // Bouton valider
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -320,19 +323,122 @@ fun ModifierCommandeScreen(
                                 else Brush.linearGradient(listOf(BlackBorder, BlackBorder))
                             )
                             .clickable(enabled = lignes.isNotEmpty()) {
-                                ventesViewModel.mettreAJourCommande(profil.grade)
-                                onCommandeMiseAJour()
+                                ventesViewModel.validerCommande(profil.grade)
+                                onCommandeValidee()
                             }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "💾 Enregistrer les modifications",
+                            "âœ… Valider la commande",
                             color = if (lignes.isNotEmpty()) BlackDeep else WhiteFaint,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CommandeProduitItem(
+    product: Product,
+    quantiteEnCours: Int,
+    onClick: () -> Unit
+) {
+    val accent = CATEGORIES_UI[product.categorie]?.first ?: GoldPrimary
+    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "ðŸ“¦"
+    val isAdded = quantiteEnCours > 0
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isAdded) BlackSurface else BlackCard)
+            .border(
+                1.dp,
+                if (isAdded) GoldPrimary.copy(0.5f) else BlackBorder,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // â”€â”€ PHOTO DU PRODUIT (avec repli emoji) â”€â”€
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White)
+                        .border(
+                            1.dp,
+                            if (isAdded) GoldPrimary.copy(0.5f) else accent.copy(0.3f),
+                            RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val imageValide = remember(product.ref, product.imageRes) {
+                        product.imageRes != 0 && runCatching {
+                            context.resources.getResourceName(product.imageRes)
+                        }.isSuccess
+                    }
+
+                    if (imageValide) {
+                        Image(
+                            painter = painterResource(id = product.imageRes),
+                            contentDescription = product.nameFr,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(emoji, fontSize = 18.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        product.nameFr,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (isAdded) GoldPrimary else WhitePrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "RÃ©f: ${product.ref} Â· ${product.categorie}",
+                        fontSize = 10.sp,
+                        color = WhiteFaint
+                    )
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "%,d F".format(product.prixPublic),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = GoldPrimary,
+                    fontSize = 13.sp
+                )
+                Text("CC: ${product.cc}", fontSize = 10.sp, color = GoldLight)
+                if (isAdded) {
+                    Text(
+                        "Ã— $quantiteEnCours",
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GoldPrimary,
+                        fontSize = 14.sp
+                    )
                 }
             }
         }

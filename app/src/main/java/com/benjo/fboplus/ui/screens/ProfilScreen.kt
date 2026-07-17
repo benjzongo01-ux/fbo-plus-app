@@ -1,4 +1,4 @@
-package com.benjo.fboplus.ui.theme
+package com.benjo.fboplus.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
