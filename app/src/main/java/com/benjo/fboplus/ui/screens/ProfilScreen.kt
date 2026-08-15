@@ -2,24 +2,27 @@ package com.benjo.fboplus.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.RappelScheduler
 import com.benjo.fboplus.data.ProductRepository
 import com.benjo.fboplus.data.VentesRepository
-import com.benjo.fboplus.data.listeGrades
 import com.benjo.fboplus.viewmodel.ProfilViewModel
 import com.benjo.fboplus.viewmodel.VentesViewModel
 
@@ -37,19 +40,18 @@ private val PTrackDark = Color(0xFF3A3A3A)
 @Composable
 fun ProfilScreen(
     profilViewModel: ProfilViewModel,
-    ventesViewModel: VentesViewModel
+    ventesViewModel: VentesViewModel,
+    onModifierProfil: () -> Unit,
+    onSecurite: () -> Unit,
+    onDeconnexion: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
-    var modeEdition by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
-    var nom by remember(profil) { mutableStateOf(profil.nom) }
-    var prenom by remember(profil) { mutableStateOf(profil.prenom) }
-    var idDistributeur by remember(profil) { mutableStateOf(profil.idDistributeur) }
-    var gradeSelectionne by remember(profil) { mutableStateOf(profil.grade) }
+    var modeEditionObjectifs by remember { mutableStateOf(false) }
     var objectifCC by remember(profil) { mutableStateOf(profil.objectifCC.toString()) }
     var objectifCA by remember(profil) { mutableStateOf(profil.objectifCA.toString()) }
-    var gradeMenuExpanded by remember { mutableStateOf(false) }
     var rappelActive by remember { mutableStateOf(false) }
     var heureRappel by remember { mutableStateOf("19:00") }
     val prixParCC = remember { ProductRepository.getPrixParCC() }
@@ -91,7 +93,7 @@ fun ProfilScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Carte résumé ──
+            // ── Carte fixe : identité (non éditable directement ici) ──
             Card(
                 colors = CardDefaults.cardColors(containerColor = PBlackCard),
                 border = BorderStroke(1.dp, PGoldPrimary.copy(alpha = 0.4f)),
@@ -105,29 +107,60 @@ fun ProfilScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (prenom.isNotEmpty() || nom.isNotEmpty())
-                                    "$prenom $nom".trim()
+                                if (profil.prenom.isNotEmpty() || profil.nom.isNotEmpty())
+                                    "${profil.prenom} ${profil.nom}".trim()
                                 else "Mon Profil FBO+",
                                 color = PTextWhite,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp
                             )
-                            Text(gradeSelectionne, color = PGoldLight, fontSize = 13.sp)
-                            if (idDistributeur.isNotEmpty()) {
+                            Text(profil.grade, color = PGoldLight, fontSize = 13.sp)
+                            if (profil.ville.isNotEmpty() || profil.pays.isNotEmpty()) {
                                 Text(
-                                    "🆔 ID: $idDistributeur",
-                                    color = PGoldPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    listOf(profil.ville, profil.pays).filter { it.isNotEmpty() }.joinToString(", "),
+                                    color = PTextGray,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
-                        IconButton(onClick = { modeEdition = !modeEdition }) {
+                        IconButton(onClick = onModifierProfil) {
                             Icon(
                                 imageVector = Icons.Filled.Edit,
                                 contentDescription = "Modifier",
                                 tint = PGoldPrimary
                             )
+                        }
+                    }
+
+                    if (profil.idDistributeur.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PBlackCardLight, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("ID Forever Living", color = PTextGray, fontSize = 11.sp)
+                                Text(
+                                    profil.idDistributeur,
+                                    color = PGoldPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                            }
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(profil.idDistributeur))
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.ContentCopy,
+                                    contentDescription = "Copier l'ID",
+                                    tint = PGoldPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
 
@@ -180,72 +213,110 @@ fun ProfilScreen(
             }
 
             // ── Objectifs + barres ──
-            if (objCC > 0 || objCA > 0) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = PBlackCard),
-                    border = BorderStroke(1.dp, PGoldPrimary.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            "🎯 Objectifs du mois",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = PGoldPrimary
+            Card(
+                colors = CardDefaults.cardColors(containerColor = PBlackCard),
+                border = BorderStroke(1.dp, PGoldPrimary.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🎯 Objectifs du mois", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PGoldPrimary)
+                        IconButton(onClick = { modeEditionObjectifs = !modeEditionObjectifs }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Modifier les objectifs", tint = PGoldPrimary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (objCC > 0) {
+                        val progressCC = (ccDuMois / objCC).coerceIn(0.0, 1.0)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Objectif CC", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PTextWhite)
+                            Text("%.3f CC".format(objCC), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PTextWhite)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { progressCC.toFloat() },
+                            modifier = Modifier.fillMaxWidth().height(10.dp),
+                            color = PGoldPrimary,
+                            trackColor = PTrackDark
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Réalisé : %.3f CC".format(ccDuMois), fontSize = 11.sp, color = PTextGray)
+                            Text("${(progressCC * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PGoldPrimary)
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+
+                    if (objCA > 0) {
+                        val progressCA = (caDuMois.toDouble() / objCA).coerceIn(0.0, 1.0)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Objectif CA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
+                            Text("%,d FCFA".format(objCA), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { progressCA.toFloat() },
+                            modifier = Modifier.fillMaxWidth().height(10.dp),
+                            color = PGoldLight,
+                            trackColor = PTrackDark
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Réalisé : %,d FCFA".format(caDuMois), fontSize = 11.sp, color = PTextGray)
+                            Text("${(progressCA * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
+                        }
+                    }
+
+                    if (modeEditionObjectifs) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = PGoldPrimary.copy(alpha = 0.2f))
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        if (objCC > 0) {
-                            val progressCC = (ccDuMois / objCC).coerceIn(0.0, 1.0)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Objectif CC", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PTextWhite)
-                                Text("%.3f CC".format(objCC), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PTextWhite)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { progressCC.toFloat() },
-                                modifier = Modifier.fillMaxWidth().height(10.dp),
-                                color = PGoldPrimary,
-                                trackColor = PTrackDark
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Réalisé : %.3f CC".format(ccDuMois), fontSize = 11.sp, color = PTextGray)
-                                Text("${(progressCC * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PGoldPrimary)
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
-
-                        if (objCA > 0) {
-                            val progressCA = (caDuMois.toDouble() / objCA).coerceIn(0.0, 1.0)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Objectif CA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
-                                Text("%,d FCFA".format(objCA), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { progressCA.toFloat() },
-                                modifier = Modifier.fillMaxWidth().height(10.dp),
-                                color = PGoldLight,
-                                trackColor = PTrackDark
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Réalisé : %,d FCFA".format(caDuMois), fontSize = 11.sp, color = PTextGray)
-                                Text("${(progressCA * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PGoldLight)
-                            }
+                        OutlinedTextField(
+                            value = objectifCC,
+                            onValueChange = {
+                                objectifCC = it
+                                val cc = it.toDoubleOrNull()
+                                if (cc != null && cc > 0) objectifCA = (cc * prixParCC).toInt().toString()
+                            },
+                            label = { Text("Objectif CC du mois") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = champColors()
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = objectifCA,
+                            onValueChange = {
+                                objectifCA = it
+                                val ca = it.toIntOrNull()
+                                if (ca != null && ca > 0 && prixParCC > 0) objectifCC = "%.3f".format(ca / prixParCC)
+                            },
+                            label = { Text("Objectif CA du mois (FCFA)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = champColors()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                profilViewModel.sauvegarderProfil(
+                                    profil.copy(
+                                        objectifCC = objectifCC.toDoubleOrNull() ?: 0.0,
+                                        objectifCA = objectifCA.toIntOrNull() ?: 0
+                                    )
+                                )
+                                modeEditionObjectifs = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PGoldPrimary),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("💾 Sauvegarder", color = PBackgroundBlack, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -307,15 +378,7 @@ fun ProfilScreen(
                             placeholder = { Text("19:00", color = PTextGray) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = PTextWhite,
-                                unfocusedTextColor = PTextWhite,
-                                focusedBorderColor = PGoldPrimary,
-                                unfocusedBorderColor = PTextGray,
-                                cursorColor = PGoldPrimary,
-                                focusedLabelColor = PGoldPrimary,
-                                unfocusedLabelColor = PTextGray
-                            )
+                            colors = champColors()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -328,152 +391,35 @@ fun ProfilScreen(
                 }
             }
 
-            // ── MODE EDITION ──
-            if (modeEdition) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = PBlackCard),
-                    border = BorderStroke(1.dp, PGoldPrimary.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
+            // ── Sécurité (fixée en bas, futurs ajouts en dessous) ──
+            Card(
+                colors = CardDefaults.cardColors(containerColor = PBlackCard),
+                border = BorderStroke(1.dp, PGoldPrimary.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onSecurite)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("✏️ Modifier le profil", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PGoldPrimary)
-
-                        OutlinedTextField(
-                            value = prenom,
-                            onValueChange = { prenom = it },
-                            label = { Text("Prénom") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = champColors()
-                        )
-
-                        OutlinedTextField(
-                            value = nom,
-                            onValueChange = { nom = it },
-                            label = { Text("Nom") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = champColors()
-                        )
-
-                        OutlinedTextField(
-                            value = idDistributeur,
-                            onValueChange = { idDistributeur = it },
-                            label = { Text("ID Distributeur Forever") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = champColors()
-                        )
-
-                        Text("Grade", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PGoldPrimary)
-
-                        ExposedDropdownMenuBox(
-                            expanded = gradeMenuExpanded,
-                            onExpandedChange = { gradeMenuExpanded = !gradeMenuExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = gradeSelectionne,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Mon grade") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gradeMenuExpanded) },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                colors = champColors()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = gradeMenuExpanded,
-                                onDismissRequest = { gradeMenuExpanded = false },
-                                containerColor = PBlackCardLight
-                            ) {
-                                listeGrades.forEach { grade ->
-                                    DropdownMenuItem(
-                                        text = { Text(grade, color = PTextWhite) },
-                                        onClick = {
-                                            gradeSelectionne = grade
-                                            gradeMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Text("Objectifs du mois", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PGoldPrimary)
-
-                        OutlinedTextField(
-                            value = objectifCC,
-                            onValueChange = {
-                                objectifCC = it
-                                val cc = it.toDoubleOrNull()
-                                if (cc != null && cc > 0) {
-                                    objectifCA = (cc * prixParCC).toInt().toString()
-                                }
-                            },
-                            label = { Text("Objectif CC du mois") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = champColors()
-                        )
-
-                        OutlinedTextField(
-                            value = objectifCA,
-                            onValueChange = {
-                                objectifCA = it
-                                val ca = it.toIntOrNull()
-                                if (ca != null && ca > 0 && prixParCC > 0) {
-                                    objectifCC = "%.3f".format(ca / prixParCC)
-                                }
-                            },
-                            label = { Text("Objectif CA du mois (FCFA)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = champColors()
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    nom = profil.nom
-                                    prenom = profil.prenom
-                                    idDistributeur = profil.idDistributeur
-                                    gradeSelectionne = profil.grade
-                                    objectifCC = profil.objectifCC.toString()
-                                    objectifCA = profil.objectifCA.toString()
-                                    modeEdition = false
-                                },
-                                modifier = Modifier.weight(1f),
-                                border = BorderStroke(1.dp, PTextGray)
-                            ) {
-                                Text("Annuler", color = PTextGray)
-                            }
-
-                            Button(
-                                onClick = {
-                                    profilViewModel.sauvegarderProfil(
-                                        profil.copy(
-                                            nom = nom,
-                                            prenom = prenom,
-                                            idDistributeur = idDistributeur,
-                                            grade = gradeSelectionne,
-                                            objectifCC = objectifCC.toDoubleOrNull() ?: 0.0,
-                                            objectifCA = objectifCA.toIntOrNull() ?: 0
-                                        )
-                                    )
-                                    modeEdition = false
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = PGoldPrimary)
-                            ) {
-                                Text("💾 Sauvegarder", color = PBackgroundBlack, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                    Column {
+                        Text("🔒 Sécurité", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PTextWhite)
+                        Text("PIN, biométrie", fontSize = 11.sp, color = PTextGray)
                     }
+                    Text("›", color = PTextGray, fontSize = 20.sp)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedButton(
+                onClick = onDeconnexion,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFFE84142).copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE84142))
+            ) {
+                Text("Déconnexion", fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

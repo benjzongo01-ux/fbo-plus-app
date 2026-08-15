@@ -2,6 +2,16 @@
 
 import com.benjo.fboplus.ui.theme.*
 
+import com.benjo.fboplus.ui.screens.PinEntryScreen
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.benjo.fboplus.ui.screens.VerificationScreen
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
+import com.benjo.fboplus.ui.screens.ModifierProfilScreen
+import com.benjo.fboplus.ui.screens.SecuriteScreen
 import com.benjo.fboplus.ui.screens.HomeScreen
 import com.benjo.fboplus.ui.screens.VentesScreen
 import com.benjo.fboplus.ui.screens.StatsScreen
@@ -12,6 +22,10 @@ import com.benjo.fboplus.ui.screens.NouvelleCommandeScreen
 import com.benjo.fboplus.ui.screens.ModifierCommandeScreen
 
 import kotlinx.coroutines.launch
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,15 +50,59 @@ import androidx.navigation.compose.rememberNavController
 import com.benjo.fboplus.viewmodel.ProductViewModel
 import com.benjo.fboplus.viewmodel.ProfilViewModel
 import com.benjo.fboplus.viewmodel.VentesViewModel
+import androidx.compose.ui.platform.LocalContext
+import com.benjo.fboplus.auth.SecureTokenStorage
+import com.benjo.fboplus.ui.screens.ConnexionScreen
+import com.benjo.fboplus.ui.screens.InscriptionScreen
+import com.benjo.fboplus.ui.screens.CompleteProfileScreen
+import com.benjo.fboplus.ui.screens.PinCreationScreen
+import com.benjo.fboplus.ui.screens.BiometricSuggestionScreen
+import com.benjo.fboplus.ui.screens.PinVerificationScreen
+import com.benjo.fboplus.viewmodel.AuthViewModel
 
 @Composable
 fun FBONavigation() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val authViewModel: AuthViewModel = viewModel()
+    val tokenStorage = remember { SecureTokenStorage(context) }
+    val startDestination = if (tokenStorage.hasToken()) "catalogue" else "connexion"
     val productViewModel: ProductViewModel = viewModel()
     val ventesViewModel: VentesViewModel = viewModel()
     val profilViewModel: ProfilViewModel = viewModel()
     val homeListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    DisposableEffect(Unit) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    if (tokenStorage.hasToken()) {
+                        tokenStorage.saveLastBackgroundTime()
+                    }
+                }
+                Lifecycle.Event.ON_START -> {
+                    if (tokenStorage.hasToken() && tokenStorage.shouldLock()) {
+                        navController.navigate("pin_verification") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                    tokenStorage.clearLastBackgroundTime()
+                }
+                else -> {}
+            }
+        }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
+        onDispose {
+            ProcessLifecycleOwner.get().lifecycle.removeObserver(observer)
+        }
+    }
+
+    val routesSansBarre = setOf(
+        "connexion", "inscription", "verification/{email}", "pin_entry/{token}", "complete_profile",
+        "pin_creation/{token}", "biometric_suggestion", "pin_verification",
+        "modifier_profil", "securite",
+        "nouvelle_commande", "modifier_commande"
+    )
 
     Scaffold(
         containerColor = BlackDeep,
@@ -52,14 +110,14 @@ fun FBONavigation() {
             val currentRoute = navController
                 .currentBackStackEntryAsState().value?.destination?.route
 
-            if (currentRoute != "nouvelle_commande" && currentRoute != "modifier_commande") {
+            if (currentRoute !in routesSansBarre) {
                 NavigationBar(
                     containerColor = BlackCard,
                     tonalElevation = 0.dp
                 ) {
                     val items = listOf(
                         Triple("catalogue",   Icons.Filled.Home,        "Accueil"),
-                        Triple("pathologies", Icons.Filled.Favorite,    "SantÃ©"),
+                        Triple("pathologies", Icons.Filled.Favorite,    "Santé"),
                         Triple("ventes",      Icons.Filled.ShoppingCart, "Ventes"),
                         Triple("stats",       Icons.Filled.BarChart,     "Stats"),
                         Triple("profil",      Icons.Filled.Person,       "Profil"),
@@ -108,9 +166,106 @@ fun FBONavigation() {
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = "catalogue",
-            modifier = Modifier.padding(paddingValues)
+            startDestination = startDestination,
+            modifier = Modifier.padding(paddingValues),
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { it / 3 }) + fadeIn()
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut()
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn()
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { it / 3 }) + fadeOut()
+            }
         ) {
+            composable("connexion") {
+                ConnexionScreen(
+                    authViewModel = authViewModel,
+                    onCodeEnvoye = { email -> navController.navigate("verification/$email") },
+                                        onAllerVersInscription = { navController.navigate("inscription") }
+                )
+            }
+            composable("inscription") {
+                InscriptionScreen(
+                    authViewModel = authViewModel,
+                    onCodeEnvoye = { email -> navController.navigate("verification/$email") },
+                    onNeedsPinEntry = { token -> navController.navigate("pin_entry/$token") },
+                    onAllerVersConnexion = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "verification/{email}",
+                arguments = listOf(navArgument("email") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val email = backStackEntry.arguments?.getString("email") ?: ""
+                VerificationScreen(
+                    authViewModel = authViewModel,
+                    email = email,
+                    onNeedsPinCreation = { token -> navController.navigate("pin_creation/$token") },
+                    onNeedsPinEntry = { token -> navController.navigate("pin_entry/$token") }
+                )
+            }
+            composable("complete_profile") {
+                CompleteProfileScreen(
+                    profilViewModel = profilViewModel,
+                    onProfilComplete = {
+                        navController.navigate("pin_creation") {
+                            popUpTo("complete_profile") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(
+                route = "pin_creation/{token}",
+                arguments = listOf(navArgument("token") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val token = backStackEntry.arguments?.getString("token") ?: ""
+                PinCreationScreen(
+                    authViewModel = authViewModel,
+                    token = token,
+                    onPinCreated = {
+                        navController.navigate("biometric_suggestion") {
+                            popUpTo("connexion") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(
+                route = "pin_entry/{token}",
+                arguments = listOf(navArgument("token") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val token = backStackEntry.arguments?.getString("token") ?: ""
+                PinEntryScreen(
+                    authViewModel = authViewModel,
+                    token = token,
+                    onSuccess = {
+                        navController.navigate("biometric_suggestion") {
+                            popUpTo("connexion") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable("biometric_suggestion") {
+                BiometricSuggestionScreen(
+                    onTermine = {
+                        navController.navigate("catalogue") {
+                            popUpTo("biometric_suggestion") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable("pin_verification") {
+                PinVerificationScreen(
+                    onVerifie = {
+                        navController.navigate("catalogue") {
+                            popUpTo("pin_verification") { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable("catalogue") {
                 HomeScreen(
                     viewModel = productViewModel,
@@ -133,7 +288,7 @@ fun FBONavigation() {
             composable(route = "nouvelle_commande") {
                 NouvelleCommandeScreen(
                     ventesViewModel = ventesViewModel,
-                    profilViewModel = profilViewModel,   // â† ligne ajoutÃ©e
+                    profilViewModel = profilViewModel,
                     onCommandeValidee = { navController.popBackStack() },
                     onAnnuler = {
                         ventesViewModel.annulerCommande()
@@ -159,7 +314,27 @@ fun FBONavigation() {
             composable("profil") {
                 ProfilScreen(
                     profilViewModel = profilViewModel,
-                    ventesViewModel = ventesViewModel
+                    ventesViewModel = ventesViewModel,
+                    onModifierProfil = { navController.navigate("modifier_profil") },
+                    onSecurite = { navController.navigate("securite") },
+                    onDeconnexion = {
+                        tokenStorage.clearAll()
+                        authViewModel.resetState()
+                        navController.navigate("connexion") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable("modifier_profil") {
+                ModifierProfilScreen(
+                    profilViewModel = profilViewModel,
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable("securite") {
+                SecuriteScreen(
+                    onRetour = { navController.popBackStack() }
                 )
             }
         }
