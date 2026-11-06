@@ -140,20 +140,3 @@ private fun CritereItem(label: String, valide: Boolean) {
 
 fun motDePasseValide(pwd: String): Boolean =
     pwd.length in 8..128 && pwd.any { it.isDigit() } && pwd.any { it.isUpperCase() }
-
-/**
- * Bouton "Continuer avec Google" — UI seule pour l'instant,
- * le branchement réel se fait plus tard côté serveur.
- */
-@Composable
-fun GoogleAuthButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, STextGray.copy(alpha = 0.4f)),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = STextWhite)
-    ) {
-        Text("Continuer avec Google", fontSize = 15.sp)
-    }
-}

@@ -2,6 +2,39 @@
 
 **Mode de travail actuel : émulateurs uniquement, aucun déploiement.** Blaze, les vrais SMS et App Check sont gardés pour le lancement. Le projet Firebase réel est `fbo-plus`, sous le compte Google de FBO+, jamais un compte personnel.
 
+## Reprendre ici
+
+Dernière mise à jour : 2026-11-06. Tout le travail est sur `main`, à jour sur GitHub.
+
+Situation : les phases 1 à 5 sont terminées. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
+
+Prochaines étapes, dans l'ordre :
+
+1. Rendre le client obligatoire pour une commande à livrer : aujourd'hui, un livreur peut recevoir une mission sans nom ni téléphone.
+2. Revoir le formulaire de nouvelle commande, qui occupe la moitié de l'écran.
+3. Faire les tests de la section « Reste à tester sur téléphone ».
+4. Traiter les « Limites connues » choisies par l'utilisateur.
+5. Quand la carte le permettra : suivre « Pour le lancement ».
+
+Sur un autre ordinateur :
+
+```bash
+git clone https://github.com/benjzongo01-ux/fbo-plus-app.git
+cd fbo-plus-app
+node scripts/preparer-poste.mjs
+```
+
+Puis ouvrir le dossier dans Android Studio, et dire à Claude Code : « Lis CLAUDE.md et PROGRESS.md, puis continue ».
+
+Ce que GitHub ne contient pas, volontairement :
+
+- `app/google-services.json` : inutile avec les émulateurs. Pour le lancement, le retélécharger depuis la console Firebase, avec le compte FBO+.
+- `firebase/functions/.secret.local` : recréé par le script d'installation.
+- `local.properties` : recréé par Android Studio.
+- Les ventes et le profil enregistrés sur le téléphone : ils restent sur l'appareil. Ne pas désinstaller FBO+ avant de les avoir repris sur un vrai compte.
+
+Les données des émulateurs ne suivent pas non plus : après `npm run emulateurs`, lancer `npm run donnees` pour recréer le catalogue, le stock et les comptes fictifs. Sur le téléphone, se déconnecter une fois, car les anciens comptes de test n'existent plus.
+
 ## État par phase
 
 | Phase | Code | Vérifié |
@@ -15,7 +48,7 @@
 
 Vérifications automatiques : 65 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
-Chaque phase a sa branche, empilée sur la précédente, à fusionner dans cet ordre : `feature/phase-1-socle-firebase`, `feature/profil-professionnel`, `feature/phase-2-app-fbo`, `feature/phase-3-admin`, `feature/phase-4-delivery`, `feature/phase-5-notifications`.
+Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
 ## Phase 1 — Socle Firebase
 
@@ -104,15 +137,11 @@ Sans `-Pfbo.firebaseReel=true`, les builds Android utilisent toujours les émula
 
 ## Lancer l'environnement local
 
-Une seule fois :
+Une seule fois, depuis la racine du projet :
 
 ```bash
-cd firebase
-npm install
-npm --prefix functions install
+node scripts/preparer-poste.mjs
 ```
-
-Créer `firebase/functions/.secret.local` (non commité) contenant `PIN_PEPPER=une-valeur-locale`.
 
 À chaque session, dans `firebase/` :
 
@@ -131,7 +160,6 @@ Arrêter avec Ctrl+C pour conserver les données dans `firebase/.emulateurs/`. P
 Admin, dans `admin-web/` :
 
 ```bash
-npm install
 npm run dev
 ```
 
