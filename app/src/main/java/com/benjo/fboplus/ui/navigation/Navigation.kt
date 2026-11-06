@@ -8,9 +8,14 @@ import com.benjo.fboplus.ui.screens.ClientFormulaireScreen
 import com.benjo.fboplus.ui.screens.ClientsScreen
 import com.benjo.fboplus.ui.screens.CommandeDetailScreen
 import com.benjo.fboplus.ui.screens.MesCommandesScreen
+import com.benjo.fboplus.ui.screens.NotificationsScreen
 
 import com.benjo.fboplus.ui.screens.PinEntryScreen
+import android.Manifest
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.benjo.fboplus.ui.screens.VerificationScreen
@@ -116,8 +121,18 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications"
     )
+
+    // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
+    val demandeNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            demandeNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     val propositionImport by VentesRepository.propositionImport.collectAsState()
     propositionImport?.let { nombre ->
@@ -354,6 +369,7 @@ fun FBONavigation() {
                     onCommandes = { navController.navigate("commandes") },
                     onClients = { navController.navigate("clients") },
                     onBoutique = { navController.navigate("boutique") },
+                    onNotifications = { navController.navigate("notifications") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -412,6 +428,12 @@ fun FBONavigation() {
                 ClientFormulaireScreen(
                     clientId = entree.arguments?.getString("id"),
                     onTermine = { navController.popBackStack("clients", inclusive = false) },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable("notifications") {
+                NotificationsScreen(
+                    onOuvrirCommande = { navController.navigate("commande/$it") },
                     onRetour = { navController.popBackStack() }
                 )
             }

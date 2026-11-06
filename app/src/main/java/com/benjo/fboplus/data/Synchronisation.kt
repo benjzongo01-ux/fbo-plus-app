@@ -20,10 +20,12 @@ object Synchronisation {
                 VentesRepository.demarrer(appli, uid)
                 ClientsRepository.demarrer(uid)
                 ProfilRepository.demarrer(appli, uid)
+                NotificationsRepository.demarrer(uid)
             } else {
                 VentesRepository.arreter()
                 ClientsRepository.arreter()
                 ProfilRepository.arreter()
+                NotificationsRepository.arreter()
             }
         }
     }

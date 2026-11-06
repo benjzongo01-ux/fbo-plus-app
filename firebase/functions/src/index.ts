@@ -4,6 +4,7 @@ export {
   definirStatut,
   initialiserProfil,
 } from "./utilisateurs.js";
+export { notifierCommande } from "./notifications.js";
 export { definirPin, verifierPin } from "./pin.js";
 export {
   ajusterStock,

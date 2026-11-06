@@ -48,6 +48,7 @@ a { color: var(--or); }
 .menu nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .menu nav a { color: var(--texte2); text-decoration: none; padding: 9px 12px; border-radius: 8px; }
 .menu nav a:hover { background: var(--surface); }
+.pastille { float: right; background: var(--or); color: var(--fond); font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 99px; }
 .menu nav a.active { background: rgba(212, 175, 55, .14); color: var(--or); font-weight: 600; }
 .pied-menu { font-size: 13px; }
 .contenu { flex: 1; min-width: 0; padding: 20px 24px; }

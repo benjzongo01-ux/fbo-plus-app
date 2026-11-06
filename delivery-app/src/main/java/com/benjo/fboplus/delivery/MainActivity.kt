@@ -1,10 +1,14 @@
 package com.benjo.fboplus.delivery
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -16,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.FirebaseAuth
 
 private enum class Onglet(val titre: String, val icone: ImageVector) {
     MISSIONS("Missions", Icons.Filled.LocalShipping),
@@ -50,9 +55,20 @@ private fun Application() {
 
 @Composable
 private fun Accueil(onDeconnexion: () -> Unit) {
-    val missions: MissionsViewModel = viewModel()
+    // La clé sépare les comptes : un second livreur ne reprend pas les missions du précédent.
+    val missions: MissionsViewModel = viewModel(key = FirebaseAuth.getInstance().currentUser?.uid)
     var onglet by remember { mutableStateOf(Onglet.MISSIONS) }
     var ouverte by remember { mutableStateOf<String?>(null) }
+
+    val demandeNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
+    LaunchedEffect(Unit) {
+        enregistrerAppareil()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            demandeNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     ouverte?.let { id ->
         BackHandler { ouverte = null }

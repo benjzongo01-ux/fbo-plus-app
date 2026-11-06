@@ -253,6 +253,45 @@ describe("cycle complet jusqu'à la livraison", () => {
   });
 });
 
+describe("notifications", () => {
+  async function attendreNotification(userId: string, commandeId: string, nombre: number) {
+    for (let i = 0; i < 40; i++) {
+      const r = await adminDb()
+        .collection("notifications")
+        .where("userId", "==", userId)
+        .where("commandeId", "==", commandeId)
+        .get();
+      if (r.size >= nombre) return r.docs.map((d) => d.data());
+      await new Promise((ok) => setTimeout(ok, 250));
+    }
+    return [];
+  }
+
+  it("prévient le FBO à chaque étape et le livreur de sa mission, sans doublon", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const gestionnaire = await compte("gestionnaire_stock");
+    const livreur = await compte("livreur");
+    const { id } = await nouvelle(u, { adresse: "Secteur 15" });
+
+    await operateur.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid });
+
+    const pourFbo = await attendreNotification(u.uid, id, 4);
+    expect(pourFbo.map((n) => n.corps).sort()).toEqual([
+      "Un livreur a été assigné à votre commande.",
+      "Votre commande est confirmée.",
+      "Votre commande est en préparation.",
+      "Votre commande est prête.",
+    ]);
+    const pourLivreur = await attendreNotification(livreur.uid, id, 1);
+    expect(pourLivreur[0]).toMatchObject({ titre: "Nouvelle mission", lu: false });
+    expect(pourLivreur[0].corps).toContain("Secteur 15");
+  });
+});
+
 describe("definirStatut", () => {
   it("un admin suspend un FBO, pas un autre admin ni lui-même", async () => {
     const admin = await compte("admin");

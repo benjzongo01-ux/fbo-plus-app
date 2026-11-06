@@ -198,6 +198,13 @@ describe("notifications et journal", () => {
     await assertFails(getDoc(doc(db("fbo2", "fbo"), "notifications/n1")));
   });
 
+  it("un jeton d'appareil n'appartient qu'à son utilisateur et n'est pas lisible", async () => {
+    await assertSucceeds(setDoc(doc(db("fbo1", "fbo"), "fcmTokens/t1"), { userId: "fbo1" }));
+    await assertFails(setDoc(doc(db("fbo2", "fbo"), "fcmTokens/t2"), { userId: "fbo1" }));
+    await assertFails(getDoc(doc(db("fbo1", "fbo"), "fcmTokens/t1")));
+    await assertFails(deleteDoc(doc(db("fbo2", "fbo"), "fcmTokens/t1")));
+  });
+
   it("le journal est lisible par les admins et n'est jamais modifiable", async () => {
     await assertFails(getDoc(doc(db("o", "operateur"), "auditLogs/a1")));
     await assertSucceeds(getDoc(doc(db("a", "admin"), "auditLogs/a1")));

@@ -1,99 +1,133 @@
 # Avancement FBO+
 
-## Phase 1 — Socle Firebase : code terminé, à déployer et à tester sur appareil
+**Mode de travail actuel : émulateurs uniquement, aucun déploiement.** Blaze, les vrais SMS et App Check sont gardés pour le lancement. Le projet Firebase réel est `fbo-plus`, sous le compte Google de FBO+, jamais un compte personnel.
 
-Branche : `feature/phase-1-socle-firebase`
+## État par phase
 
-### Fait
+| Phase | Code | Vérifié |
+|---|---|---|
+| 1. Socle Firebase | Terminé | Tests émulateur, parcours testé sur téléphone |
+| 2. Application FBO+ | Terminé | Tests serveur ; écrans Firestore pas encore testés sur téléphone |
+| 3. FBO+ Admin | Terminé | Testé dans le navigateur sur émulateurs |
+| 4. FBO+ Delivery | Terminé | Tests serveur ; application pas encore lancée |
+| 5. Notifications | Terminé | Notifications Firestore testées ; push FCM impossible à tester sur émulateur |
+| 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-**Firebase (`firebase/`)**
-- Émulateurs Auth, Firestore, Functions et Storage, avec le projet fictif `demo-fbo-plus`.
+Vérifications automatiques : 65 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+
+Chaque phase a sa branche, empilée sur la précédente, à fusionner dans cet ordre : `feature/phase-1-socle-firebase`, `feature/profil-professionnel`, `feature/phase-2-app-fbo`, `feature/phase-3-admin`, `feature/phase-4-delivery`, `feature/phase-5-notifications`.
+
+## Phase 1 — Socle Firebase
+
+- Émulateurs Auth, Firestore, Functions et Storage sur le projet fictif `demo-fbo-plus`.
 - Règles Firestore et Storage basées sur les custom claims, tout étant refusé par défaut.
-- Index Firestore des requêtes prévues.
-- Cloud Functions (région `europe-west1`) :
-  - `initialiserProfil` : crée le profil ; un nouveau numéro vérifié devient `fbo`.
-  - `definirRole` : réservée aux admins ; seul un `super_admin` touche aux rôles d'administration ; personne ne change son propre rôle.
-  - `creerCompteInterne` : comptes livreur et personnel, créés par l'administration.
-  - `definirPin` et `verifierPin` : empreinte scrypt salée et poivrée, blocage de 15 minutes après 5 échecs.
-- Journal `auditLogs` pour les actions sensibles.
-- App Check exigé sur les fonctions hors émulateur.
-- Script `scripts/creer-super-admin.mjs` pour le premier `super_admin`.
+- Connexion FBO+ par téléphone/OTP, PIN côté serveur (empreinte scrypt, blocage après 5 échecs), biométrie conservée.
+- Rôles par Cloud Function, journal `auditLogs`, App Check exigé hors émulateur.
+- Refonte de l'écran Profil et de sa page de modification.
 
-**Application FBO+**
-- Connexion Firebase par téléphone/OTP, avec PIN côté serveur et biométrie conservée.
-- Refus de la connexion si le rôle n'est pas `fbo`.
-- Modification du PIN depuis Sécurité reportée sur le serveur.
-- `AuthRepository` ajouté ; Retrofit et l'ancien client du backend Ktor retirés.
-- App Check : Play Integrity en release, fournisseur debug en debug.
-- HTTP en clair autorisé uniquement en debug.
-- Accès direct temporaire au catalogue retiré : la connexion est de nouveau obligatoire.
+## Phase 2 — Application FBO+
 
-### Vérifié
+- Catalogue, commandes, profil et clients sur Firestore, avec cache hors ligne.
+- Commandes par Cloud Functions : prix recalculés, réduction plafonnée à la marge du grade, stock réservé en transaction, sans doublon en cas de nouvelle tentative.
+- Suivi en temps réel avec chronologie, historique, statistiques et CC existantes conservées.
+- Fiches clients avec historique.
+- Boutique personnelle : lien, QR code et page publique.
+- Import des données du téléphone, sur accord explicite : les ventes et le profil locaux sont copiés, jamais effacés.
 
-- `./gradlew assembleDebug` et `compileReleaseKotlin` réussissent.
-- 40 tests réussis sur l'émulateur Firebase (`cd firebase && npm test`) : 25 sur les règles, 15 sur les fonctions.
+## Phase 3 — FBO+ Admin (`admin-web/`)
 
-- Parcours testé sur un vrai téléphone (TECNO Spark 10C, Android 12), relié aux émulateurs Firebase par USB, avec des codes SMS simulés :
-  - inscription, création du profil et du rôle `fbo`, création du PIN, arrivée au catalogue ;
-  - session conservée après fermeture complète de l'application ;
-  - déconnexion, puis reconnexion demandant le PIN ;
-  - numéro inconnu refusé, sans compte résiduel ;
-  - mauvais PIN refusé avec le nombre d'essais restants, puis bon PIN accepté.
+- Connexion réservée au personnel, menu adapté au rôle.
+- Centre d'appel : files par statut, modification, confirmation, annulation motivée, attribution du livreur.
+- Stocks multi-entrepôts : entrées, inventaires, alertes de stock bas.
+- Produits, livreurs (performance, dernière position), utilisateurs (rôles, comptes internes, suspension), centres et tarifs.
 
-### Non vérifié
+## Phase 4 — FBO+ Delivery (`delivery-app/`)
 
-- Envoi et réception de **vrais SMS** : à tester avec le vrai projet Firebase.
-- Activation et usage de la biométrie, verrouillage automatique après 5 minutes et modification du PIN depuis Sécurité : non testés sur appareil.
-- Rien n'est déployé : aucun vrai projet Firebase n'existe encore.
-- App Check n'a pas pu être testé, car l'émulateur Firebase ne le gère pas.
+- Connexion réservée aux comptes livreurs, sans auto-inscription.
+- Missions, GPS partagé pendant la livraison, itinéraire, appel client.
+- Encaissement, photo et signature obligatoires, signalement de retour.
+- Historique et revenus.
 
-### Reste à faire pour clore la phase 1
+## Phase 5 — Notifications
 
-1. Créer le projet Firebase **avec le compte Google de FBO+, jamais un compte personnel**, en formule Blaze : Functions et SMS sont payants. Utiliser aussi ce compte pour `firebase login`.
-2. Activer l'authentification par téléphone et enregistrer les empreintes SHA-1 et SHA-256.
-3. Placer `google-services.json` dans `app/`. Il n'est pas commité. Sans lui, le build debug utilise les émulateurs et un build release ne peut pas démarrer.
-4. Enregistrer l'application dans App Check (Play Integrity), puis activer l'application sur Firestore et Storage dans la console.
-5. Définir le secret : `firebase functions:secrets:set PIN_PEPPER`.
-6. Déployer : `firebase deploy --only firestore,storage,functions`.
-7. Créer le premier compte avec `scripts/creer-super-admin.mjs`.
-8. Refaire le parcours sur un appareil avec de vrais SMS.
+- Chaque changement de commande crée une notification pour le distributeur, et une mission pour le livreur, sans doublon.
+- Écran Notifications dans FBO+, pastille du nombre de nouvelles commandes dans l'admin.
+- Envoi push FCM écrit et protégé : il ne s'exécute pas sur émulateur.
 
-### Points d'attention
+## Limites connues
 
-- Les comptes de l'ancien backend Ktor ne sont pas migrés : ces utilisateurs devront se réinscrire.
-- `PIN_PEPPER` ne doit plus changer une fois en production : tous les PIN existants deviendraient invalides.
+- **FBO+ et Delivery n'ont pas été testées sur téléphone depuis le passage à Firestore.** Sur ce point, compilé ne veut pas dire fonctionnel.
+- Créer une commande exige une connexion, car le prix est calculé par le serveur. La consultation et les fiches clients fonctionnent hors ligne.
+- Les commandes partent toutes de l'entrepôt `principal`. Les autres entrepôts gèrent leur stock, mais le choix de l'entrepôt par commande reste à faire.
+- La boutique publique n'affiche pas encore de photos : elles sont dans l'application Android, pas sur Storage.
+- Le grade reste déclaré par le distributeur, alors qu'il plafonne ses réductions.
+- Le GPS du livreur n'est partagé que pendant que l'écran de mission est ouvert.
+- L'ID Forever verrouillé n'a pas encore de correction possible depuis l'admin.
+- Les comptes de l'ancien backend Ktor ne sont pas migrés.
 - Firebase BoM reste en 34.19.0 : la version 35 exige Kotlin 2.4, le projet est en 2.2.10.
-- La suspension d'un compte n'existe pas encore : à prévoir avec les utilisateurs en phase 3.
-- `orders`, `stock` et `deliveries` n'ont pas encore de fonctions d'écriture : elles arrivent en phases 2 à 4.
 
-### Lancer l'environnement local
+## Reste à tester sur téléphone
+
+1. FBO+ : import des données, commande, suivi, clients, boutique, notifications, déconnexion.
+2. FBO+ Delivery : connexion, mission, GPS, photo, signature, livraison, retour.
+3. Biométrie, verrouillage automatique, changement de PIN, Modifier commande.
+4. Parcours complet à trois applications : FBO+, Admin, Delivery.
+
+## Pour le lancement (pas maintenant)
+
+1. Passer `fbo-plus` en formule Blaze : Functions et SMS sont payants. Mettre une alerte de budget.
+2. Activer l'authentification par téléphone, enregistrer les empreintes SHA-1 et SHA-256, vérifier la livraison des SMS au Burkina.
+3. Activer App Check (Play Integrity), puis son application sur Firestore et Storage.
+4. Ajouter FBO+ Delivery au projet et fusionner sa configuration dans son propre `google-services.json`.
+5. Choisir pour Firestore une région cohérente avec `europe-west1`.
+6. Définir le secret : `firebase functions:secrets:set PIN_PEPPER`. Il ne doit plus changer ensuite, sinon tous les PIN deviennent invalides.
+7. Compiler avec `-Pfbo.firebaseReel=true`, et l'admin avec `VITE_FIREBASE_REEL=true` et sa configuration web.
+8. Remplacer `demo-fbo-plus` dans `firebase/.firebaserc`, se connecter avec `firebase login` sous le compte FBO+, puis déployer.
+9. Créer le premier compte avec `scripts/creer-super-admin.mjs`.
+10. Refaire le parcours complet avec de vrais SMS.
+
+Sans `-Pfbo.firebaseReel=true`, les builds Android utilisent toujours les émulateurs, même si `google-services.json` est présent. Sans vrai identifiant dans `.firebaserc`, un `firebase deploy` vise le projet fictif et échoue.
+
+## Lancer l'environnement local
+
+Une seule fois :
 
 ```bash
 cd firebase
 npm install
 npm --prefix functions install
-npm --prefix functions run build
 ```
 
-Créer `firebase/functions/.secret.local` (non commité) contenant `PIN_PEPPER=une-valeur-locale`, puis :
+Créer `firebase/functions/.secret.local` (non commité) contenant `PIN_PEPPER=une-valeur-locale`.
+
+À chaque session, dans `firebase/` :
 
 ```bash
 npm run emulateurs
 ```
 
-Sur un téléphone branché en USB (débogage activé), rediriger les ports vers le PC, à refaire à chaque branchement :
+Puis, dans un second terminal, une fois les émulateurs prêts :
+
+```bash
+npm run donnees
+```
+
+Arrêter avec Ctrl+C pour conserver les données dans `firebase/.emulateurs/`. Pour créer une commande de démonstration : `node scripts/commande-test.mjs`.
+
+Admin, dans `admin-web/` :
+
+```bash
+npm install
+npm run dev
+```
+
+Téléphone en USB, à refaire à chaque branchement :
 
 ```bash
 adb reverse tcp:9099 tcp:9099
 adb reverse tcp:5001 tcp:5001
+adb reverse tcp:8080 tcp:8080
+adb reverse tcp:9199 tcp:9199
 ```
 
-L'interface des émulateurs est sur http://127.0.0.1:4000. Les codes SMS de test s'y affichent dans les journaux Auth, aucun vrai SMS n'est envoyé.
-
-## Phases suivantes
-
-- Phase 2 : application FBO+ complète — à venir.
-- Phase 3 : FBO+ Admin — à venir.
-- Phase 4 : FBO+ Delivery — à venir.
-- Phase 5 : notifications — à venir.
-- Phase 6 : plus tard, à ne pas commencer.
+Comptes fictifs : super admin `+22670000010`, admin `+22670000011`, opérateur `+22670000012`, gestionnaire `+22670000013`, livreur `+22670000014`. Les codes SMS de test s'affichent dans l'interface des émulateurs (http://127.0.0.1:4000, Auth). Aucun vrai SMS n'est envoyé.

@@ -115,6 +115,12 @@ service cloud.firestore {
         && champsModifies().hasOnly(['lu']);
     }
 
+    // Jetons d'appareil : chacun n'enregistre que le sien, seules les fonctions les lisent.
+    match /fcmTokens/{token} {
+      allow create, update: if connecte() && request.resource.data.userId == request.auth.uid;
+      allow delete: if connecte() && resource.data.userId == request.auth.uid;
+    }
+
     match /auditLogs/{id} {
       allow read: if estAdmin();
     }

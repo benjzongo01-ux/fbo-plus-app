@@ -1,8 +1,9 @@
 import { signOut } from "firebase/auth";
+import { where } from "firebase/firestore";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { LIBELLES_ROLES } from "./commun";
+import { LIBELLES_ROLES, useCollection } from "./commun";
 import { auth, surEmulateurs } from "./firebase";
 import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
@@ -26,10 +27,17 @@ const PAGES = [
 ];
 
 function Application() {
-  const { chargement, utilisateur, role } = useSession();
+  const { chargement, utilisateur } = useSession();
   if (chargement) return <p className="discret centre">Chargement…</p>;
   if (!utilisateur) return <Connexion />;
 
+  return <Cadre />;
+}
+
+function Cadre() {
+  const { utilisateur, role } = useSession();
+  const { docs: nouvelles } = useCollection("orders", where("statut", "==", "nouvelle"));
+  const aTraiter = nouvelles?.length ?? 0;
   const pages = PAGES.filter((p) => p.roles.includes(role));
   return (
     <div className="cadre">
@@ -37,11 +45,14 @@ function Application() {
         <div className="logo">FBO+ <span>Admin</span></div>
         <nav>
           {pages.map((p) => (
-            <NavLink key={p.chemin} to={p.chemin}>{p.titre}</NavLink>
+            <NavLink key={p.chemin} to={p.chemin}>
+              {p.titre}
+              {p.chemin === "/commandes" && aTraiter > 0 && <span className="pastille">{aTraiter}</span>}
+            </NavLink>
           ))}
         </nav>
         <div className="pied-menu">
-          <div>{utilisateur.phoneNumber}</div>
+          <div>{utilisateur?.phoneNumber}</div>
           <div className="discret">{LIBELLES_ROLES[role]}</div>
           <button className="lien" onClick={() => signOut(auth)}>Se déconnecter</button>
         </div>

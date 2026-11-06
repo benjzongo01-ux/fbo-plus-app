@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.BuildConfig
 import com.benjo.fboplus.RappelScheduler
+import com.benjo.fboplus.data.NotificationsRepository
 import com.benjo.fboplus.data.ProductRepository
 import com.benjo.fboplus.data.Profil
 import com.benjo.fboplus.data.VentesRepository
@@ -98,7 +99,8 @@ fun ProfilScreen(
     onDeconnexion: () -> Unit,
     onCommandes: () -> Unit,
     onClients: () -> Unit,
-    onBoutique: () -> Unit
+    onBoutique: () -> Unit,
+    onNotifications: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -172,6 +174,16 @@ fun ProfilScreen(
 
             Section("Mon activité") {
                 Column(Modifier.carte()) {
+                    val nonLues = NotificationsRepository.notifications.collectAsState().value.count { !it.lu }
+                    LigneOption(
+                        Icons.Filled.Notifications,
+                        "Notifications",
+                        sousTitre = if (nonLues > 0) "$nonLues non lue(s)" else "À jour",
+                        onClick = onNotifications
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
                     LigneOption(Icons.AutoMirrored.Filled.ReceiptLong, "Mes commandes", sousTitre = "Suivi en temps réel", onClick = onCommandes) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
                     }
