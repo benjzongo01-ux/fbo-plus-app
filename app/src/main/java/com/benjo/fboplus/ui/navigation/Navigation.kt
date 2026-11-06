@@ -317,8 +317,7 @@ fun FBONavigation() {
                     onModifierProfil = { navController.navigate("modifier_profil") },
                     onSecurite = { navController.navigate("securite") },
                     onDeconnexion = {
-                        tokenStorage.clearAll()
-                        authViewModel.resetState()
+                        authViewModel.deconnecter()
                         navController.navigate("connexion") {
                             popUpTo(0) { inclusive = true }
                         }
