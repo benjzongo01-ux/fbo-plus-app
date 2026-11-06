@@ -72,6 +72,18 @@ object RappelScheduler {
         )
     }
 
+    /** Applique le choix de l'utilisateur : `heure` est au format HH:mm. */
+    fun appliquer(context: Context, actif: Boolean, heure: String) {
+        if (!actif) {
+            annulerRappel(context)
+            return
+        }
+        val parts = heure.split(":")
+        val h = parts.getOrNull(0)?.toIntOrNull()?.takeIf { it in 0..23 } ?: 19
+        val m = parts.getOrNull(1)?.toIntOrNull()?.takeIf { it in 0..59 } ?: 0
+        planifierRappelQuotidien(context, h, m)
+    }
+
     fun annulerRappel(context: Context) {
         WorkManager.getInstance(context).cancelAllWorkByTag("rappel_ventes")
     }

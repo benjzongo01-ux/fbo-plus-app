@@ -13,7 +13,9 @@ data class Profil(
     val whatsapp: String = "",
     val objectifCC: Double = 0.0,
     val objectifCA: Int = 0,
-    val profilComplet: Boolean = false
+    val profilComplet: Boolean = false,
+    val rappelActif: Boolean = true,
+    val heureRappel: String = "19:00"
 )
 
 val listeGrades = listOf(
