@@ -78,6 +78,11 @@ class ConnexionViewModel : ViewModel() {
         terminer(depot.identifiant(id, code))
     }
 
+    fun changerNumero() {
+        _erreur.value = null
+        _etat.value = EtatConnexion.Saisie
+    }
+
     fun deconnecter() {
         depot.deconnecter()
         _etat.value = EtatConnexion.Saisie

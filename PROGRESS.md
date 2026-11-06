@@ -7,10 +7,10 @@
 | Phase | Code | Vérifié |
 |---|---|---|
 | 1. Socle Firebase | Terminé | Tests émulateur, parcours testé sur téléphone |
-| 2. Application FBO+ | Terminé | Tests serveur ; écrans Firestore pas encore testés sur téléphone |
-| 3. FBO+ Admin | Terminé | Testé dans le navigateur sur émulateurs |
-| 4. FBO+ Delivery | Terminé | Tests serveur ; application pas encore lancée |
-| 5. Notifications | Terminé | Notifications Firestore testées ; push FCM impossible à tester sur émulateur |
+| 2. Application FBO+ | Terminé | Parcours principal testé sur téléphone |
+| 3. FBO+ Admin | Terminé | Testé dans le navigateur, relié au téléphone en direct |
+| 4. FBO+ Delivery | Terminé | Livraison complète testée sur téléphone |
+| 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
 Vérifications automatiques : 65 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
@@ -54,9 +54,23 @@ Chaque phase a sa branche, empilée sur la précédente, à fusionner dans cet o
 - Écran Notifications dans FBO+, pastille du nombre de nouvelles commandes dans l'admin.
 - Envoi push FCM écrit et protégé : il ne s'exécute pas sur émulateur.
 
+## Test de bout en bout sur téléphone
+
+Réalisé le 2026-11-06 sur TECNO Spark 10C (Android 12), avec les émulateurs Firebase et des codes SMS simulés. Une commande créée dans FBO+ a été suivie en direct pendant son traitement dans l'Admin, puis livrée avec FBO+ Delivery.
+
+Vérifié : première connexion sur un compte neuf, déconnexion réelle, reprise des données du téléphone sans doublon, réduction plafonnée, stock réservé puis sorti, chronologie en temps réel, 6 notifications sans doublon, refus d'un numéro inconnu dans Delivery, position GPS, photo, signature, encaissement, commission, QR code.
+
+Défauts trouvés par ce test et corrigés :
+- plantage à l'ouverture après 5 minutes d'absence (verrouillage automatique) ;
+- application vide à la première connexion (écoutes Firestore refusées avant l'attribution du rôle) ;
+- reprise des données proposée avant le déverrouillage ;
+- Admin bloqué sur « Chargement » après une session révoquée ;
+- Delivery : ancien code conservé après un refus, et pas de moyen de corriger le numéro.
+
 ## Limites connues
 
-- **FBO+ et Delivery n'ont pas été testées sur téléphone depuis le passage à Firestore.** Sur ce point, compilé ne veut pas dire fonctionnel.
+- Une commande à livrer peut être créée sans client ni téléphone : le livreur ne peut alors joindre personne. Ce champ devrait devenir obligatoire.
+- Le formulaire de nouvelle commande occupe la moitié de l'écran et réduit la liste des produits.
 - Créer une commande exige une connexion, car le prix est calculé par le serveur. La consultation et les fiches clients fonctionnent hors ligne.
 - Les commandes partent toutes de l'entrepôt `principal`. Les autres entrepôts gèrent leur stock, mais le choix de l'entrepôt par commande reste à faire.
 - La boutique publique n'affiche pas encore de photos : elles sont dans l'application Android, pas sur Storage.
@@ -68,10 +82,10 @@ Chaque phase a sa branche, empilée sur la précédente, à fusionner dans cet o
 
 ## Reste à tester sur téléphone
 
-1. FBO+ : import des données, commande, suivi, clients, boutique, notifications, déconnexion.
-2. FBO+ Delivery : connexion, mission, GPS, photo, signature, livraison, retour.
-3. Biométrie, verrouillage automatique, changement de PIN, Modifier commande.
-4. Parcours complet à trois applications : FBO+, Admin, Delivery.
+1. FBO+ : fiches clients, annulation et modification d'une commande, boutique publique ouverte depuis le QR code, consultation hors ligne.
+2. FBO+ Delivery : signalement d'un retour, itinéraire, appel client.
+3. Biométrie, saisie du PIN après verrouillage automatique, changement de PIN.
+4. Lien entre deux téléphones : le test a été fait sur un seul appareil.
 
 ## Pour le lancement (pas maintenant)
 

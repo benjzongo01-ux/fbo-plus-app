@@ -150,6 +150,9 @@ fun ConnexionEcran(vm: ConnexionViewModel) {
     val chargement = etat == EtatConnexion.Chargement
     val etape = etat as? EtatConnexion.Code
 
+    // Chaque code ne vaut que pour un envoi : l'ancien ne doit pas occuper le champ.
+    LaunchedEffect(etape?.id) { code = "" }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -201,6 +204,7 @@ fun ConnexionEcran(vm: ConnexionViewModel) {
             }
         } else {
             BoutonPrincipal("Se connecter", code.length == 6) { vm.verifier(etape.id, code) }
+            TextButton(onClick = vm::changerNumero) { Text("Changer de numéro", color = Or) }
         }
         Spacer(Modifier.height(16.dp))
         Text(

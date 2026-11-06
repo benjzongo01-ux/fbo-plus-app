@@ -27,7 +27,16 @@ export function FournisseurSession({ children }: { children: ReactNode }) {
           setSession((s) => ({ chargement: false, utilisateur: null, role: "", refuse: s.refuse }));
           return;
         }
-        const role = String((await utilisateur.getIdTokenResult()).claims.role ?? "");
+        // Une session révoquée (suspension, changement de rôle) échoue ici : retour à la connexion.
+        const role = await utilisateur
+          .getIdTokenResult()
+          .then((r) => String(r.claims.role ?? ""))
+          .catch(() => null);
+        if (role === null) {
+          setSession({ chargement: false, utilisateur: null, role: "", refuse: false });
+          await signOut(auth).catch(() => undefined);
+          return;
+        }
         if (!ROLES_PERSONNEL.includes(role)) {
           setSession({ chargement: false, utilisateur: null, role: "", refuse: true });
           await signOut(auth);
