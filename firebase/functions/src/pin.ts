@@ -18,42 +18,17 @@ const deriver = promisify(scrypt) as (
   longueur: number,
 ) => Promise<Buffer>;
 
-function lirePin(data: unknown): string {
-  const pin = (data as { pin?: unknown } | null)?.pin;
-  if (typeof pin !== "string" || !/^\d{4}$/.test(pin)) {
+function lirePin(valeur: unknown): string {
+  if (typeof valeur !== "string" || !/^\d{4}$/.test(valeur)) {
     throw new HttpsError("invalid-argument", "Le PIN doit contenir 4 chiffres.");
   }
-  return pin;
+  return valeur;
 }
 
 const empreinte = (pin: string, sel: Buffer) => deriver(pin + PIN_PEPPER.value(), sel, 32);
 
-/** Créer ou remplacer le PIN exige un code SMS vérifié il y a moins de 5 minutes. */
-export const definirPin = onCall(OPTIONS_PIN, async (req) => {
-  const uid = exigerConnexion(req);
-  const pin = lirePin(req.data);
-
-  const authTime = Number(req.auth?.token.auth_time ?? 0);
-  if (Date.now() / 1000 - authTime > FRAICHEUR_OTP_S) {
-    throw new HttpsError("failed-precondition", "Vérification SMS récente requise.");
-  }
-
-  const sel = randomBytes(16);
-  const hash = await empreinte(pin, sel);
-  await db.doc(`userSecrets/${uid}`).set({
-    hash: hash.toString("base64"),
-    sel: sel.toString("base64"),
-    echecs: 0,
-    bloqueJusqua: null,
-  });
-  await journaliser("pin_defini", uid, uid);
-
-  return { ok: true };
-});
-
-export const verifierPin = onCall(OPTIONS_PIN, async (req) => {
-  const uid = exigerConnexion(req);
-  const pin = lirePin(req.data);
+/** Compare le PIN et tient le compteur d'échecs, partagé par toutes les vérifications. */
+async function controlerPin(uid: string, pin: string) {
   const ref = db.doc(`userSecrets/${uid}`);
 
   // La transaction empêche des essais parallèles de contourner le compteur d'échecs.
@@ -91,4 +66,38 @@ export const verifierPin = onCall(OPTIONS_PIN, async (req) => {
     await journaliser("pin_bloque", uid, uid);
   }
   return resultat;
+}
+
+/** Créer ou remplacer le PIN exige un code SMS de moins de 5 minutes, ou le PIN actuel. */
+export const definirPin = onCall(OPTIONS_PIN, async (req) => {
+  const uid = exigerConnexion(req);
+  const { pin: valeur, pinActuel } = (req.data ?? {}) as { pin?: unknown; pinActuel?: unknown };
+  const pin = lirePin(valeur);
+
+  const authTime = Number(req.auth?.token.auth_time ?? 0);
+  if (Date.now() / 1000 - authTime > FRAICHEUR_OTP_S) {
+    if (pinActuel === undefined) {
+      throw new HttpsError("failed-precondition", "Vérification SMS récente requise.");
+    }
+    if (!(await controlerPin(uid, lirePin(pinActuel))).valide) {
+      throw new HttpsError("permission-denied", "PIN actuel incorrect.");
+    }
+  }
+
+  const sel = randomBytes(16);
+  const hash = await empreinte(pin, sel);
+  await db.doc(`userSecrets/${uid}`).set({
+    hash: hash.toString("base64"),
+    sel: sel.toString("base64"),
+    echecs: 0,
+    bloqueJusqua: null,
+  });
+  await journaliser("pin_defini", uid, uid);
+
+  return { ok: true };
+});
+
+export const verifierPin = onCall(OPTIONS_PIN, async (req) => {
+  const uid = exigerConnexion(req);
+  return controlerPin(uid, lirePin((req.data as { pin?: unknown } | null)?.pin));
 });

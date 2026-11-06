@@ -186,11 +186,10 @@ describe("PIN", () => {
     );
   });
 
-  it("une session ancienne ne peut pas remplacer le PIN", async () => {
-    // L'émulateur ne vérifie pas la signature : ce jeton simule une connexion datant d'une heure.
+  // L'émulateur ne vérifie pas la signature : ce jeton simule une connexion datant d'une heure.
+  async function definirPinSessionAncienne(uid: string, data: unknown) {
     const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const maintenant = Math.floor(Date.now() / 1000);
-    const uid = randomUUID();
     const jeton = [
       b64({ alg: "none", typ: "JWT" }),
       b64({
@@ -208,11 +207,27 @@ describe("PIN", () => {
     const reponse = await fetch(`http://127.0.0.1:5001/${PROJET}/${REGION}/definirPin`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${jeton}` },
-      body: JSON.stringify({ data: { pin: "1234" } }),
+      body: JSON.stringify({ data }),
     });
-    const corps = (await reponse.json()) as { error?: { status?: string } };
+    return ((await reponse.json()) as { error?: { status?: string } }).error?.status;
+  }
 
-    expect(corps.error?.status).toBe("FAILED_PRECONDITION");
-    expect((await getFirestore().doc(`userSecrets/${uid}`).get()).exists).toBe(false);
+  it("une session ancienne ne remplace pas le PIN sans le PIN actuel", async () => {
+    const u = await compte("fbo");
+    await u.appeler("definirPin", { pin: "4827" });
+
+    expect(await definirPinSessionAncienne(u.uid, { pin: "1234" })).toBe("FAILED_PRECONDITION");
+    expect(await definirPinSessionAncienne(u.uid, { pin: "1234", pinActuel: "0000" })).toBe(
+      "PERMISSION_DENIED",
+    );
+    expect((await u.appeler("verifierPin", { pin: "4827" })).valide).toBe(true);
+  });
+
+  it("une session ancienne remplace le PIN avec le bon PIN actuel", async () => {
+    const u = await compte("fbo");
+    await u.appeler("definirPin", { pin: "4827" });
+
+    expect(await definirPinSessionAncienne(u.uid, { pin: "1234", pinActuel: "4827" })).toBeUndefined();
+    expect((await u.appeler("verifierPin", { pin: "1234" })).valide).toBe(true);
   });
 });
