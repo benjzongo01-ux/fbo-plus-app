@@ -20,12 +20,11 @@ import com.benjo.fboplus.viewmodel.AuthViewModel
 /**
  * Saisie du PIN existant lors d'une connexion sur un nouvel appareil.
  * Contrairement à PinVerificationScreen (vérification locale), ce PIN
- * est vérifié côté serveur via le token temporaire reçu après verify-email.
+ * est vérifié côté serveur par la Cloud Function verifierPin.
  */
 @Composable
 fun PinEntryScreen(
     authViewModel: AuthViewModel,
-    token: String,
     onSuccess: () -> Unit
 ) {
     val uiState by authViewModel.uiState.collectAsState()
@@ -38,7 +37,7 @@ fun PinEntryScreen(
     fun onDigit(digit: String) {
         if (currentInput.length < 4) currentInput += digit
         if (currentInput.length == 4) {
-            authViewModel.loginWithPin(token, currentInput)
+            authViewModel.verifierPin(currentInput)
         }
     }
 

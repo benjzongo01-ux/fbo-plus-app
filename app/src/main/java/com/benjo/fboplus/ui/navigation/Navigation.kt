@@ -3,6 +3,7 @@
 import com.benjo.fboplus.ui.theme.*
 
 import com.benjo.fboplus.ui.screens.PinEntryScreen
+import android.net.Uri
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.benjo.fboplus.ui.screens.VerificationScreen
@@ -66,22 +67,28 @@ fun FBONavigation() {
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel()
     val tokenStorage = remember { SecureTokenStorage(context) }
-    val startDestination = if (tokenStorage.hasToken()) "catalogue" else "connexion"
+    val startDestination = if (authViewModel.isLoggedIn()) "catalogue" else "connexion"
     val productViewModel: ProductViewModel = viewModel()
     val ventesViewModel: VentesViewModel = viewModel()
     val profilViewModel: ProfilViewModel = viewModel()
     val homeListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    // Consomme l'état avant de naviguer : sinon le bouton retour relancerait la même navigation.
+    fun allerVers(route: String) {
+        authViewModel.resetState()
+        navController.navigate(route)
+    }
     DisposableEffect(Unit) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
-                    if (tokenStorage.hasToken()) {
+                    if (tokenStorage.sessionOuverte()) {
                         tokenStorage.saveLastBackgroundTime()
                     }
                 }
                 Lifecycle.Event.ON_START -> {
-                    if (tokenStorage.hasToken() && tokenStorage.shouldLock()) {
+                    if (tokenStorage.sessionOuverte() && tokenStorage.shouldLock()) {
                         navController.navigate("pin_verification") {
                             popUpTo(0) { inclusive = true }
                         }
@@ -184,28 +191,30 @@ fun FBONavigation() {
             composable("connexion") {
                 ConnexionScreen(
                     authViewModel = authViewModel,
-                    onCodeEnvoye = { email -> navController.navigate("verification/$email") },
-                                        onAllerVersInscription = { navController.navigate("inscription") }
+                    onCodeEnvoye = { telephone -> allerVers("verification/${Uri.encode(telephone)}") },
+                    onNeedsPinCreation = { allerVers("pin_creation") },
+                    onNeedsPinEntry = { allerVers("pin_entry") },
+                    onAllerVersInscription = { navController.navigate("inscription") }
                 )
             }
             composable("inscription") {
                 InscriptionScreen(
                     authViewModel = authViewModel,
-                    onCodeEnvoye = { email -> navController.navigate("verification/$email") },
-                    onNeedsPinEntry = { token -> navController.navigate("pin_entry/$token") },
+                    onCodeEnvoye = { telephone -> allerVers("verification/${Uri.encode(telephone)}") },
+                    onNeedsPinCreation = { allerVers("pin_creation") },
+                    onNeedsPinEntry = { allerVers("pin_entry") },
                     onAllerVersConnexion = { navController.popBackStack() }
                 )
             }
             composable(
-                route = "verification/{email}",
-                arguments = listOf(navArgument("email") { type = NavType.StringType })
+                route = "verification/{telephone}",
+                arguments = listOf(navArgument("telephone") { type = NavType.StringType })
             ) { backStackEntry ->
-                val email = backStackEntry.arguments?.getString("email") ?: ""
                 VerificationScreen(
                     authViewModel = authViewModel,
-                    email = email,
-                    onNeedsPinCreation = { token -> navController.navigate("pin_creation/$token") },
-                    onNeedsPinEntry = { token -> navController.navigate("pin_entry/$token") }
+                    telephone = backStackEntry.arguments?.getString("telephone") ?: "",
+                    onNeedsPinCreation = { allerVers("pin_creation") },
+                    onNeedsPinEntry = { allerVers("pin_entry") }
                 )
             }
             composable("complete_profile") {
@@ -218,14 +227,9 @@ fun FBONavigation() {
                     }
                 )
             }
-            composable(
-                route = "pin_creation/{token}",
-                arguments = listOf(navArgument("token") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val token = backStackEntry.arguments?.getString("token") ?: ""
+            composable("pin_creation") {
                 PinCreationScreen(
                     authViewModel = authViewModel,
-                    token = token,
                     onPinCreated = {
                         navController.navigate("biometric_suggestion") {
                             popUpTo("connexion") { inclusive = true }
@@ -233,14 +237,9 @@ fun FBONavigation() {
                     }
                 )
             }
-            composable(
-                route = "pin_entry/{token}",
-                arguments = listOf(navArgument("token") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val token = backStackEntry.arguments?.getString("token") ?: ""
+            composable("pin_entry") {
                 PinEntryScreen(
                     authViewModel = authViewModel,
-                    token = token,
                     onSuccess = {
                         navController.navigate("biometric_suggestion") {
                             popUpTo("connexion") { inclusive = true }
@@ -334,6 +333,7 @@ fun FBONavigation() {
             }
             composable("securite") {
                 SecuriteScreen(
+                    authViewModel = authViewModel,
                     onRetour = { navController.popBackStack() }
                 )
             }

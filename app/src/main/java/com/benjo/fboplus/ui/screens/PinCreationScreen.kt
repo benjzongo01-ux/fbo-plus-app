@@ -20,7 +20,6 @@ import com.benjo.fboplus.viewmodel.AuthViewModel
 @Composable
 fun PinCreationScreen(
     authViewModel: AuthViewModel,
-    token: String,
     onPinCreated: () -> Unit
 ) {
     val uiState by authViewModel.uiState.collectAsState()
@@ -44,7 +43,7 @@ fun PinCreationScreen(
                 errorMessage = null
             } else {
                 if (currentInput == firstPin) {
-                    authViewModel.createPin(token, firstPin)
+                    authViewModel.creerPin(firstPin)
                 } else {
                     errorMessage = "Les codes ne correspondent pas. Réessayez."
                     currentInput = ""

@@ -6,10 +6,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import com.benjo.fboplus.ui.components.*
 import com.benjo.fboplus.viewmodel.AuthUiState
 import com.benjo.fboplus.viewmodel.AuthViewModel
@@ -18,15 +19,22 @@ import com.benjo.fboplus.viewmodel.AuthViewModel
 fun ConnexionScreen(
     authViewModel: AuthViewModel,
     onCodeEnvoye: (String) -> Unit,
+    onNeedsPinCreation: () -> Unit,
+    onNeedsPinEntry: () -> Unit,
     onAllerVersInscription: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
+    val activity = LocalContext.current as FragmentActivity
+    var indicatif by remember { mutableStateOf(indicatifParDefaut) }
+    var numero by remember { mutableStateOf("") }
 
     val uiState by authViewModel.uiState.collectAsState()
 
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.CodeSent) {
-            onCodeEnvoye((uiState as AuthUiState.CodeSent).email)
+        when (val state = uiState) {
+            is AuthUiState.CodeSent -> onCodeEnvoye(state.telephone)
+            AuthUiState.NeedsPinCreation -> onNeedsPinCreation()
+            AuthUiState.NeedsPinEntry -> onNeedsPinEntry()
+            else -> {}
         }
     }
 
@@ -45,18 +53,18 @@ fun ConnexionScreen(
             Text("Connexion", fontSize = 16.sp, color = STextGray)
             Spacer(modifier = Modifier.height(32.dp))
 
-            AppTextField(
-                value = email,
-                onValueChange = {
-                    email = it
+            ChampTelephone(
+                indicatif = indicatif,
+                onIndicatifChange = { indicatif = it },
+                numero = numero,
+                onNumeroChange = {
+                    numero = it
                     if (uiState is AuthUiState.Error) authViewModel.resetState()
-                },
-                placeholder = "Adresse email",
-                keyboardType = KeyboardType.Email
+                }
             )
 
             Text(
-                "Un code de vérification vous sera envoyé par email",
+                "Un code de vérification vous sera envoyé par SMS",
                 color = STextGray,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)
@@ -70,8 +78,10 @@ fun ConnexionScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = { authViewModel.requestLoginCode(email) },
-                enabled = email.contains("@") && uiState !is AuthUiState.Loading,
+                onClick = {
+                    authViewModel.envoyerCode(activity, indicatif.dialCode + numero, inscription = false)
+                },
+                enabled = indicatif.accepte(numero) && uiState !is AuthUiState.Loading,
                 colors = ButtonDefaults.buttonColors(containerColor = SGoldPrimary),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().height(50.dp)
@@ -82,17 +92,6 @@ fun ConnexionScreen(
                     Text("Recevoir le code", fontWeight = FontWeight.Bold)
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = STextGray.copy(alpha = 0.3f))
-                Text("  ou  ", color = STextGray, fontSize = 12.sp)
-                HorizontalDivider(modifier = Modifier.weight(1f), color = STextGray.copy(alpha = 0.3f))
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            GoogleAuthButton(onClick = { /* branchement plus tard */ })
 
             Spacer(modifier = Modifier.height(24.dp))
 

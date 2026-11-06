@@ -1,153 +1,196 @@
 package com.benjo.fboplus.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.benjo.fboplus.auth.SecureTokenStorage
-import com.benjo.fboplus.data.network.ApiClient
-import com.benjo.fboplus.data.network.AuthApi
-import com.benjo.fboplus.data.network.PinRequest
-import com.benjo.fboplus.data.network.RegisterRequest
-import com.benjo.fboplus.data.network.ResendCodeRequest
-import com.benjo.fboplus.data.network.VerifyEmailRequest
+import com.benjo.fboplus.data.AuthRepository
+import com.benjo.fboplus.data.EnvoiCode
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.functions.FirebaseFunctionsException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** FBO+ n'accepte que les distributeurs : les autres rôles ont leur propre application. */
+private const val ROLE_APPLICATION = "fbo"
+
 sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
     object Success : AuthUiState()
-    data class CodeSent(val email: String) : AuthUiState()
-    data class NeedsPinCreation(val token: String) : AuthUiState()
-    data class NeedsPinEntry(val token: String) : AuthUiState()
+    data class CodeSent(val telephone: String) : AuthUiState()
+    object NeedsPinCreation : AuthUiState()
+    object NeedsPinEntry : AuthUiState()
     data class Error(val message: String) : AuthUiState()
 }
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val api = ApiClient.retrofit.create(AuthApi::class.java)
+    private val repository = AuthRepository()
     private val tokenStorage = SecureTokenStorage(application)
+
+    private var verificationId: String? = null
+    private var jetonRenvoi: PhoneAuthProvider.ForceResendingToken? = null
+    private var inscription = false
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    fun isLoggedIn(): Boolean = tokenStorage.hasToken()
+    fun isLoggedIn(): Boolean = repository.estConnecte() && tokenStorage.sessionOuverte()
 
-    /** Inscription : nouveau compte (email + téléphone, sans mot de passe) */
-    fun register(email: String, phone: String) {
+    /** Inscription et connexion partagent le même envoi de code SMS. */
+    fun envoyerCode(activity: Activity, telephone: String, inscription: Boolean) {
+        this.inscription = inscription
+        executer {
+            traiterEnvoi(repository.envoyerCode(activity, telephone), telephone)
+        }
+    }
+
+    fun renvoyerCode(activity: Activity, telephone: String) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
             try {
-                val response = api.register(RegisterRequest(email, phone))
-                val body = response.body()
-                if (response.isSuccessful && body != null) {
-                    when {
-                        body.token != null -> _uiState.value = AuthUiState.NeedsPinEntry(body.token)
-                        body.message != null -> _uiState.value = AuthUiState.CodeSent(email)
-                        else -> _uiState.value = AuthUiState.Error("Réponse inattendue du serveur.")
-                    }
-                } else {
-                    _uiState.value = AuthUiState.Error("Inscription impossible. Vérifiez vos informations.")
+                when (val envoi = repository.envoyerCode(activity, telephone, jetonRenvoi)) {
+                    is EnvoiCode.CodeEnvoye -> memoriser(envoi)
+                    is EnvoiCode.VerifieAutomatiquement -> terminerConnexion(envoi.identifiant)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Erreur réseau : impossible de contacter le serveur.")
+                _uiState.value = AuthUiState.Error(messagePour(e))
             }
         }
     }
 
-    /** Connexion sur un nouvel appareil : demande d'un code pour un compte existant */
-    fun requestLoginCode(email: String) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            try {
-                val response = api.resendCode(ResendCodeRequest(email))
-                if (response.isSuccessful) {
-                    _uiState.value = AuthUiState.CodeSent(email)
-                } else if (response.code() == 404) {
-                    _uiState.value = AuthUiState.Error("Aucun compte trouvé avec cet email.")
-                } else {
-                    _uiState.value = AuthUiState.Error("Échec de l'envoi du code.")
-                }
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Erreur réseau : impossible de contacter le serveur.")
+    fun verifierCode(code: String) {
+        val id = verificationId
+        if (id == null) {
+            _uiState.value = AuthUiState.Error("Code expiré. Demandez un nouveau code.")
+            return
+        }
+        executer { terminerConnexion(repository.identifiantDepuisCode(id, code)) }
+    }
+
+    fun creerPin(pin: String) {
+        executer {
+            repository.definirPin(pin)
+            ouvrirSession(pin)
+        }
+    }
+
+    /** Saisie du PIN existant (compte déjà créé, nouvelle connexion) */
+    fun verifierPin(pin: String) {
+        executer {
+            val resultat = repository.verifierPin(pin)
+            when {
+                resultat.valide -> ouvrirSession(pin)
+                resultat.essaisRestants == 0 ->
+                    _uiState.value = AuthUiState.Error(MESSAGE_PIN_BLOQUE)
+                else -> _uiState.value =
+                    AuthUiState.Error("PIN incorrect. Essais restants : ${resultat.essaisRestants}.")
             }
         }
     }
 
-    /** Vérification du code reçu par email (inscription ET connexion nouvel appareil) */
-    fun verifyCode(email: String, code: String) {
+    /** Depuis Sécurité : le serveur reste la référence du PIN. `surFin` reçoit l'erreur éventuelle. */
+    fun changerPin(pinActuel: String, nouveauPin: String, surFin: (String?) -> Unit) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
             try {
-                val response = api.verifyEmail(VerifyEmailRequest(email, code))
-                val body = response.body()
-                if (response.isSuccessful && body != null) {
-                    _uiState.value = if (body.hasPinSet) {
-                        AuthUiState.NeedsPinEntry(body.token)
-                    } else {
-                        AuthUiState.NeedsPinCreation(body.token)
-                    }
-                } else {
-                    _uiState.value = AuthUiState.Error("Code incorrect.")
-                }
+                repository.definirPin(nouveauPin, pinActuel)
+                tokenStorage.savePin(nouveauPin)
+                surFin(null)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Erreur réseau : impossible de contacter le serveur.")
+                surFin(messagePour(e))
             }
         }
     }
 
-    fun resendCode(email: String) {
-        viewModelScope.launch {
-            try {
-                api.resendCode(ResendCodeRequest(email))
-            } catch (e: Exception) {
-                // Échec silencieux, l'utilisateur peut réessayer
-            }
-        }
-    }
-
-    /** Première définition du PIN (nouveau compte) */
-    fun createPin(token: String, pin: String) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            try {
-                val response = api.setPin("Bearer $token", PinRequest(pin))
-                if (response.isSuccessful) {
-                    tokenStorage.saveToken(token)
-                    tokenStorage.savePin(pin)
-                    _uiState.value = AuthUiState.Success
-                } else {
-                    _uiState.value = AuthUiState.Error("Impossible d'enregistrer le PIN.")
-                }
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Erreur réseau : impossible de contacter le serveur.")
-            }
-        }
-    }
-
-    /** Saisie du PIN existant (compte déjà créé, nouvel appareil) */
-    fun loginWithPin(token: String, pin: String) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            try {
-                val response = api.loginPin("Bearer $token", PinRequest(pin))
-                val body = response.body()
-                if (response.isSuccessful && body != null) {
-                    tokenStorage.saveToken(body.token)
-                    tokenStorage.savePin(pin)
-                    _uiState.value = AuthUiState.Success
-                } else {
-                    _uiState.value = AuthUiState.Error("PIN incorrect.")
-                }
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error("Erreur réseau : impossible de contacter le serveur.")
-            }
-        }
+    fun deconnecter() {
+        repository.deconnecter()
+        tokenStorage.clearAll()
+        resetState()
     }
 
     fun resetState() {
         _uiState.value = AuthUiState.Idle
+    }
+
+    private fun traiterEnvoi(envoi: EnvoiCode, telephone: String) {
+        when (envoi) {
+            is EnvoiCode.CodeEnvoye -> {
+                memoriser(envoi)
+                _uiState.value = AuthUiState.CodeSent(telephone)
+            }
+            is EnvoiCode.VerifieAutomatiquement -> executer { terminerConnexion(envoi.identifiant) }
+        }
+    }
+
+    private fun memoriser(envoi: EnvoiCode.CodeEnvoye) {
+        verificationId = envoi.verificationId
+        jetonRenvoi = envoi.jetonRenvoi
+    }
+
+    private suspend fun terminerConnexion(identifiant: PhoneAuthCredential) {
+        val nouveauCompte = repository.connecter(identifiant)
+        // L'écran Connexion ne recueille pas l'accord aux conditions d'utilisation.
+        if (nouveauCompte && !inscription) {
+            repository.supprimerCompteCourant()
+            _uiState.value = AuthUiState.Error("Aucun compte trouvé avec ce numéro.")
+            return
+        }
+
+        val profil = repository.initialiserProfil()
+        if (profil.role != ROLE_APPLICATION) {
+            repository.deconnecter()
+            _uiState.value = AuthUiState.Error("Ce compte n'a pas accès à l'application FBO+.")
+            return
+        }
+        _uiState.value = if (profil.aPin) AuthUiState.NeedsPinEntry else AuthUiState.NeedsPinCreation
+    }
+
+    private fun ouvrirSession(pin: String) {
+        tokenStorage.savePin(pin)
+        tokenStorage.ouvrirSession()
+        _uiState.value = AuthUiState.Success
+    }
+
+    private fun executer(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+            try {
+                action()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = AuthUiState.Error(messagePour(e))
+            }
+        }
+    }
+
+    private fun messagePour(e: Exception): String = when (e) {
+        is FirebaseNetworkException -> "Erreur réseau : impossible de contacter le serveur."
+        is FirebaseAuthInvalidCredentialsException -> "Code ou numéro incorrect."
+        is FirebaseTooManyRequestsException -> "Trop de tentatives. Réessayez plus tard."
+        is FirebaseFunctionsException -> when (e.code) {
+            FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> MESSAGE_PIN_BLOQUE
+            FirebaseFunctionsException.Code.PERMISSION_DENIED -> "Code PIN incorrect."
+            FirebaseFunctionsException.Code.UNAVAILABLE ->
+                "Erreur réseau : impossible de contacter le serveur."
+            else -> "Une erreur est survenue. Réessayez."
+        }
+        else -> "Une erreur est survenue. Réessayez."
+    }
+
+    private companion object {
+        const val MESSAGE_PIN_BLOQUE = "Trop d'essais. Réessayez dans 15 minutes."
     }
 }

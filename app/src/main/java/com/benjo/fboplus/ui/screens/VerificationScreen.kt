@@ -8,11 +8,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import com.benjo.fboplus.viewmodel.AuthUiState
 import com.benjo.fboplus.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
@@ -20,21 +22,24 @@ import kotlinx.coroutines.delay
 private val Or = Color(0xFFD4AF37)
 private val OrClair = Color(0xFFFFE58A)
 private val FondNoir = Color(0xFF000000)
+private const val LONGUEUR_CODE = 6
 
 @Composable
 fun VerificationScreen(
     authViewModel: AuthViewModel,
-    email: String,
-    onNeedsPinCreation: (String) -> Unit,
-    onNeedsPinEntry: (String) -> Unit
+    telephone: String,
+    onNeedsPinCreation: () -> Unit,
+    onNeedsPinEntry: () -> Unit
 ) {
+    val activity = LocalContext.current as FragmentActivity
     val uiState by authViewModel.uiState.collectAsState()
 
     var code by remember { mutableStateOf("") }
     var secondesRestantes by remember { mutableStateOf(60) }
     var peutRenvoyer by remember { mutableStateOf(false) }
+    var envois by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(envois) {
         secondesRestantes = 60
         peutRenvoyer = false
         while (secondesRestantes > 0) {
@@ -45,9 +50,9 @@ fun VerificationScreen(
     }
 
     LaunchedEffect(uiState) {
-        when (val state = uiState) {
-            is AuthUiState.NeedsPinCreation -> onNeedsPinCreation(state.token)
-            is AuthUiState.NeedsPinEntry -> onNeedsPinEntry(state.token)
+        when (uiState) {
+            AuthUiState.NeedsPinCreation -> onNeedsPinCreation()
+            AuthUiState.NeedsPinEntry -> onNeedsPinEntry()
             else -> {}
         }
     }
@@ -64,7 +69,7 @@ fun VerificationScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                "Vérification de l'email",
+                "Vérification du numéro",
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -72,7 +77,7 @@ fun VerificationScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "Un code à 4 chiffres a été envoyé à\n$email",
+                "Un code à $LONGUEUR_CODE chiffres a été envoyé par SMS au\n$telephone",
                 color = Color(0xFFAAAAAA),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
@@ -82,7 +87,7 @@ fun VerificationScreen(
             OutlinedTextField(
                 value = code,
                 onValueChange = {
-                    if (it.length <= 4 && it.all { c -> c.isDigit() }) {
+                    if (it.length <= LONGUEUR_CODE && it.all { c -> c.isDigit() }) {
                         code = it
                         if (uiState is AuthUiState.Error) authViewModel.resetState()
                     }
@@ -91,7 +96,7 @@ fun VerificationScreen(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 28.sp, letterSpacing = 12.sp, textAlign = TextAlign.Center
+                    fontSize = 28.sp, letterSpacing = 8.sp, textAlign = TextAlign.Center
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Or,
@@ -112,8 +117,8 @@ fun VerificationScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { authViewModel.verifyCode(email, code) },
-                enabled = code.length == 4 && uiState !is AuthUiState.Loading,
+                onClick = { authViewModel.verifierCode(code) },
+                enabled = code.length == LONGUEUR_CODE && uiState !is AuthUiState.Loading,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Or, contentColor = Color.Black, disabledContainerColor = Color(0xFF444444)
                 ),
@@ -130,9 +135,8 @@ fun VerificationScreen(
 
             if (peutRenvoyer) {
                 TextButton(onClick = {
-                    authViewModel.resendCode(email)
-                    secondesRestantes = 60
-                    peutRenvoyer = false
+                    authViewModel.renvoyerCode(activity, telephone)
+                    envois++
                 }) {
                     Text("Renvoyer le code", color = OrClair)
                 }

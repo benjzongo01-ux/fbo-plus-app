@@ -32,15 +32,13 @@ class SecureTokenStorage(context: Context) {
         )
     }
 
-    // --- Token JWT ---
+    // --- Session (ouverte une fois le code SMS et le PIN validés) ---
 
-    fun saveToken(token: String) {
-        prefs.edit().putString("jwt_token", token).apply()
+    fun ouvrirSession() {
+        prefs.edit().remove("jwt_token").putBoolean("session_ouverte", true).apply()
     }
 
-    fun getToken(): String? = prefs.getString("jwt_token", null)
-
-    fun hasToken(): Boolean = getToken() != null
+    fun sessionOuverte(): Boolean = prefs.getBoolean("session_ouverte", false)
 
     // --- Déconnexion complète ---
 

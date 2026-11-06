@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.benjo.fboplus.auth.BiometricAuthHelper
 import com.benjo.fboplus.auth.SecureTokenStorage
+import com.benjo.fboplus.viewmodel.AuthViewModel
 import com.benjo.fboplus.ui.components.*
 
 private enum class EtapeChangementPin { AUCUNE, ANCIEN, NOUVEAU, CONFIRMATION }
@@ -28,6 +29,7 @@ private enum class EtapeChangementPin { AUCUNE, ANCIEN, NOUVEAU, CONFIRMATION }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecuriteScreen(
+    authViewModel: AuthViewModel,
     onRetour: () -> Unit,
 ) {
 val context = LocalContext.current
@@ -39,6 +41,7 @@ val context = LocalContext.current
     var biometrieActivee by remember { mutableStateOf(storage.isBiometricEnabled()) }
     var etapePin by remember { mutableStateOf(EtapeChangementPin.AUCUNE) }
     var saisieActuelle by remember { mutableStateOf("") }
+    var ancienPinTemp by remember { mutableStateOf("") }
     var nouveauPinTemp by remember { mutableStateOf("") }
     var messageErreur by remember { mutableStateOf<String?>(null) }
     var messageSucces by remember { mutableStateOf<String?>(null) }
@@ -46,6 +49,7 @@ val context = LocalContext.current
     fun reinitialiserFlowPin() {
         etapePin = EtapeChangementPin.AUCUNE
         saisieActuelle = ""
+        ancienPinTemp = ""
         nouveauPinTemp = ""
     }
 
@@ -56,6 +60,7 @@ val context = LocalContext.current
             when (etapePin) {
                 EtapeChangementPin.ANCIEN -> {
                     if (storage.verifyPin(saisieActuelle)) {
+                        ancienPinTemp = saisieActuelle
                         saisieActuelle = ""
                         etapePin = EtapeChangementPin.NOUVEAU
                         messageErreur = null
@@ -71,9 +76,16 @@ val context = LocalContext.current
                 }
                 EtapeChangementPin.CONFIRMATION -> {
                     if (saisieActuelle == nouveauPinTemp) {
-                        storage.savePin(nouveauPinTemp)
-                        messageSucces = "PIN mis à jour avec succès."
-                        reinitialiserFlowPin()
+                        authViewModel.changerPin(ancienPinTemp, nouveauPinTemp) { erreur ->
+                            if (erreur == null) {
+                                messageSucces = "PIN mis à jour avec succès."
+                                reinitialiserFlowPin()
+                            } else {
+                                reinitialiserFlowPin()
+                                messageErreur = erreur
+                                etapePin = EtapeChangementPin.ANCIEN
+                            }
+                        }
                     } else {
                         messageErreur = "Les codes ne correspondent pas."
                         saisieActuelle = ""

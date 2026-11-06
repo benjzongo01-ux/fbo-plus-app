@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Sans google-services.json, le build debug se connecte aux émulateurs Firebase locaux.
+val configFirebasePresente = file("google-services.json").exists()
+if (configFirebasePresente) apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "com.benjo.fboplus"
     compileSdk {
@@ -22,7 +26,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!configFirebasePresente}")
+        }
         release {
+            buildConfigField("boolean", "EMULATEUR_FIREBASE", "false")
             optimization {
                 enable = false
             }
@@ -34,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -62,8 +71,11 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.functions)
+    implementation(libs.firebase.appcheck.playintegrity)
+    debugImplementation(libs.firebase.appcheck.debug)
+    implementation(libs.kotlinx.coroutines.play.services)
 }
