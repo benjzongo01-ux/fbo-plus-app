@@ -3,9 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Sans google-services.json, le build debug se connecte aux émulateurs Firebase locaux.
-val configFirebasePresente = file("google-services.json").exists()
-if (configFirebasePresente) apply(plugin = "com.google.gms.google-services")
+// Par défaut, l'application ne parle qu'aux émulateurs locaux, même si google-services.json est là.
+// Le vrai projet ne s'utilise qu'au lancement, de façon explicite : -Pfbo.firebaseReel=true
+val firebaseReel = providers.gradleProperty("fbo.firebaseReel").orNull == "true"
+if (firebaseReel) apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.benjo.fboplus"
@@ -27,10 +28,10 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!configFirebasePresente}")
+            buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!firebaseReel}")
         }
         release {
-            buildConfigField("boolean", "EMULATEUR_FIREBASE", "false")
+            buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!firebaseReel}")
             optimization {
                 enable = false
             }
@@ -75,6 +76,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.functions)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
+    implementation(libs.zxing.core)
     implementation(libs.firebase.appcheck.playintegrity)
     debugImplementation(libs.firebase.appcheck.debug)
     implementation(libs.kotlinx.coroutines.play.services)

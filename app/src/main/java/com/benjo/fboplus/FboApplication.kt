@@ -5,7 +5,9 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.storage.FirebaseStorage
 
 const val REGION_FUNCTIONS = "europe-west1"
 
@@ -39,5 +41,7 @@ class FboApplication : Application() {
         )
         FirebaseAuth.getInstance().useEmulator(HOTE_EMULATEUR, 9099)
         FirebaseFunctions.getInstance(REGION_FUNCTIONS).useEmulator(HOTE_EMULATEUR, 5001)
+        FirebaseFirestore.getInstance().useEmulator(HOTE_EMULATEUR, 8080)
+        FirebaseStorage.getInstance().useEmulator(HOTE_EMULATEUR, 9199)
     }
 }
