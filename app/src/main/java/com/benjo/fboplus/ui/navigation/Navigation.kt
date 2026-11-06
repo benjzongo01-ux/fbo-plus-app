@@ -79,7 +79,13 @@ fun FBONavigation() {
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel()
     val tokenStorage = remember { SecureTokenStorage(context) }
-    val startDestination = if (authViewModel.isLoggedIn()) "catalogue" else "connexion"
+    val startDestination = remember {
+        when {
+            !authViewModel.isLoggedIn() -> "connexion"
+            tokenStorage.shouldLock() -> "pin_verification"
+            else -> "catalogue"
+        }
+    }
     val productViewModel: ProductViewModel = viewModel()
     val ventesViewModel: VentesViewModel = viewModel()
     val profilViewModel: ProfilViewModel = viewModel()
@@ -100,7 +106,10 @@ fun FBONavigation() {
                     }
                 }
                 Lifecycle.Event.ON_START -> {
-                    if (tokenStorage.sessionOuverte() && tokenStorage.shouldLock()) {
+                    // À l'ouverture de l'application, la navigation n'existe pas encore :
+                    // ce cas est traité par l'écran de départ.
+                    val navigationPrete = navController.currentBackStackEntry != null
+                    if (navigationPrete && tokenStorage.sessionOuverte() && tokenStorage.shouldLock()) {
                         navController.navigate("pin_verification") {
                             popUpTo(0) { inclusive = true }
                         }
@@ -135,7 +144,9 @@ fun FBONavigation() {
     }
 
     val propositionImport by VentesRepository.propositionImport.collectAsState()
-    propositionImport?.let { nombre ->
+    val routeActive = navController.currentBackStackEntryAsState().value?.destination?.route
+    // Jamais avant le déverrouillage : seul le titulaire de la session peut répondre.
+    propositionImport?.takeIf { routeActive != null && routeActive !in routesSansBarre }?.let { nombre ->
         AlertDialog(
             onDismissRequest = {},
             containerColor = BlackCard,
