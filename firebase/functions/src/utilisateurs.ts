@@ -78,6 +78,32 @@ export const definirRole = onCall(OPTIONS_APPEL, async (req) => {
   return { uid, role };
 });
 
+/** Un compte suspendu ne peut plus se connecter et perd immédiatement ses sessions. */
+export const definirStatut = onCall(OPTIONS_APPEL, async (req) => {
+  const appelant = exigerAdmin(req);
+  const { uid, statut } = (req.data ?? {}) as { uid?: unknown; statut?: unknown };
+
+  if (typeof uid !== "string" || (statut !== "actif" && statut !== "suspendu")) {
+    throw new HttpsError("invalid-argument", "Données invalides.");
+  }
+  if (uid === appelant.uid) {
+    throw new HttpsError("permission-denied", "Vous ne pouvez pas suspendre votre propre compte.");
+  }
+
+  const auth = getAuth();
+  const compte = await auth.getUser(uid).catch(() => {
+    throw new HttpsError("not-found", "Utilisateur introuvable.");
+  });
+  exigerDroitSurRole(appelant.role, compte.customClaims?.role as string | undefined);
+
+  await auth.updateUser(uid, { disabled: statut === "suspendu" });
+  if (statut === "suspendu") await auth.revokeRefreshTokens(uid);
+  await db.doc(`users/${uid}`).set({ statut }, { merge: true });
+  await journaliser("statut_modifie", appelant.uid, uid, { statut });
+
+  return { uid, statut };
+});
+
 /** Comptes livreur et personnel : créés uniquement par l'administration. */
 export const creerCompteInterne = onCall(OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);

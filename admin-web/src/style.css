@@ -1,0 +1,147 @@
+:root {
+  --fond: #0b0d14;
+  --carte: #141821;
+  --surface: #232834;
+  --bordure: #2c3040;
+  --or: #d4af37;
+  --texte: #f2f2f2;
+  --texte2: #b0b8c8;
+  --discret: #8791a5;
+  --rouge: #ff5470;
+  --vert: #00c853;
+  --bleu: #6ea8ff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 { font-size: 24px; margin: 0 0 16px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+a { color: var(--or); }
+.discret { color: var(--discret); }
+.centre { text-align: center; padding: 48px 16px; }
+.droite { text-align: right; }
+.erreur { color: var(--rouge); margin: 4px 0; }
+.succes { color: var(--vert); margin: 4px 0; }
+.alerte { color: var(--rouge); font-weight: 600; }
+.logo { color: var(--or); font-size: 22px; font-weight: 800; }
+.logo span { color: var(--texte2); font-weight: 500; font-size: 15px; }
+
+.cadre { display: flex; min-height: 100vh; }
+.menu {
+  width: 224px;
+  flex-shrink: 0;
+  background: var(--carte);
+  border-right: 1px solid var(--bordure);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.menu nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.menu nav a { color: var(--texte2); text-decoration: none; padding: 9px 12px; border-radius: 8px; }
+.menu nav a:hover { background: var(--surface); }
+.menu nav a.active { background: rgba(212, 175, 55, .14); color: var(--or); font-weight: 600; }
+.pied-menu { font-size: 13px; }
+.contenu { flex: 1; min-width: 0; padding: 20px 24px; }
+.bandeau {
+  background: rgba(212, 175, 55, .1);
+  border: 1px solid rgba(212, 175, 55, .3);
+  color: var(--or);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.carte { background: var(--carte); border: 1px solid var(--bordure); border-radius: 12px; padding: 18px; }
+.etroit { max-width: 440px; margin-bottom: 16px; }
+.deux-colonnes { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.detail { width: 380px; display: flex; flex-direction: column; gap: 10px; position: sticky; top: 16px; }
+.detail p { margin: 0; }
+
+table { width: 100%; border-collapse: collapse; background: var(--carte); border-radius: 10px; overflow: hidden; }
+th { text-align: left; color: var(--discret); font-weight: 500; font-size: 13px; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--bordure); }
+th.droite, td.droite { text-align: right; }
+tbody tr:last-child td { border-bottom: 0; }
+.deux-colonnes tbody tr { cursor: pointer; }
+.deux-colonnes tbody tr:hover { background: var(--surface); }
+.detail tbody tr { cursor: default; }
+tr.selection { background: rgba(212, 175, 55, .1); }
+
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  color: var(--texte);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+}
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--or); outline-offset: 1px; }
+input.quantite { width: 76px; padding: 6px 8px; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--texte2); font-size: 13px; }
+label input, label textarea { font-size: 15px; }
+label.case { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; }
+
+button, .bouton {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+button:disabled { opacity: .5; cursor: not-allowed; }
+.principal { background: var(--or); color: var(--fond); }
+.secondaire { background: var(--surface); color: var(--texte); }
+.danger { background: transparent; color: var(--rouge); border: 1px solid var(--rouge); }
+.lien { background: none; color: var(--or); padding: 2px 0; font-weight: 500; }
+
+.onglets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.onglets button { background: var(--carte); color: var(--texte2); border: 1px solid var(--bordure); font-weight: 500; padding: 6px 12px; }
+.onglets button.actif { background: rgba(212, 175, 55, .14); color: var(--or); border-color: var(--or); }
+.filtres { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.marge { margin-top: 20px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions.serre { flex-wrap: nowrap; }
+
+.statut { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: rgba(212, 175, 55, .14); color: var(--or); white-space: nowrap; }
+.statut.livree { background: rgba(0, 200, 83, .14); color: var(--vert); }
+.statut.annulee, .statut.retournee { background: rgba(255, 84, 112, .14); color: var(--rouge); }
+.statut.assignee, .statut.en_livraison { background: rgba(110, 168, 255, .14); color: var(--bleu); }
+
+.liste { list-style: none; margin: 0 0 12px; padding: 0; }
+.liste li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--bordure); }
+
+.connexion { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.connexion .carte { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+.connexion p { margin: 0; }
+
+.boutique { max-width: 1040px; margin: 0 auto; padding: 24px 16px; }
+.boutique header { text-align: center; margin-bottom: 20px; }
+.boutique h1 { margin: 8px 0 4px; }
+.boutique header p { margin: 0 0 12px; }
+.grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.grille h2 { font-size: 15px; margin-bottom: 6px; }
+.grille p { margin: 0 0 8px; font-size: 14px; }
+.grille img { width: 100%; height: 170px; object-fit: contain; margin-bottom: 8px; }
+
+@media (max-width: 900px) {
+  .cadre { flex-direction: column; }
+  .menu { width: auto; border-right: 0; border-bottom: 1px solid var(--bordure); }
+  .menu nav { flex-direction: row; flex-wrap: wrap; }
+  .contenu { padding: 16px; }
+  .deux-colonnes { grid-template-columns: minmax(0, 1fr); }
+  .detail { width: auto; position: static; }
+  table { display: block; overflow-x: auto; }
+}

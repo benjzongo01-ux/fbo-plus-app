@@ -35,3 +35,4 @@ google-services.json
 
 firebase/functions/.secret.local
 firebase/.emulateurs/
+admin-web/dist/

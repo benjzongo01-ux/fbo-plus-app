@@ -1,4 +1,9 @@
-export { creerCompteInterne, definirRole, initialiserProfil } from "./utilisateurs.js";
+export {
+  creerCompteInterne,
+  definirRole,
+  definirStatut,
+  initialiserProfil,
+} from "./utilisateurs.js";
 export { definirPin, verifierPin } from "./pin.js";
 export {
   ajusterStock,

@@ -253,6 +253,30 @@ describe("cycle complet jusqu'à la livraison", () => {
   });
 });
 
+describe("definirStatut", () => {
+  it("un admin suspend un FBO, pas un autre admin ni lui-même", async () => {
+    const admin = await compte("admin");
+    const f = await fbo();
+    const autreAdmin = await compte("admin");
+    await admin.appeler("definirStatut", { uid: f.uid, statut: "suspendu" });
+    expect((await adminDb().doc(`users/${f.uid}`).get()).data()?.statut).toBe("suspendu");
+    expect(await codeErreur(admin.appeler("definirStatut", { uid: autreAdmin.uid, statut: "suspendu" }))).toBe(
+      "functions/permission-denied",
+    );
+    expect(await codeErreur(admin.appeler("definirStatut", { uid: admin.uid, statut: "suspendu" }))).toBe(
+      "functions/permission-denied",
+    );
+  });
+
+  it("un opérateur ne suspend personne", async () => {
+    const operateur = await compte("operateur");
+    const f = await fbo();
+    expect(await codeErreur(operateur.appeler("definirStatut", { uid: f.uid, statut: "suspendu" }))).toBe(
+      "functions/permission-denied",
+    );
+  });
+});
+
 describe("ajusterStock et importerVentes", () => {
   it("enregistre une entrée et un inventaire, réservés au personnel de stock", async () => {
     const g = await compte("gestionnaire_stock");

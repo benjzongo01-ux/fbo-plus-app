@@ -1,0 +1,102 @@
+import { collection, onSnapshot, query, type Query, type QueryConstraint } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { db } from "./firebase";
+
+export type Doc = { id: string } & Record<string, any>;
+
+export const ROLES_PERSONNEL = ["operateur", "gestionnaire_stock", "admin", "super_admin"];
+
+export const LIBELLES_ROLES: Record<string, string> = {
+  fbo: "Distributeur",
+  livreur: "Livreur",
+  operateur: "Opérateur",
+  gestionnaire_stock: "Gestionnaire de stock",
+  admin: "Administrateur",
+  super_admin: "Super administrateur",
+};
+
+export const LIBELLES_STATUTS: Record<string, string> = {
+  nouvelle: "Nouvelle",
+  confirmee: "Confirmée",
+  en_preparation: "En préparation",
+  prete: "Prête",
+  assignee: "Livreur assigné",
+  en_livraison: "En livraison",
+  livree: "Livrée",
+  annulee: "Annulée",
+  retournee: "Retournée",
+};
+
+export const fcfa = (n: number | undefined) =>
+  `${new Intl.NumberFormat("fr-FR").format(n ?? 0)} FCFA`;
+
+export function dateCourte(valeur: { toDate?: () => Date } | undefined) {
+  const d = valeur?.toDate?.();
+  return d
+    ? d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "—";
+}
+
+/** Traduit les erreurs Firebase en un message lisible, sans détail technique. */
+export function messageErreur(e: unknown): string {
+  const { code, message } = e as { code?: string; message?: string };
+  if (code?.startsWith("functions/") && message && code !== "functions/internal") return message;
+  if (code === "permission-denied" || code === "functions/permission-denied") {
+    return "Vous n'avez pas le droit d'effectuer cette action.";
+  }
+  return "Une erreur est survenue. Réessayez.";
+}
+
+/** Abonnement temps réel à une collection ; `erreur` évite une page vide silencieuse. */
+export function useCollection(nom: string | null, ...contraintes: QueryConstraint[]) {
+  const [docs, setDocs] = useState<Doc[] | null>(null);
+  const [erreur, setErreur] = useState("");
+  const cle = `${nom}|${JSON.stringify(contraintes.map((c) => (c as { type?: string }).type))}`;
+
+  useEffect(() => {
+    if (!nom) return;
+    const requete: Query = query(collection(db, nom), ...contraintes);
+    return onSnapshot(
+      requete,
+      (r) => {
+        setDocs(r.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setErreur("");
+      },
+      (e) => setErreur(messageErreur(e)),
+    );
+    // Les contraintes de chaque page sont fixes : le nom de la collection suffit comme clé.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cle]);
+
+  return { docs, erreur };
+}
+
+export function Etat({ docs, erreur, vide }: { docs: Doc[] | null; erreur: string; vide: string }) {
+  if (erreur) return <p className="erreur">{erreur}</p>;
+  if (docs === null) return <p className="discret">Chargement…</p>;
+  if (docs.length === 0) return <p className="discret">{vide}</p>;
+  return null;
+}
+
+/** Exécute une action serveur et expose son état au bouton et au message d'erreur. */
+export function useAction() {
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  async function lancer(action: () => Promise<unknown>) {
+    setEnCours(true);
+    setErreur("");
+    try {
+      await action();
+      return true;
+    } catch (e) {
+      console.error(e);
+      setErreur(messageErreur(e));
+      return false;
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return { enCours, erreur, lancer };
+}
