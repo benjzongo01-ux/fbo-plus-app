@@ -25,3 +25,12 @@ licenses/
 .temp/
 .kotlin/
 *.log
+
+# Firebase
+node_modules/
+firebase/functions/lib/
+firebase/.firebase/
+google-services.json
+*service-account*.json
+
+firebase/functions/.secret.local

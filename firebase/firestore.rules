@@ -1,0 +1,98 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function connecte() { return request.auth != null; }
+    function role() { return connecte() ? request.auth.token.get('role', '') : ''; }
+    function aRole(roles) { return role() in roles; }
+    function estAdmin() { return aRole(['admin', 'super_admin']); }
+    function estPersonnel() {
+      return aRole(['operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
+    }
+    function aUnRole() {
+      return aRole(['fbo', 'livreur', 'operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
+    }
+    function moi(uid) { return connecte() && request.auth.uid == uid; }
+    function champsModifies() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Tout ce qui n'est pas autorisé explicitement ci-dessous est refusé.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Création et rôle : Cloud Functions uniquement.
+    // L'utilisateur ne change que son nom et son email.
+    match /users/{uid} {
+      allow read: if moi(uid) || estPersonnel();
+      allow update: if moi(uid) && champsModifies().hasOnly(['nom', 'email']);
+    }
+
+    match /products/{id} {
+      allow read: if aUnRole();
+      allow write: if estAdmin();
+    }
+
+    match /warehouses/{id} {
+      allow read: if estPersonnel();
+      allow write: if estAdmin();
+    }
+
+    // Stock et mouvements : écriture réservée aux Cloud Functions.
+    match /stock/{id} {
+      allow read: if estPersonnel();
+    }
+    match /stockMovements/{id} {
+      allow read: if estPersonnel();
+    }
+
+    match /customers/{id} {
+      function clientValide() {
+        return request.resource.data.nom is string
+          && request.resource.data.nom.size() > 0
+          && request.resource.data.nom.size() <= 120;
+      }
+      allow read: if estPersonnel()
+        || (role() == 'fbo' && resource.data.ownerId == request.auth.uid);
+      allow create: if role() == 'fbo'
+        && request.resource.data.ownerId == request.auth.uid
+        && clientValide();
+      allow update: if role() == 'fbo'
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && clientValide();
+      allow delete: if role() == 'fbo' && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Commandes : prix et statuts sont gérés côté serveur, aucune écriture cliente.
+    match /orders/{id} {
+      allow read: if estPersonnel()
+        || (role() == 'fbo' && resource.data.fboId == request.auth.uid)
+        || (role() == 'livreur' && resource.data.livreurId == request.auth.uid);
+    }
+
+    // Le livreur assigné ne met à jour que sa position GPS.
+    match /deliveries/{id} {
+      allow read: if estPersonnel()
+        || (role() == 'livreur' && resource.data.livreurId == request.auth.uid);
+      allow update: if role() == 'livreur'
+        && resource.data.livreurId == request.auth.uid
+        && champsModifies().hasOnly(['position', 'positionUpdatedAt']);
+    }
+
+    match /notifications/{id} {
+      allow read: if connecte() && resource.data.userId == request.auth.uid;
+      allow update: if connecte()
+        && resource.data.userId == request.auth.uid
+        && champsModifies().hasOnly(['lu']);
+    }
+
+    match /auditLogs/{id} {
+      allow read: if estAdmin();
+    }
+
+    // userSecrets (empreintes de PIN) : aucune règle, donc jamais lisible par un client.
+  }
+}

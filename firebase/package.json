@@ -1,0 +1,16 @@
+{
+  "name": "fbo-plus-firebase",
+  "private": true,
+  "scripts": {
+    "emulateurs": "firebase emulators:start --project demo-fbo-plus",
+    "test": "firebase emulators:exec --project demo-fbo-plus --only auth,firestore,functions,storage \"vitest run\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.2.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.35.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
