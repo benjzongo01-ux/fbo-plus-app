@@ -73,6 +73,13 @@ Créer `firebase/functions/.secret.local` (non commité) contenant `PIN_PEPPER=u
 npm run emulateurs
 ```
 
+Sur un téléphone branché en USB (débogage activé), rediriger les ports vers le PC, à refaire à chaque branchement :
+
+```bash
+adb reverse tcp:9099 tcp:9099
+adb reverse tcp:5001 tcp:5001
+```
+
 L'interface des émulateurs est sur http://127.0.0.1:4000. Les codes SMS de test s'y affichent dans les journaux Auth, aucun vrai SMS n'est envoyé.
 
 ## Phases suivantes

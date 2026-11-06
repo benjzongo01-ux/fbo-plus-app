@@ -9,8 +9,11 @@ import com.google.firebase.functions.FirebaseFunctions
 
 const val REGION_FUNCTIONS = "europe-west1"
 
-/** Adresse de la machine hôte vue depuis l'émulateur Android. */
-private const val HOTE_EMULATEUR = "10.0.2.2"
+/**
+ * Les ports des émulateurs Firebase sont redirigés vers le PC avec `adb reverse`,
+ * ce qui fonctionne aussi bien sur un téléphone en USB que sur un émulateur Android.
+ */
+private const val HOTE_EMULATEUR = "127.0.0.1"
 
 class FboApplication : Application() {
 
