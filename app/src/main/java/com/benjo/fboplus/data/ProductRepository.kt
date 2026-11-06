@@ -1,10 +1,15 @@
 package com.benjo.fboplus.data
 
 import com.benjo.fboplus.R
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 object ProductRepository {
 
-    val allProducts = listOf(
+    /** Copie embarquée : fournit images et pathologies, et sert tant que Firestore n'a pas répondu. */
+    private val produitsEmbarques = listOf(
         // === BUVABLE ===
         Product(id = 1, ref = "15", nameFr = "PULPE D'ALOES", categorie = "Buvable", prixPublic = 22000, cc = 0.100, imageRes = R.drawable.aloe_vera_gel,
             description = "Boisson gélifiée à base de pulpe d'Aloe vera pure et stabilisée, qui soutient la digestion, renforce les défenses naturelles de l'organisme et favorise une bonne santé globale. 1 litre"),
@@ -207,6 +212,35 @@ object ProductRepository {
         Product(id = 93, ref = "318", nameFr = "FOREVER HAND SANITIZER", categorie = "Soins personnels", prixPublic = 4000, cc = 0.017, imageRes = R.drawable.forever_hand_sanitizer,
             description = "Gel hydroalcoolique bactéricide enrichi en Aloe vera et miel, qui nettoie et désinfecte les mains sans les dessécher. 59 ml"),
     )
+
+    private val _catalogue = MutableStateFlow(produitsEmbarques)
+    val catalogue: StateFlow<List<Product>> = _catalogue
+
+    val allProducts: List<Product> get() = _catalogue.value
+
+    fun demarrer() {
+        FirebaseFirestore.getInstance().collection("products")
+            .whereEqualTo("actif", true)
+            .addSnapshotListener { docs, _ ->
+                if (docs == null || docs.isEmpty) return@addSnapshotListener
+                _catalogue.value = docs.documents.map(::versProduit).sortedBy { it.id }
+            }
+    }
+
+    private fun versProduit(doc: DocumentSnapshot): Product {
+        val embarque = produitsEmbarques.find { it.ref == doc.id }
+        return Product(
+            id = embarque?.id ?: (1000 + doc.id.hashCode().and(0xFFFF)),
+            ref = doc.id,
+            nameFr = doc.getString("nom").orEmpty(),
+            categorie = doc.getString("categorie").orEmpty(),
+            prixPublic = doc.getLong("prix")?.toInt() ?: 0,
+            cc = doc.getDouble("cc") ?: 0.0,
+            pathologies = embarque?.pathologies.orEmpty(),
+            imageRes = embarque?.imageRes ?: 0,
+            description = doc.getString("description").orEmpty()
+        )
+    }
 
     fun getPrixParCC(): Double {
         val produits = allProducts.filter { it.cc > 0 }

@@ -2,11 +2,23 @@ package com.benjo.fboplus.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.benjo.fboplus.data.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import java.util.UUID
 import java.text.SimpleDateFormat
 import java.util.*
+
+sealed interface EnvoiCommande {
+    data object Repos : EnvoiCommande
+    data object EnCours : EnvoiCommande
+    data object Reussi : EnvoiCommande
+    data class Erreur(val message: String) : EnvoiCommande
+}
 
 class VentesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,9 +43,75 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
     private val _suggererClotureMois = MutableStateFlow(false)
     val suggererClotureMois: StateFlow<Boolean> = _suggererClotureMois
 
+    private val _client = MutableStateFlow<Client?>(null)
+    val client: StateFlow<Client?> = _client
+
+    private val _adresse = MutableStateFlow("")
+    val adresse: StateFlow<String> = _adresse
+
+    private val _reduction = MutableStateFlow(0)
+    val reduction: StateFlow<Int> = _reduction
+
+    private val _envoi = MutableStateFlow<EnvoiCommande>(EnvoiCommande.Repos)
+    val envoi: StateFlow<EnvoiCommande> = _envoi
+
+    // Reste la même tant que la commande n'est pas passée : réessayer ne crée pas de doublon.
+    private var cleCommande = UUID.randomUUID().toString()
+
     init {
-        chargerCommandesDuJour()
+        viewModelScope.launch {
+            VentesRepository.commandes.collect { chargerCommandesDuJour() }
+        }
         verifierFinDeMois()
+    }
+
+    fun setClient(client: Client?) {
+        _client.value = client
+        if (client != null && _adresse.value.isBlank()) _adresse.value = client.adresse
+    }
+
+    fun setAdresse(adresse: String) {
+        _adresse.value = adresse
+    }
+
+    fun setReduction(montant: Int) {
+        _reduction.value = montant
+    }
+
+    fun reinitialiserEnvoi() {
+        _envoi.value = EnvoiCommande.Repos
+    }
+
+    private fun viderCommande() {
+        _commandeEnCours.value = emptyList()
+        _titreCommande.value = ""
+        _commandeEnEdition.value = null
+        _client.value = null
+        _adresse.value = ""
+        _reduction.value = 0
+    }
+
+    private fun envoyer(action: suspend () -> Unit) {
+        if (_envoi.value == EnvoiCommande.EnCours) return
+        _envoi.value = EnvoiCommande.EnCours
+        viewModelScope.launch {
+            _envoi.value = try {
+                action()
+                EnvoiCommande.Reussi
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("VentesViewModel", "Commande refusée", e)
+                EnvoiCommande.Erreur(messagePour(e))
+            }
+        }
+    }
+
+    private fun messagePour(e: Exception): String = when {
+        e is FirebaseNetworkException -> MESSAGE_RESEAU
+        e is FirebaseFunctionsException && e.code == FirebaseFunctionsException.Code.UNAVAILABLE -> MESSAGE_RESEAU
+        e is FirebaseFunctionsException && e.message != null -> e.message!!
+        else -> "Une erreur est survenue. Réessayez."
     }
 
     fun chargerCommandesDuJour() {
@@ -83,36 +161,30 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
             .filter { it.produitRef != produitRef }
     }
 
-    // ── Valider la commande en cours ──
-    // grade : le grade actuel du profil, utilisé pour figer le % de réduction
-    // au moment de la commande (l'historique reste juste même si le grade change plus tard).
-    fun validerCommande(grade: String) {
-        if (_commandeEnCours.value.isEmpty()) return
-        val fmt = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
-        val fmtMois = SimpleDateFormat("MM/yyyy", Locale.FRANCE)
-        val now = Date()
-        val commande = Commande(
-            titre = _titreCommande.value.ifBlank { "Commande" },
-            lignes = _commandeEnCours.value,
-            dateMillis = now.time,
-            dateStr = fmt.format(now),
-            moisAnnee = fmtMois.format(now),
-            reductionPourcentage = reductionPourGrade(grade)
-        )
-        VentesRepository.sauvegarderCommande(ctx, commande)
-        _commandeEnCours.value = emptyList()
-        _titreCommande.value = ""
-        chargerCommandesDuJour()
+    // ── Valider la commande en cours : le serveur calcule les prix et réserve le stock ──
+    fun validerCommande() {
+        val lignes = _commandeEnCours.value
+        if (lignes.isEmpty()) return
+        envoyer {
+            VentesRepository.creerCommande(
+                cle = cleCommande,
+                lignes = lignes,
+                titre = _titreCommande.value.ifBlank { "Commande" },
+                client = _client.value,
+                adresse = _adresse.value,
+                reduction = _reduction.value
+            )
+            cleCommande = UUID.randomUUID().toString()
+            viderCommande()
+        }
     }
 
     fun annulerCommande() {
-        _commandeEnCours.value = emptyList()
-        _titreCommande.value = ""
+        viderCommande()
     }
 
-    fun supprimerCommande(id: Long) {
-        VentesRepository.supprimerCommande(ctx, id)
-        chargerCommandesDuJour()
+    fun annulerCommandeServeur(docId: String, motif: String = "") {
+        envoyer { VentesRepository.annulerCommande(docId, motif) }
     }
 
     // ── Charger une commande pour modification ──
@@ -120,32 +192,30 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
         _commandeEnCours.value = commande.lignes.toMutableList()
         _titreCommande.value = commande.titre
         _commandeEnEdition.value = commande.id
+        _adresse.value = commande.adresse
+        _reduction.value = commande.reduction
     }
 
     // ── Mettre à jour une commande existante ──
-    // grade : optionnel — si fourni, la réduction est recalculée sur le grade actuel ;
-    // sinon la réduction d'origine de la commande est conservée.
-    fun mettreAJourCommande(grade: String? = null) {
+    fun mettreAJourCommande() {
         val id = _commandeEnEdition.value ?: return
-        if (_commandeEnCours.value.isEmpty()) return
-        val ancienne = VentesRepository.getToutesCommandes(ctx).find { it.id == id } ?: return
-        val commandeMaj = ancienne.copy(
-            titre = _titreCommande.value.ifBlank { "Commande" },
-            lignes = _commandeEnCours.value,
-            reductionPourcentage = grade?.let { reductionPourGrade(it) } ?: ancienne.reductionPourcentage
-        )
-        VentesRepository.supprimerCommande(ctx, id)
-        VentesRepository.sauvegarderCommande(ctx, commandeMaj)
-        _commandeEnCours.value = emptyList()
-        _titreCommande.value = ""
-        _commandeEnEdition.value = null
-        chargerCommandesDuJour()
+        val lignes = _commandeEnCours.value
+        if (lignes.isEmpty()) return
+        val ancienne = VentesRepository.commandes.value.find { it.id == id } ?: return
+        envoyer {
+            VentesRepository.modifierCommande(
+                docId = ancienne.docId,
+                lignes = lignes,
+                titre = _titreCommande.value.ifBlank { "Commande" },
+                adresse = _adresse.value,
+                reduction = _reduction.value
+            )
+            viderCommande()
+        }
     }
 
     fun annulerModification() {
-        _commandeEnCours.value = emptyList()
-        _titreCommande.value = ""
-        _commandeEnEdition.value = null
+        viderCommande()
     }
 
     // ── Totaux du jour ──
@@ -191,4 +261,8 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
     fun getStatsMois(nb: Int) = VentesRepository.getStatsMois(ctx, nb)
     fun getStatsDepuisDebut() = VentesRepository.getStatsDepuisDebut(ctx)
     fun getToutesCommandes() = VentesRepository.getToutesCommandes(ctx)
+
+    private companion object {
+        const val MESSAGE_RESEAU = "Connexion requise pour envoyer la commande. Réessayez."
+    }
 }

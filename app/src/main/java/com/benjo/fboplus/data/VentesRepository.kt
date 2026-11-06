@@ -1,8 +1,21 @@
 package com.benjo.fboplus.data
 
 import android.content.Context
+import android.util.Log
+import com.benjo.fboplus.REGION_FUNCTIONS
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -19,7 +32,210 @@ object VentesRepository {
     private const val PREFS_NAME = "fboplus_ventes"
     private const val KEY_COMMANDES = "toutes_commandes"
     private const val KEY_MOIS_CLOS = "mois_clos"
+    private const val KEY_IMPORT = "import_termine_"
+    private const val KEY_DECISION = "import_decision_"
     private val gson = Gson()
+    private val db get() = FirebaseFirestore.getInstance()
+    private val functions get() = FirebaseFunctions.getInstance(REGION_FUNCTIONS)
+    private val portee = CoroutineScope(Dispatchers.IO)
+
+    private val STATUTS_ABANDONNES = setOf("annulee", "retournee")
+
+    // Toutes les commandes du compte, y compris annulées, à jour en temps réel.
+    private val _commandes = MutableStateFlow<List<Commande>>(emptyList())
+    val commandes: StateFlow<List<Commande>> = _commandes
+
+    // Ventes du téléphone pas encore copiées sur le serveur : elles restent visibles entre-temps.
+    private var enAttenteImport: List<Commande> = emptyList()
+    private var distantes: List<Commande> = emptyList()
+    private var ecoute: ListenerRegistration? = null
+    private var uidActuel: String? = null
+
+    // Nombre de ventes locales proposées à l'import ; null quand il n'y a rien à décider.
+    private val _propositionImport = MutableStateFlow<Int?>(null)
+    val propositionImport: StateFlow<Int?> = _propositionImport
+
+    fun demarrer(context: Context, uid: String) {
+        ecoute?.remove()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val termine = prefs.getBoolean(KEY_IMPORT + uid, false)
+        val decision = prefs.getString(KEY_DECISION + uid, null)
+        val locales = if (termine) emptyList() else lireVentesLocales(context)
+        val profilLocal = ProfilRepository.getProfil(context).prenom.isNotBlank()
+
+        uidActuel = uid
+        enAttenteImport = if (decision == "oui") locales else emptyList()
+        // Le téléphone a pu servir à quelqu'un d'autre : on ne rattache rien sans accord explicite.
+        _propositionImport.value =
+            if (!termine && decision == null && (locales.isNotEmpty() || profilLocal)) locales.size else null
+        publier()
+
+        ecoute = db.collection("orders")
+            .whereEqualTo("fboId", uid)
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { docs, erreur ->
+                if (erreur != null) Log.w("VentesRepository", "Écoute des commandes refusée", erreur)
+                if (docs == null) return@addSnapshotListener
+                distantes = docs.documents.map(::versCommande)
+                publier()
+            }
+        importerVentesLocales(context, uid)
+    }
+
+    fun repondreImport(context: Context, accepte: Boolean) {
+        val uid = uidActuel ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_DECISION + uid, if (accepte) "oui" else "non").apply()
+        _propositionImport.value = null
+        if (accepte) {
+            ProfilRepository.envoyerProfilLocal(context)
+            enAttenteImport = lireVentesLocales(context)
+            publier()
+            importerVentesLocales(context, uid)
+        } else {
+            ProfilRepository.oublierProfilAffiche()
+        }
+    }
+
+    fun arreter() {
+        ecoute?.remove()
+        ecoute = null
+        uidActuel = null
+        _propositionImport.value = null
+        distantes = emptyList()
+        enAttenteImport = emptyList()
+        _commandes.value = emptyList()
+    }
+
+    private fun publier() {
+        _commandes.value = enAttenteImport + distantes
+    }
+
+    /** Copie sans jamais effacer : les ventes locales restent sur le téléphone. */
+    private fun importerVentesLocales(context: Context, uid: String) {
+        if (enAttenteImport.isEmpty()) return
+        val ventes = enAttenteImport.map { c ->
+            mapOf(
+                "id" to c.id.toString(),
+                "titre" to c.titre,
+                "dateMillis" to c.dateMillis,
+                "reductionPourcentage" to c.reductionPourcentage,
+                "lignes" to c.lignes.map { l ->
+                    mapOf(
+                        "produitRef" to l.produitRef,
+                        "produitNom" to l.produitNom,
+                        "quantite" to l.quantite,
+                        "prixUnitaire" to l.prixUnitaire,
+                        "ccUnitaire" to l.ccUnitaire
+                    )
+                }
+            )
+        }
+        portee.launch {
+            try {
+                functions.getHttpsCallable("importerVentes").call(mapOf("ventes" to ventes)).await()
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putBoolean(KEY_IMPORT + uid, true).apply()
+                enAttenteImport = emptyList()
+                publier()
+            } catch (e: Exception) {
+                Log.w("VentesRepository", "Import reporté à la prochaine ouverture", e)
+            }
+        }
+    }
+
+    suspend fun creerCommande(
+        cle: String,
+        lignes: List<LigneCommande>,
+        titre: String,
+        client: Client?,
+        adresse: String,
+        reduction: Int
+    ) {
+        functions.getHttpsCallable("creerCommande").call(
+            mapOf(
+                "cleIdempotence" to cle,
+                "lignes" to enLignes(lignes),
+                "titre" to titre,
+                "clientId" to (client?.id ?: ""),
+                "adresse" to adresse,
+                "reduction" to reduction
+            )
+        ).await()
+    }
+
+    suspend fun modifierCommande(
+        docId: String,
+        lignes: List<LigneCommande>,
+        titre: String,
+        adresse: String,
+        reduction: Int
+    ) {
+        functions.getHttpsCallable("modifierCommande").call(
+            mapOf(
+                "id" to docId,
+                "lignes" to enLignes(lignes),
+                "titre" to titre,
+                "adresse" to adresse,
+                "reduction" to reduction
+            )
+        ).await()
+    }
+
+    suspend fun annulerCommande(docId: String, motif: String) {
+        functions.getHttpsCallable("annulerCommande")
+            .call(mapOf("id" to docId, "motif" to motif)).await()
+    }
+
+    private fun enLignes(lignes: List<LigneCommande>) =
+        lignes.map { mapOf("produitId" to it.produitRef, "quantite" to it.quantite) }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun versCommande(doc: DocumentSnapshot): Commande {
+        val date = doc.getTimestamp("createdAt")?.toDate() ?: Date()
+        val lignes = (doc.get("lignes") as? List<Map<String, Any?>>).orEmpty().map { l ->
+            LigneCommande(
+                produitRef = l["produitId"] as? String ?: "",
+                produitNom = l["nom"] as? String ?: "",
+                quantite = (l["quantite"] as? Number)?.toInt() ?: 0,
+                prixUnitaire = (l["prixUnitaire"] as? Number)?.toInt() ?: 0,
+                ccUnitaire = (l["cc"] as? Number)?.toDouble() ?: 0.0
+            )
+        }
+        val historique = (doc.get("historiqueStatuts") as? List<Map<String, Any?>>).orEmpty().map { e ->
+            EtapeCommande(
+                statut = e["statut"] as? String ?: "",
+                dateMillis = (e["date"] as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L
+            )
+        }
+        val client = doc.get("client") as? Map<String, Any?>
+        return Commande(
+            id = doc.id.hashCode().toLong(),
+            titre = doc.getString("titre").orEmpty(),
+            lignes = lignes,
+            dateMillis = date.time,
+            dateStr = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(date),
+            moisAnnee = SimpleDateFormat("MM/yyyy", Locale.FRANCE).format(date),
+            reductionPourcentage = doc.getDouble("remiseGrade") ?: 0.0,
+            docId = doc.id,
+            statut = doc.getString("statut").orEmpty(),
+            clientId = client?.get("id") as? String,
+            clientNom = client?.get("nom") as? String ?: "",
+            adresse = doc.getString("adresse").orEmpty(),
+            reduction = doc.getLong("reduction")?.toInt() ?: 0,
+            fraisLivraison = doc.getLong("fraisLivraison")?.toInt() ?: 0,
+            total = doc.getLong("total")?.toInt() ?: 0,
+            historique = historique,
+            motif = doc.getString("motifAnnulation") ?: doc.getString("motifRetour").orEmpty()
+        )
+    }
+
+    private fun lireVentesLocales(context: Context): List<Commande> {
+        val json = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_COMMANDES, null) ?: return emptyList()
+        val type = object : TypeToken<List<Commande>>() {}.type
+        return try { gson.fromJson(json, type) } catch (e: Exception) { emptyList() }
+    }
 
     private fun dateAujourdhui(): String {
         return SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(Date())
@@ -30,21 +246,9 @@ object VentesRepository {
     }
 
     // ── Sauvegarder une commande ──
-    fun sauvegarderCommande(context: Context, commande: Commande) {
-        val toutes = getToutesCommandes(context).toMutableList()
-        toutes.add(commande)
-        val json = gson.toJson(toutes)
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_COMMANDES, json).apply()
-    }
-
-    // ── Récupérer toutes les commandes ──
-    fun getToutesCommandes(context: Context): List<Commande> {
-        val json = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_COMMANDES, null) ?: return emptyList()
-        val type = object : TypeToken<List<Commande>>() {}.type
-        return try { gson.fromJson(json, type) } catch (e: Exception) { emptyList() }
-    }
+    // ── Ventes comptées dans les statistiques : ni annulées, ni retournées ──
+    fun getToutesCommandes(context: Context): List<Commande> =
+        _commandes.value.filter { it.statut !in STATUTS_ABANDONNES }
 
     // ── Commandes du jour ──
     fun getCommandesDuJour(context: Context): List<Commande> {
@@ -55,14 +259,6 @@ object VentesRepository {
     // ── Commandes d'un mois ──
     fun getCommandesDuMois(context: Context, moisAnnee: String): List<Commande> {
         return getToutesCommandes(context).filter { it.moisAnnee == moisAnnee }
-    }
-
-    // ── Supprimer une commande ──
-    fun supprimerCommande(context: Context, id: Long) {
-        val toutes = getToutesCommandes(context).filter { it.id != id }
-        val json = gson.toJson(toutes)
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_COMMANDES, json).apply()
     }
 
     // ── Mois clos ──

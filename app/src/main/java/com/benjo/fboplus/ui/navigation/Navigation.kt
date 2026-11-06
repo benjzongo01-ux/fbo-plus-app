@@ -1,6 +1,13 @@
 ﻿package com.benjo.fboplus.ui.navigation
 
 import com.benjo.fboplus.ui.theme.*
+import com.benjo.fboplus.data.VentesRepository
+import com.benjo.fboplus.ui.screens.BoutiqueScreen
+import com.benjo.fboplus.ui.screens.ClientDetailScreen
+import com.benjo.fboplus.ui.screens.ClientFormulaireScreen
+import com.benjo.fboplus.ui.screens.ClientsScreen
+import com.benjo.fboplus.ui.screens.CommandeDetailScreen
+import com.benjo.fboplus.ui.screens.MesCommandesScreen
 
 import com.benjo.fboplus.ui.screens.PinEntryScreen
 import android.net.Uri
@@ -108,8 +115,35 @@ fun FBONavigation() {
         "connexion", "inscription", "verification/{telephone}", "pin_entry", "complete_profile",
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
-        "nouvelle_commande", "modifier_commande"
+        "nouvelle_commande", "modifier_commande",
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique"
     )
+
+    val propositionImport by VentesRepository.propositionImport.collectAsState()
+    propositionImport?.let { nombre ->
+        AlertDialog(
+            onDismissRequest = {},
+            containerColor = BlackCard,
+            title = { Text("Reprendre les données de ce téléphone ?", color = WhitePrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Ce téléphone contient un profil et $nombre vente(s) enregistrés auparavant. " +
+                        "Acceptez uniquement s'ils sont à vous : ils seront rattachés à ce compte.",
+                    color = WhiteSub
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { VentesRepository.repondreImport(context, true) }) {
+                    Text("Reprendre", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { VentesRepository.repondreImport(context, false) }) {
+                    Text("Ce n'est pas à moi", color = WhiteSub)
+                }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = BlackDeep,
@@ -278,6 +312,7 @@ fun FBONavigation() {
             }
             composable("ventes") {
                 VentesScreen(
+                    onOuvrirCommande = { navController.navigate("commande/$it") },
                     ventesViewModel = ventesViewModel,
                     onNouvelleCommande = { navController.navigate("nouvelle_commande") },
                     onModifierCommande = { navController.navigate("modifier_commande") },
@@ -316,12 +351,74 @@ fun FBONavigation() {
                     ventesViewModel = ventesViewModel,
                     onModifierProfil = { navController.navigate("modifier_profil") },
                     onSecurite = { navController.navigate("securite") },
+                    onCommandes = { navController.navigate("commandes") },
+                    onClients = { navController.navigate("clients") },
+                    onBoutique = { navController.navigate("boutique") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
                             popUpTo(0) { inclusive = true }
                         }
                     }
+                )
+            }
+            composable("commandes") {
+                MesCommandesScreen(
+                    onOuvrir = { navController.navigate("commande/$it") },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "commande/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { entree ->
+                CommandeDetailScreen(
+                    docId = entree.arguments?.getString("id").orEmpty(),
+                    ventesViewModel = ventesViewModel,
+                    onModifier = { commande ->
+                        ventesViewModel.chargerCommandePourModification(commande)
+                        navController.navigate("modifier_commande")
+                    },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable("clients") {
+                ClientsScreen(
+                    onOuvrir = { navController.navigate("client/$it") },
+                    onNouveau = { navController.navigate("client_formulaire") },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "client/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { entree ->
+                val id = entree.arguments?.getString("id").orEmpty()
+                ClientDetailScreen(
+                    clientId = id,
+                    onModifier = { navController.navigate("client_formulaire?id=$id") },
+                    onCommande = { navController.navigate("commande/$it") },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "client_formulaire?id={id}",
+                arguments = listOf(navArgument("id") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                })
+            ) { entree ->
+                ClientFormulaireScreen(
+                    clientId = entree.arguments?.getString("id"),
+                    onTermine = { navController.popBackStack("clients", inclusive = false) },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable("boutique") {
+                BoutiqueScreen(
+                    profilViewModel = profilViewModel,
+                    onRetour = { navController.popBackStack() }
                 )
             }
             composable("modifier_profil") {

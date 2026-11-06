@@ -31,6 +31,7 @@ import com.benjo.fboplus.viewmodel.VentesViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VentesScreen(
+    onOuvrirCommande: (String) -> Unit,
     ventesViewModel: VentesViewModel,
     onNouvelleCommande: () -> Unit,
     onModifierCommande: () -> Unit,
@@ -271,7 +272,8 @@ fun VentesScreen(
                 items(commandesDuJour.reversed()) { commande ->
                     GoldCommandeCard(
                         commande = commande,
-                        onSupprimer = { ventesViewModel.supprimerCommande(commande.id) },
+                        onSupprimer = { ventesViewModel.annulerCommandeServeur(commande.docId) },
+                        onOuvrir = { onOuvrirCommande(commande.docId) },
                         onModifier = {
                             ventesViewModel.chargerCommandePourModification(commande)
                             onModifierCommande()
@@ -291,6 +293,7 @@ fun GoldCommandeCard(
     commande: Commande,
     onSupprimer: () -> Unit,
     onModifier: () -> Unit,
+    onOuvrir: () -> Unit,
     nomDistributeur: String = "",
     idDistributeur: String = "",
     context: android.content.Context
@@ -341,6 +344,8 @@ fun GoldCommandeCard(
                         fontSize = 11.sp,
                         color = WhiteFaint
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    BadgeStatut(commande.statut)
                 }
                 Row {
                     // Partager avec nom + ID distributeur
@@ -378,11 +383,15 @@ fun GoldCommandeCard(
                     }) {
                         Icon(Icons.Filled.Share, contentDescription = null, tint = Color(0xFF2979FF))
                     }
-                    IconButton(onClick = onModifier) {
-                        Icon(Icons.Filled.Edit, contentDescription = null, tint = GoldPrimary)
+                    if (commande.modifiable) {
+                        IconButton(onClick = onModifier) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Modifier", tint = GoldPrimary)
+                        }
                     }
-                    IconButton(onClick = onSupprimer) {
-                        Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFFF4444))
+                    if (commande.annulable) {
+                        IconButton(onClick = onSupprimer) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Annuler", tint = Color(0xFFFF4444))
+                        }
                     }
                 }
             }
@@ -442,6 +451,16 @@ fun GoldCommandeCard(
                     color = GoldPrimary,
                     fontWeight = FontWeight.Bold
                 )
+                if (commande.docId.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        "Suivre",
+                        fontSize = 12.sp,
+                        color = BlueAccent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable(onClick = onOuvrir)
+                    )
+                }
             }
 
             if (expanded) {

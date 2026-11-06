@@ -312,6 +312,8 @@ fun ModifierCommandeScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    SuiviEnvoi(ventesViewModel, onCommandeMiseAJour)
+
                     // Bouton enregistrer
                     Box(
                         modifier = Modifier
@@ -322,8 +324,7 @@ fun ModifierCommandeScreen(
                                 else Brush.linearGradient(listOf(BlackBorder, BlackBorder))
                             )
                             .clickable(enabled = lignes.isNotEmpty()) {
-                                ventesViewModel.mettreAJourCommande(profil.grade)
-                                onCommandeMiseAJour()
+                                ventesViewModel.mettreAJourCommande()
                             }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center

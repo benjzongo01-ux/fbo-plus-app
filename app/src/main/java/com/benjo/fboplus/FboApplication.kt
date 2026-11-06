@@ -1,6 +1,7 @@
 package com.benjo.fboplus
 
 import android.app.Application
+import com.benjo.fboplus.data.Synchronisation
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.appcheck.FirebaseAppCheck
@@ -26,6 +27,7 @@ class FboApplication : Application() {
         } else {
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(fournisseurAppCheck())
         }
+        Synchronisation.demarrer(this)
     }
 
     private fun connecterEmulateurs() {

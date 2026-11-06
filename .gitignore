@@ -34,3 +34,4 @@ google-services.json
 *service-account*.json
 
 firebase/functions/.secret.local
+firebase/.emulateurs/

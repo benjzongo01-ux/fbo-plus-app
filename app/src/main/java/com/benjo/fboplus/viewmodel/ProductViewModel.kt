@@ -1,10 +1,12 @@
 package com.benjo.fboplus.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.benjo.fboplus.data.Product
 import com.benjo.fboplus.data.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class ProductViewModel : ViewModel() {
 
@@ -16,6 +18,14 @@ class ProductViewModel : ViewModel() {
 
     private val _selectedCategorie = MutableStateFlow("Tous")
     val selectedCategorie: StateFlow<String> = _selectedCategorie
+
+    init {
+        viewModelScope.launch {
+            ProductRepository.catalogue.collect {
+                filterProducts(_searchQuery.value, _selectedCategorie.value)
+            }
+        }
+    }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query

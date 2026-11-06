@@ -16,6 +16,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
@@ -92,7 +95,10 @@ fun ProfilScreen(
     ventesViewModel: VentesViewModel,
     onModifierProfil: () -> Unit,
     onSecurite: () -> Unit,
-    onDeconnexion: () -> Unit
+    onDeconnexion: () -> Unit,
+    onCommandes: () -> Unit,
+    onClients: () -> Unit,
+    onBoutique: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -162,6 +168,22 @@ fun ProfilScreen(
                     cc = ccDuMois,
                     onDefinir = { editionObjectifs = true }
                 )
+            }
+
+            Section("Mon activité") {
+                Column(Modifier.carte()) {
+                    LigneOption(Icons.AutoMirrored.Filled.ReceiptLong, "Mes commandes", sousTitre = "Suivi en temps réel", onClick = onCommandes) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Groups, "Mes clients", sousTitre = "Fiches et historique", onClick = onClients) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Storefront, "Ma boutique", sousTitre = "Lien et QR code", onClick = onBoutique) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                }
             }
 
             Section("Informations professionnelles") {

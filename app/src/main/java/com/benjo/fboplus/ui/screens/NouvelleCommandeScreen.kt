@@ -61,6 +61,9 @@ fun NouvelleCommandeScreen(
     val reduction = reductionPourGrade(profil.grade)
     val caCommande = lignes.sumOf { it.montantTotal }
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
+    val reductionClient by ventesViewModel.reduction.collectAsState()
+    val reductionMax = caCommande - prixValidationCommande
+    val validable = lignes.isNotEmpty() && reductionClient <= reductionMax
 
     Box(
         modifier = Modifier
@@ -287,6 +290,10 @@ fun NouvelleCommandeScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                     }
 
+                    if (lignes.isNotEmpty()) {
+                        ChampsCommande(ventesViewModel, reductionMax)
+                    }
+
                     // Champ titre
                     Box(
                         modifier = Modifier
@@ -313,25 +320,26 @@ fun NouvelleCommandeScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    SuiviEnvoi(ventesViewModel, onCommandeValidee)
+
                     // Bouton valider
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(
-                                if (lignes.isNotEmpty()) GoldGradient
+                                if (validable) GoldGradient
                                 else Brush.linearGradient(listOf(BlackBorder, BlackBorder))
                             )
-                            .clickable(enabled = lignes.isNotEmpty()) {
-                                ventesViewModel.validerCommande(profil.grade)
-                                onCommandeValidee()
+                            .clickable(enabled = validable) {
+                                ventesViewModel.validerCommande()
                             }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "✅ Valider la commande",
-                            color = if (lignes.isNotEmpty()) BlackDeep else WhiteFaint,
+                            color = if (validable) BlackDeep else WhiteFaint,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp
                         )
