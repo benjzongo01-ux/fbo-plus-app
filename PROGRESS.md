@@ -49,7 +49,7 @@ Branche : `feature/phase-1-socle-firebase`
 
 ### Reste à faire pour clore la phase 1
 
-1. Créer le projet Firebase, en formule Blaze : Functions et SMS sont payants.
+1. Créer le projet Firebase **avec le compte Google de FBO+, jamais un compte personnel**, en formule Blaze : Functions et SMS sont payants. Utiliser aussi ce compte pour `firebase login`.
 2. Activer l'authentification par téléphone et enregistrer les empreintes SHA-1 et SHA-256.
 3. Placer `google-services.json` dans `app/`. Il n'est pas commité. Sans lui, le build debug utilise les émulateurs et un build release ne peut pas démarrer.
 4. Enregistrer l'application dans App Check (Play Integrity), puis activer l'application sur Firestore et Storage dans la console.
