@@ -27,10 +27,35 @@ service cloud.firestore {
     // L'utilisateur ne change que son nom et son email.
     match /users/{uid} {
       allow read: if moi(uid) || estPersonnel();
-      allow update: if moi(uid) && champsModifies().hasOnly(['nom', 'email']);
+      allow update: if moi(uid)
+        && champsModifies().hasOnly([
+          'nom', 'prenom', 'email', 'pays', 'ville', 'grade',
+          'indicatifTelephone', 'telephone', 'indicatifWhatsapp', 'whatsapp',
+          'objectifCC', 'objectifCA', 'idDistributeur'
+        ])
+        // L'ID Forever se renseigne une seule fois.
+        && (!('idDistributeur' in champsModifies())
+          || resource.data.get('idDistributeur', '') == '');
     }
 
+    // Vitrine publique du FBO : uniquement ce qu'il choisit d'y montrer.
+    match /boutiques/{uid} {
+      allow read: if true;
+      allow write: if moi(uid) && role() == 'fbo';
+    }
+
+    // Le catalogue actif est public pour les boutiques en ligne.
     match /products/{id} {
+      allow read: if resource.data.actif == true || aUnRole();
+      allow write: if estAdmin();
+    }
+
+    match /parametres/{id} {
+      allow read: if aUnRole();
+      allow write: if estAdmin();
+    }
+
+    match /centres/{id} {
       allow read: if aUnRole();
       allow write: if estAdmin();
     }
@@ -76,7 +101,8 @@ service cloud.firestore {
     // Le livreur assigné ne met à jour que sa position GPS.
     match /deliveries/{id} {
       allow read: if estPersonnel()
-        || (role() == 'livreur' && resource.data.livreurId == request.auth.uid);
+        || (role() == 'livreur' && resource.data.livreurId == request.auth.uid)
+        || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
       allow update: if role() == 'livreur'
         && resource.data.livreurId == request.auth.uid
         && champsModifies().hasOnly(['position', 'positionUpdatedAt']);

@@ -1,0 +1,932 @@
+[
+  {
+    "id": "15",
+    "reference": "15",
+    "nom": "PULPE D'ALOES",
+    "categorie": "Buvable",
+    "prix": 22000,
+    "cc": 0.1,
+    "description": "Boisson gélifiée à base de pulpe d'Aloe vera pure et stabilisée, qui soutient la digestion, renforce les défenses naturelles de l'organisme et favorise une bonne santé globale. 1 litre",
+    "actif": true
+  },
+  {
+    "id": "34",
+    "reference": "34",
+    "nom": "ALOE BERRY NECTAR",
+    "categorie": "Buvable",
+    "prix": 22000,
+    "cc": 0.1,
+    "description": "Boisson à l'Aloe vera enrichie en jus de canneberge et de pomme, qui soutient la santé du système urinaire tout en apportant les bienfaits digestifs de l'Aloe vera. 1 litre",
+    "actif": true
+  },
+  {
+    "id": "77",
+    "reference": "77",
+    "nom": "COEUR D'ALOES",
+    "categorie": "Buvable",
+    "prix": 22000,
+    "cc": 0.1,
+    "description": "Boisson gélifiée à l'Aloe vera enrichie de morceaux de pêche, riche en vitamines, qui soutient la digestion et apporte une touche fruitée gourmande au quotidien. 1 litre",
+    "actif": true
+  },
+  {
+    "id": "196",
+    "reference": "196",
+    "nom": "FOREVER FREEDOM",
+    "categorie": "Buvable",
+    "prix": 32000,
+    "cc": 0.146,
+    "description": "Boisson à l'Aloe vera enrichie en glucosamine, chondroïtine et MSM, spécialement formulée pour soutenir la souplesse et le confort des articulations. 1 litre",
+    "actif": true
+  },
+  {
+    "id": "200",
+    "reference": "200",
+    "nom": "INFUSION FLEUR ALOES",
+    "categorie": "Buvable",
+    "prix": 15500,
+    "cc": 0.07,
+    "description": "Tisane aux fleurs d'Aloe vera, cannelle et clous de girofle, idéale pour se détendre et favoriser une bonne digestion à tout moment de la journée. 24 sachets",
+    "actif": true
+  },
+  {
+    "id": "716",
+    "reference": "716",
+    "nom": "PULPE D'ALOES 33 ML",
+    "categorie": "Buvable",
+    "prix": 7000,
+    "cc": 0.03,
+    "description": "Boisson gélifiée à base de pulpe d'Aloe vera pure et stabilisée, qui soutient la digestion, renforce les défenses naturelles de l'organisme et favorise une bonne santé globale. 33 ml",
+    "actif": true
+  },
+  {
+    "id": "721",
+    "reference": "721",
+    "nom": "FOREVER FAB",
+    "categorie": "Buvable",
+    "prix": 5000,
+    "cc": 0.019,
+    "description": "Boisson énergisante naturelle à l'Aloe vera, idéale pour stimuler le tonus et la concentration sans effet de fatigue par la suite. 250 ml",
+    "actif": true
+  },
+  {
+    "id": "26",
+    "reference": "26",
+    "nom": "POLLEN FOREVER",
+    "categorie": "Produit de la ruche",
+    "prix": 13000,
+    "cc": 0.06,
+    "description": "Pollen d'abeille naturel, riche en protéines, vitamines et minéraux, qui soutient l'énergie, la vitalité et les défenses naturelles de l'organisme. 80 comprimés",
+    "actif": true
+  },
+  {
+    "id": "27",
+    "reference": "27",
+    "nom": "PROPOLIS FOREVER",
+    "categorie": "Produit de la ruche",
+    "prix": 28500,
+    "cc": 0.13,
+    "description": "Propolis d'abeille pure et naturelle, reconnue pour ses propriétés protectrices, qui renforce les défenses immunitaires de l'organisme. 60 comprimés",
+    "actif": true
+  },
+  {
+    "id": "36",
+    "reference": "36",
+    "nom": "GELEE ROYALE FOREVER",
+    "categorie": "Produit de la ruche",
+    "prix": 28500,
+    "cc": 0.13,
+    "description": "Gelée royale naturelle riche en acides aminés, vitamines et minéraux, qui apporte un tonifiant général et soutient la vitalité au quotidien. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "207",
+    "reference": "207",
+    "nom": "FOREVER BEE HONEY",
+    "categorie": "Produit de la ruche",
+    "prix": 15500,
+    "cc": 0.07,
+    "description": "Miel pur et naturel de haute qualité, source d'énergie et aux propriétés antibactériennes naturelles. 500 g",
+    "actif": true
+  },
+  {
+    "id": "51",
+    "reference": "51",
+    "nom": "ALOE PROPOLIS CREME",
+    "categorie": "Soins de la peau",
+    "prix": 16000,
+    "cc": 0.077,
+    "description": "Crème hydratante à l'Aloe vera et à la propolis, qui apaise, nourrit et protège la peau au quotidien grâce à ses propriétés antibactériennes naturelles. 113 g",
+    "actif": true
+  },
+  {
+    "id": "61",
+    "reference": "61",
+    "nom": "GELEE ALOES",
+    "categorie": "Soins de la peau",
+    "prix": 13000,
+    "cc": 0.059,
+    "description": "Gel pur d'Aloe vera, premier soin pour la peau en cas de brûlures, coups de soleil ou piqûres, et excellent hydratant au quotidien. 113 g",
+    "actif": true
+  },
+  {
+    "id": "63",
+    "reference": "63",
+    "nom": "EMULSION VISAGE ALOES",
+    "categorie": "Soins de la peau",
+    "prix": 13000,
+    "cc": 0.059,
+    "description": "Émulsion légère et hydratante à l'Aloe vera, conçue pour nourrir et adoucir la peau du visage au quotidien sans effet gras. 120 ml",
+    "actif": true
+  },
+  {
+    "id": "64",
+    "reference": "64",
+    "nom": "EMULSION THERMOGENE ALOES",
+    "categorie": "Soins de la peau",
+    "prix": 13000,
+    "cc": 0.059,
+    "description": "Lotion chauffante à l'Aloe vera, idéale pour soulager les tensions musculaires et articulaires grâce à sa formule apaisante. 118 ml",
+    "actif": true
+  },
+  {
+    "id": "69",
+    "reference": "69",
+    "nom": "R3 FACTEUR ALOES",
+    "categorie": "Soins de la peau",
+    "prix": 28500,
+    "cc": 0.13,
+    "description": "Sérum régénérant qui aide à restaurer, renforcer et revitaliser la peau en profondeur grâce à l'Aloe vera et à des actifs ciblés anti-âge. 30 ml",
+    "actif": true
+  },
+  {
+    "id": "187",
+    "reference": "187",
+    "nom": "ALPHA E FACTOR",
+    "categorie": "Soins de la peau",
+    "prix": 30000,
+    "cc": 0.134,
+    "description": "Soin réparateur intense à la vitamine E et à l'Aloe vera, conçu pour hydrater profondément et réparer les peaux sèches et abîmées. 113 g",
+    "actif": true
+  },
+  {
+    "id": "205",
+    "reference": "205",
+    "nom": "ALOE MSM GEL",
+    "categorie": "Soins de la peau",
+    "prix": 20500,
+    "cc": 0.093,
+    "description": "Gel topique à l'Aloe vera et au MSM, conçu pour apaiser les douleurs musculaires et articulaires tout en hydratant la peau en profondeur. 118 ml",
+    "actif": true
+  },
+  {
+    "id": "238",
+    "reference": "238",
+    "nom": "ALOE SCRUB",
+    "categorie": "Soins de la peau",
+    "prix": 13500,
+    "cc": 0.062,
+    "description": "Gommage corps à l'Aloe vera et au jojoba, qui élimine en douceur les cellules mortes pour une peau lisse et lumineuse. 226 g",
+    "actif": true
+  },
+  {
+    "id": "554",
+    "reference": "554",
+    "nom": "INFINITE HYDRATING CLEANSER",
+    "categorie": "Soins de la peau",
+    "prix": 24500,
+    "cc": 0.112,
+    "description": "Nettoyant hydratant de la gamme Infinite, conçu pour purifier la peau du visage en douceur tout en préservant son film hydratant naturel. 177 ml",
+    "actif": true
+  },
+  {
+    "id": "555",
+    "reference": "555",
+    "nom": "INFINITE FIRMING SERUM",
+    "categorie": "Soins de la peau",
+    "prix": 38500,
+    "cc": 0.179,
+    "description": "Sérum raffermissant de la gamme Infinite, qui stimule la production de collagène pour une peau visiblement plus ferme et tonifiée. 30 ml",
+    "actif": true
+  },
+  {
+    "id": "556",
+    "reference": "556",
+    "nom": "INFINITE FIRMING COMPLEX",
+    "categorie": "Soins de la peau",
+    "prix": 38500,
+    "cc": 0.179,
+    "description": "Complexe raffermissant premium de la gamme Infinite, soin anti-âge complet qui redonne fermeté et éclat à la peau. 30 ml",
+    "actif": true
+  },
+  {
+    "id": "558",
+    "reference": "558",
+    "nom": "INFINITE RESTORING CREAM",
+    "categorie": "Soins de la peau",
+    "prix": 43000,
+    "cc": 0.2,
+    "description": "Crème restauratrice de nuit de la gamme Infinite, qui régénère intensément la peau pendant le sommeil pour un teint plus lumineux au réveil. 48 g",
+    "actif": true
+  },
+  {
+    "id": "559",
+    "reference": "559",
+    "nom": "SMOOTHING EXFOLIATOR",
+    "categorie": "Soins de la peau",
+    "prix": 16000,
+    "cc": 0.073,
+    "description": "Exfoliant doux pour le visage de la gamme Infinite, qui élimine les cellules mortes pour révéler une peau plus lisse et éclatante. 100 ml",
+    "actif": true
+  },
+  {
+    "id": "560",
+    "reference": "560",
+    "nom": "BALANCING TONER",
+    "categorie": "Soins de la peau",
+    "prix": 19000,
+    "cc": 0.087,
+    "description": "Tonique équilibrant de la gamme Infinite, qui prépare la peau aux soins suivants tout en resserrant les pores. 177 ml",
+    "actif": true
+  },
+  {
+    "id": "561",
+    "reference": "561",
+    "nom": "EYE CREME",
+    "categorie": "Soins de la peau",
+    "prix": 16000,
+    "cc": 0.073,
+    "description": "Crème contour des yeux qui réduit visiblement les cernes, les poches et les premières rides pour un regard reposé. 14 g",
+    "actif": true
+  },
+  {
+    "id": "612",
+    "reference": "612",
+    "nom": "ALOE ACTIVATOR",
+    "categorie": "Soins de la peau",
+    "prix": 14000,
+    "cc": 0.064,
+    "description": "Lotion multi-usages à l'Aloe vera, qui hydrate, nettoie et prépare la peau avant l'application d'autres soins. 236 ml",
+    "actif": true
+  },
+  {
+    "id": "618",
+    "reference": "618",
+    "nom": "HYDRATING SERUM",
+    "categorie": "Soins de la peau",
+    "prix": 30500,
+    "cc": 0.14,
+    "description": "Sérum hydratant intensif à l'acide hyaluronique et à l'Aloe vera, qui repulpe la peau et lui redonne souplesse et éclat. 30 ml",
+    "actif": true
+  },
+  {
+    "id": "645",
+    "reference": "645",
+    "nom": "PROTECT DAY LOTION",
+    "categorie": "Soins de la peau",
+    "prix": 32000,
+    "cc": 0.146,
+    "description": "Soin de jour protecteur à l'Aloe vera qui hydrate la peau tout en la protégeant des agressions extérieures. 50 ml",
+    "actif": true
+  },
+  {
+    "id": "647",
+    "reference": "647",
+    "nom": "ALOE BODY LOTION",
+    "categorie": "Soins de la peau",
+    "prix": 20000,
+    "cc": 0.091,
+    "description": "Lotion corporelle légère à l'Aloe vera, qui hydrate la peau en douceur au quotidien sans laisser de film gras. 250 ml",
+    "actif": true
+  },
+  {
+    "id": "651",
+    "reference": "651",
+    "nom": "DEEP MOISTURIZING CREAM",
+    "categorie": "Soins de la peau",
+    "prix": 32000,
+    "cc": 0.148,
+    "description": "Crème hydratante profonde qui nourrit intensément les peaux sèches et leur redonne souplesse et confort durablement. 113 g",
+    "actif": true
+  },
+  {
+    "id": "653",
+    "reference": "653",
+    "nom": "REPLENISHING SKIN OIL",
+    "categorie": "Soins de la peau",
+    "prix": 26500,
+    "cc": 0.121,
+    "description": "Huile sèche régénérante qui nourrit intensément la peau, lui redonne souplesse et éclat sans effet gras. 100 ml",
+    "actif": true
+  },
+  {
+    "id": "14",
+    "reference": "14",
+    "nom": "GELEE BAIN ALOES",
+    "categorie": "Soins personnels",
+    "prix": 16000,
+    "cc": 0.072,
+    "description": "Gel douche et bain à l'Aloe vera, qui nettoie et hydrate la peau en douceur pour un moment de détente quotidien. 251 ml",
+    "actif": true
+  },
+  {
+    "id": "22",
+    "reference": "22",
+    "nom": "ALOE LEVRES",
+    "categorie": "Soins personnels",
+    "prix": 3500,
+    "cc": 0.014,
+    "description": "Stick à lèvres à l'Aloe vera qui hydrate et protège les lèvres au quotidien contre le dessèchement. 4,25 g",
+    "actif": true
+  },
+  {
+    "id": "28",
+    "reference": "28",
+    "nom": "FOREVER BRIGHT ALOES",
+    "categorie": "Soins personnels",
+    "prix": 7000,
+    "cc": 0.031,
+    "description": "Gel dentifrice à l'Aloe vera qui nettoie en douceur les dents et protège les gencives au quotidien. 130 g",
+    "actif": true
+  },
+  {
+    "id": "40",
+    "reference": "40",
+    "nom": "ALOE FIRST",
+    "categorie": "Soins personnels",
+    "prix": 17500,
+    "cc": 0.079,
+    "description": "Spray premier secours à l'Aloe vera et à la propolis, idéal pour apaiser rapidement la peau en cas de brûlure, coupure ou irritation. 237 ml",
+    "actif": true
+  },
+  {
+    "id": "67",
+    "reference": "67",
+    "nom": "STICK DEODORANT ALOES",
+    "categorie": "Soins personnels",
+    "prix": 7000,
+    "cc": 0.029,
+    "description": "Déodorant stick à l'Aloe vera, sans aluminium, qui protège efficacement contre les odeurs tout en respectant la peau. 71 g",
+    "actif": true
+  },
+  {
+    "id": "284",
+    "reference": "284",
+    "nom": "AVOCADO SOAP",
+    "categorie": "Soins personnels",
+    "prix": 6500,
+    "cc": 0.027,
+    "description": "Savon à l'avocat et à l'Aloe vera, qui nettoie en douceur le visage et le corps tout en nourrissant la peau. 100 g",
+    "actif": true
+  },
+  {
+    "id": "564",
+    "reference": "564",
+    "nom": "ALOE COOLING LOTION",
+    "categorie": "Soins personnels",
+    "prix": 13000,
+    "cc": 0.06,
+    "description": "Lotion rafraîchissante à l'Aloe vera, idéale après une exposition au soleil pour apaiser et hydrater la peau en profondeur. 178 ml",
+    "actif": true
+  },
+  {
+    "id": "633",
+    "reference": "633",
+    "nom": "ALOE LIQUID SOAP",
+    "categorie": "Soins personnels",
+    "prix": 16500,
+    "cc": 0.075,
+    "description": "Savon liquide à l'Aloe vera qui nettoie et hydrate les mains en douceur, idéal pour un usage quotidien. 473 ml",
+    "actif": true
+  },
+  {
+    "id": "640",
+    "reference": "640",
+    "nom": "ALOE JOJOBA SHAMPOO",
+    "categorie": "Soins personnels",
+    "prix": 19000,
+    "cc": 0.087,
+    "description": "Shampoing à l'Aloe vera et au jojoba, qui nettoie en douceur tout en nourrissant le cuir chevelu et les cheveux. 296 ml",
+    "actif": true
+  },
+  {
+    "id": "641",
+    "reference": "641",
+    "nom": "ALOE JOJOBA CONDITIONNER",
+    "categorie": "Soins personnels",
+    "prix": 20500,
+    "cc": 0.093,
+    "description": "Après-shampoing à l'Aloe vera et au jojoba, qui démêle, nourrit et apporte brillance aux cheveux. 296 ml",
+    "actif": true
+  },
+  {
+    "id": "642",
+    "reference": "642",
+    "nom": "NOURISHING HAIR OIL",
+    "categorie": "Soins personnels",
+    "prix": 24000,
+    "cc": 0.111,
+    "description": "Huile nourrissante à l'Aloe vera qui répare, fortifie et apporte brillance aux cheveux secs ou abîmés. 100 ml",
+    "actif": true
+  },
+  {
+    "id": "643",
+    "reference": "643",
+    "nom": "ALOFA WOMEN'S PERFUME",
+    "categorie": "Soins personnels",
+    "prix": 29000,
+    "cc": 0.134,
+    "description": "Parfum féminin Forever aux notes florales élégantes et raffinées, pour une fragrance longue tenue au quotidien. 50 ml",
+    "actif": true
+  },
+  {
+    "id": "644",
+    "reference": "644",
+    "nom": "MALOSI MEN'S COLOGNE",
+    "categorie": "Soins personnels",
+    "prix": 29000,
+    "cc": 0.134,
+    "description": "Cologne masculine Forever aux notes boisées et fraîches, pour une fragrance distinguée et durable. 50 ml",
+    "actif": true
+  },
+  {
+    "id": "646",
+    "reference": "646",
+    "nom": "ALOE BODY WASH",
+    "categorie": "Soins personnels",
+    "prix": 19500,
+    "cc": 0.09,
+    "description": "Gel douche à l'Aloe vera, qui nettoie et hydrate la peau en douceur pour une sensation de fraîcheur durable. 251 ml",
+    "actif": true
+  },
+  {
+    "id": "664",
+    "reference": "664",
+    "nom": "FOREVER BIO CELLULOSE MASK X3",
+    "categorie": "Soins personnels",
+    "prix": 27500,
+    "cc": 0.127,
+    "description": "Masque visage en bio-cellulose 100% naturelle, qui hydrate intensément la peau et lui redonne éclat immédiat. Boîte de 3 masques",
+    "actif": true
+  },
+  {
+    "id": "37",
+    "reference": "37",
+    "nom": "NATURE-MIN",
+    "categorie": "Nutrition",
+    "prix": 16000,
+    "cc": 0.072,
+    "description": "Complexe de minéraux naturels issus de sources marines, qui contribue à l'équilibre acido-basique de l'organisme. 100 comprimés",
+    "actif": true
+  },
+  {
+    "id": "48",
+    "reference": "48",
+    "nom": "ABSORBENT C",
+    "categorie": "Nutrition",
+    "prix": 15000,
+    "cc": 0.069,
+    "description": "Vitamine C à absorption optimisée avec pulpe d'orange amère, qui soutient le système immunitaire et la production de collagène. 100 comprimés",
+    "actif": true
+  },
+  {
+    "id": "65",
+    "reference": "65",
+    "nom": "AIL ET THYM",
+    "categorie": "Nutrition",
+    "prix": 16000,
+    "cc": 0.072,
+    "description": "Complexe d'ail et de thym en capsules, qui soutient la santé cardiovasculaire et renforce les défenses naturelles de l'organisme. 100 capsules",
+    "actif": true
+  },
+  {
+    "id": "68",
+    "reference": "68",
+    "nom": "FIELDS OF GREEN",
+    "categorie": "Nutrition",
+    "prix": 11500,
+    "cc": 0.051,
+    "description": "Concentré de plantes vertes (blé, orge, algues) qui favorise l'équilibre acido-basique et soutient la vitalité au quotidien. 100 comprimés",
+    "actif": true
+  },
+  {
+    "id": "72",
+    "reference": "72",
+    "nom": "LYCIUM PLUS",
+    "categorie": "Nutrition",
+    "prix": 26000,
+    "cc": 0.12,
+    "description": "Boisson à base de baies de goji, de réglisse et de miel, riche en antioxydants, qui soutient la vision et le système immunitaire. 750 ml",
+    "actif": true
+  },
+  {
+    "id": "188",
+    "reference": "188",
+    "nom": "B12 PLUS",
+    "categorie": "Nutrition",
+    "prix": 13500,
+    "cc": 0.062,
+    "description": "Complément en vitamine B12 et acide folique, essentiel pour le bon fonctionnement du système nerveux et le maintien de l'énergie. 60 comprimés",
+    "actif": true
+  },
+  {
+    "id": "206",
+    "reference": "206",
+    "nom": "FOREVER CALCIUM",
+    "categorie": "Nutrition",
+    "prix": 21500,
+    "cc": 0.098,
+    "description": "Complément en calcium, magnésium et vitamine D3, qui contribue à la solidité des os et des dents. 167 comprimés",
+    "actif": true
+  },
+  {
+    "id": "215",
+    "reference": "215",
+    "nom": "FOREVER MULTI-MACA",
+    "categorie": "Nutrition",
+    "prix": 23500,
+    "cc": 0.107,
+    "description": "Complément à base de maca péruvien et de zinc, qui soutient la vitalité, l'énergie et l'équilibre hormonal. 60 comprimés",
+    "actif": true
+  },
+  {
+    "id": "264",
+    "reference": "264",
+    "nom": "FOREVER ACTIVE HA",
+    "categorie": "Nutrition",
+    "prix": 29500,
+    "cc": 0.136,
+    "description": "Complément à base d'acide hyaluronique naturel, qui hydrate les articulations et la peau de l'intérieur. 30 sachets",
+    "actif": true
+  },
+  {
+    "id": "312",
+    "reference": "312",
+    "nom": "FOREVER CARDIOHEALTH",
+    "categorie": "Nutrition",
+    "prix": 29000,
+    "cc": 0.133,
+    "description": "Complément à base de CoQ10, vitamines B et L-arginine, formulé pour soutenir la santé cardiovasculaire. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "354",
+    "reference": "354",
+    "nom": "FOREVER KIDS",
+    "categorie": "Nutrition",
+    "prix": 13000,
+    "cc": 0.06,
+    "description": "Multivitamines en forme d'animaux pour enfants, qui soutiennent la croissance et les défenses naturelles. 120 comprimés à croquer",
+    "actif": true
+  },
+  {
+    "id": "355",
+    "reference": "355",
+    "nom": "FOREVER IMMUBLEND",
+    "categorie": "Nutrition",
+    "prix": 20500,
+    "cc": 0.093,
+    "description": "Complexe immunité avec zinc, vitamine D et C, qui renforce les défenses naturelles de l'organisme au quotidien. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "374",
+    "reference": "374",
+    "nom": "VITOLIZE MEN",
+    "categorie": "Nutrition",
+    "prix": 26000,
+    "cc": 0.12,
+    "description": "Formule de santé masculine au lycopène et au zinc, qui soutient la santé de la prostate et la vitalité masculine. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "375",
+    "reference": "375",
+    "nom": "VITOLIZE WOMEN",
+    "categorie": "Nutrition",
+    "prix": 27500,
+    "cc": 0.127,
+    "description": "Formule de santé féminine au soja et à la grenade, qui soutient l'équilibre hormonal de la femme. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "376",
+    "reference": "376",
+    "nom": "FOREVER ARTIC SEA",
+    "categorie": "Nutrition",
+    "prix": 26000,
+    "cc": 0.12,
+    "description": "Oméga-3 d'huile de poisson et d'huile d'olive, qui soutient la santé du cœur, du cerveau et réduit l'inflammation. 120 capsules",
+    "actif": true
+  },
+  {
+    "id": "439",
+    "reference": "439",
+    "nom": "FOREVER DAILY",
+    "categorie": "Nutrition",
+    "prix": 17500,
+    "cc": 0.08,
+    "description": "Multivitamines et minéraux complets, formulés pour soutenir la vitalité et l'énergie au quotidien. 60 comprimés",
+    "actif": true
+  },
+  {
+    "id": "464",
+    "reference": "464",
+    "nom": "FOREVER FIBER",
+    "categorie": "Nutrition",
+    "prix": 25000,
+    "cc": 0.115,
+    "description": "Fibres solubles et insolubles en sachets, qui régulent le transit intestinal et soutiennent la digestion. 20 sachets",
+    "actif": true
+  },
+  {
+    "id": "504",
+    "reference": "504",
+    "nom": "FOREVER ARGI+ STICK PACKS",
+    "categorie": "Nutrition",
+    "prix": 65000,
+    "cc": 0.303,
+    "description": "Complément en L-Arginine avec vitamines B, C, D et K, qui soutient la production d'oxyde nitrique et la circulation sanguine. 30 sachets",
+    "actif": true
+  },
+  {
+    "id": "551",
+    "reference": "551",
+    "nom": "FOREVER MOVE",
+    "categorie": "Nutrition",
+    "prix": 55000,
+    "cc": 0.25,
+    "description": "Complément au curcuma, à la Boswellia et à la cerise, anti-inflammatoire naturel puissant pour la mobilité articulaire. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "566",
+    "reference": "566",
+    "nom": "FOREVER IMMUNE GUMMY",
+    "categorie": "Nutrition",
+    "prix": 32000,
+    "cc": 0.148,
+    "description": "Gummies vitamine C et zinc, agréables au goût, pour soutenir l'immunité des enfants comme des adultes. 60 gummies",
+    "actif": true
+  },
+  {
+    "id": "610",
+    "reference": "610",
+    "nom": "FOREVER ACTIVE PRO B",
+    "categorie": "Nutrition",
+    "prix": 32000,
+    "cc": 0.147,
+    "description": "Probiotiques multi-souches qui restaurent et équilibrent la flore intestinale pour une meilleure digestion. 30 capsules",
+    "actif": true
+  },
+  {
+    "id": "621",
+    "reference": "621",
+    "nom": "FOREVER SUPERGREENS",
+    "categorie": "Nutrition",
+    "prix": 34000,
+    "cc": 0.154,
+    "description": "Mélange de super-aliments verts (spiruline, chlorella, moringa) qui soutient la détox et l'énergie au quotidien. 30 sachets",
+    "actif": true
+  },
+  {
+    "id": "622",
+    "reference": "622",
+    "nom": "FOREVER FOCUS",
+    "categorie": "Nutrition",
+    "prix": 72500,
+    "cc": 0.334,
+    "description": "Complexe d'adaptogènes et de nootropiques naturels, formulé pour soutenir la concentration et la clarté mentale. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "624",
+    "reference": "624",
+    "nom": "FOREVER IVISION",
+    "categorie": "Nutrition",
+    "prix": 30500,
+    "cc": 0.14,
+    "description": "Complément à la lutéine, zéaxanthine et baies d'açaï, qui protège et soutient la santé visuelle. 30 capsules",
+    "actif": true
+  },
+  {
+    "id": "654",
+    "reference": "654",
+    "nom": "DX4 INNERPACK",
+    "categorie": "Nutrition",
+    "prix": 30500,
+    "cc": 0.14,
+    "description": "Pack intérieur du programme DX4, formulé pour soutenir la détox et le rééquilibrage de l'organisme sur 4 jours.",
+    "actif": true
+  },
+  {
+    "id": "656",
+    "reference": "656",
+    "nom": "FOREVER PLANT PROTEIN POUCH",
+    "categorie": "Nutrition",
+    "prix": 48500,
+    "cc": 0.223,
+    "description": "Protéines 100% végétales de pois et de riz, idéales pour les sportifs et les personnes véganes. 532 g",
+    "actif": true
+  },
+  {
+    "id": "613",
+    "reference": "613",
+    "nom": "FOREVER MARINE COLLAGEN",
+    "categorie": "Nutrition",
+    "prix": 69000,
+    "cc": 0.327,
+    "description": "Complément à base de collagène marin qui soutient l'élasticité de la peau, la santé des articulations et des cheveux. 30 sachets",
+    "actif": true
+  },
+  {
+    "id": "676",
+    "reference": "676",
+    "nom": "FOREVER ALOE TURM",
+    "categorie": "Nutrition",
+    "prix": 6500,
+    "cc": 0.026,
+    "description": "Pastilles à la menthe au curcuma enrichies en zinc, conçues pour soutenir la santé immunitaire au quotidien. 10 pastilles - 14,2 g",
+    "actif": true
+  },
+  {
+    "id": "71",
+    "reference": "71",
+    "nom": "GARCINIA PLUS",
+    "categorie": "Gestion de poids",
+    "prix": 26000,
+    "cc": 0.12,
+    "description": "Complément à base de garcinia cambogia et de chrome, qui réduit l'appétit et favorise la gestion du poids. 70 capsules",
+    "actif": true
+  },
+  {
+    "id": "289",
+    "reference": "289",
+    "nom": "FOREVER LEAN",
+    "categorie": "Gestion de poids",
+    "prix": 36500,
+    "cc": 0.167,
+    "description": "Complément qui limite l'absorption des glucides et des graisses, tout en aidant à maintenir une glycémie stable. 120 capsules",
+    "actif": true
+  },
+  {
+    "id": "463",
+    "reference": "463",
+    "nom": "FOREVER THERM",
+    "categorie": "Gestion de poids",
+    "prix": 25000,
+    "cc": 0.114,
+    "description": "Complément thermogénique qui accélère le métabolisme et soutient la combustion des graisses. 60 capsules",
+    "actif": true
+  },
+  {
+    "id": "470",
+    "reference": "470",
+    "nom": "LITE ULTRA 15 SERVING VANILLE",
+    "categorie": "Gestion de poids",
+    "prix": 26500,
+    "cc": 0.122,
+    "description": "Substitut de repas riche en protéines, saveur vanille, formulé pour accompagner une gestion saine du poids. 15 portions",
+    "actif": true
+  },
+  {
+    "id": "471",
+    "reference": "471",
+    "nom": "LITE ULTRA 15 SERVING CHOCOLAT",
+    "categorie": "Gestion de poids",
+    "prix": 26500,
+    "cc": 0.122,
+    "description": "Substitut de repas riche en protéines, saveur chocolat, formulé pour accompagner une gestion saine du poids. 15 portions",
+    "actif": true
+  },
+  {
+    "id": "520",
+    "reference": "520",
+    "nom": "FAST BREAK BAR",
+    "categorie": "Gestion de poids",
+    "prix": 5000,
+    "cc": 0.021,
+    "description": "Barre nutritionnelle à l'Aloe vera, collation saine et rassasiante, idéale entre les repas. Barre unitaire",
+    "actif": true
+  },
+  {
+    "id": "456",
+    "reference": "456",
+    "nom": "VITAL5 GEL",
+    "categorie": "Combo Packs",
+    "prix": 223000,
+    "cc": 1.029,
+    "description": "Programme nutritionnel complet Vital5 avec Aloe Vera Gel, conçu pour couvrir les besoins essentiels de l'organisme au quotidien.",
+    "actif": true
+  },
+  {
+    "id": "457",
+    "reference": "457",
+    "nom": "VITAL5 BERRY NECTAR",
+    "categorie": "Combo Packs",
+    "prix": 223000,
+    "cc": 1.029,
+    "description": "Programme nutritionnel complet Vital5 avec Aloe Berry Nectar, conçu pour couvrir les besoins essentiels de l'organisme au quotidien.",
+    "actif": true
+  },
+  {
+    "id": "458",
+    "reference": "458",
+    "nom": "VITAL5 BITS N PEACHES",
+    "categorie": "Combo Packs",
+    "prix": 223000,
+    "cc": 1.029,
+    "description": "Programme nutritionnel complet Vital5 avec Coeur d'Aloès, conçu pour couvrir les besoins essentiels de l'organisme au quotidien.",
+    "actif": true
+  },
+  {
+    "id": "459",
+    "reference": "459",
+    "nom": "VITAL5 FREEDOM",
+    "categorie": "Combo Packs",
+    "prix": 262000,
+    "cc": 1.209,
+    "description": "Programme nutritionnel complet Vital5 avec Forever Freedom, idéal pour la nutrition globale et le confort articulaire.",
+    "actif": true
+  },
+  {
+    "id": "528",
+    "reference": "528",
+    "nom": "BEGINNER 1&2 VANILLA",
+    "categorie": "Combo Packs",
+    "prix": 127000,
+    "cc": 0.586,
+    "description": "Pack de démarrage F15, idéal pour les nouveaux distributeurs et clients souhaitant débuter un programme nutritionnel complet.",
+    "actif": true
+  },
+  {
+    "id": "547",
+    "reference": "547",
+    "nom": "CLEAN 9 VANILLE",
+    "categorie": "Combo Packs",
+    "prix": 104500,
+    "cc": 0.482,
+    "description": "Programme détox Clean 9 sur 9 jours, saveur vanille, qui nettoie l'organisme et démarre une gestion saine du poids.",
+    "actif": true
+  },
+  {
+    "id": "548",
+    "reference": "548",
+    "nom": "CLEAN 9 CHOCOLAT",
+    "categorie": "Combo Packs",
+    "prix": 104500,
+    "cc": 0.482,
+    "description": "Programme détox Clean 9 sur 9 jours, saveur chocolat, qui nettoie l'organisme et démarre une gestion saine du poids.",
+    "actif": true
+  },
+  {
+    "id": "634",
+    "reference": "634",
+    "nom": "START YOUR JOURNEY",
+    "categorie": "Combo Packs",
+    "prix": 325000,
+    "cc": 2,
+    "description": "Programme complet de transformation corporelle Forever, combinant nutrition, gestion du poids et accompagnement complet.",
+    "actif": true
+  },
+  {
+    "id": "635",
+    "reference": "635",
+    "nom": "START YOUR JOURNEY BOOST",
+    "categorie": "Combo Packs",
+    "prix": 323000,
+    "cc": 2,
+    "description": "Programme Start Your Journey avec boost énergétique inclus, pour une transformation corporelle complète et dynamique.",
+    "actif": true
+  },
+  {
+    "id": "659",
+    "reference": "659",
+    "nom": "DX4",
+    "categorie": "Combo Packs",
+    "prix": 115500,
+    "cc": 0.533,
+    "description": "Programme détox intensif DX4 sur 4 jours, conçu pour nettoyer l'organisme en profondeur et relancer la vitalité.",
+    "actif": true
+  },
+  {
+    "id": "70",
+    "reference": "70",
+    "nom": "GENTLEMAN'S PRIDE",
+    "categorie": "Soins personnels",
+    "prix": 13500,
+    "cc": 0.061,
+    "description": "Crème fluide et légère après-rasage, aux propriétés apaisantes pour calmer le feu du rasoir et hydrater la peau. 118 ml",
+    "actif": true
+  },
+  {
+    "id": "318",
+    "reference": "318",
+    "nom": "FOREVER HAND SANITIZER",
+    "categorie": "Soins personnels",
+    "prix": 4000,
+    "cc": 0.017,
+    "description": "Gel hydroalcoolique bactéricide enrichi en Aloe vera et miel, qui nettoie et désinfecte les mains sans les dessécher. 59 ml",
+    "actif": true
+  }
+]

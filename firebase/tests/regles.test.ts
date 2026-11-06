@@ -45,19 +45,29 @@ beforeEach(async () => {
 });
 
 describe("refus par défaut", () => {
-  it("un visiteur non connecté ne lit rien", async () => {
+  it("un visiteur ne lit que le catalogue actif et les boutiques", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "products/p2"), { nom: "Retiré", actif: false });
+      await setDoc(doc(ctx.firestore(), "boutiques/fbo1"), { nom: "Awa" });
+    });
     const d = env.unauthenticatedContext().firestore();
-    await assertFails(getDoc(doc(d, "products/p1")));
+    await assertSucceeds(getDoc(doc(d, "products/p1")));
+    await assertSucceeds(getDoc(doc(d, "boutiques/fbo1")));
+    await assertFails(getDoc(doc(d, "products/p2")));
     await assertFails(getDoc(doc(d, "orders/o1")));
+    await assertFails(getDoc(doc(d, "users/fbo1")));
+    await assertFails(getDoc(doc(d, "customers/c1")));
+  });
+
+  it("une boutique ne s'écrit que par son propriétaire", async () => {
+    await assertSucceeds(setDoc(doc(db("fbo1", "fbo"), "boutiques/fbo1"), { nom: "Awa" }));
+    await assertFails(setDoc(doc(db("fbo2", "fbo"), "boutiques/fbo1"), { nom: "Faux" }));
   });
 
   it("une collection inconnue est refusée, même pour un super_admin", async () => {
     await assertFails(setDoc(doc(db("sa", "super_admin"), "inconnue/x"), { a: 1 }));
   });
 
-  it("un compte sans rôle ne lit pas le catalogue", async () => {
-    await assertFails(getDoc(doc(db("x"), "products/p1")));
-  });
 
   it("personne ne lit les empreintes de PIN", async () => {
     await assertFails(getDoc(doc(db("fbo1", "fbo"), "userSecrets/fbo1")));
@@ -80,6 +90,13 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { role: "super_admin" }));
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "actif", nom: "X", role: "admin" }));
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
+  });
+
+  it("l'ID Forever se renseigne une seule fois", async () => {
+    const d = db("fbo1", "fbo");
+    await assertSucceeds(updateDoc(doc(d, "users/fbo1"), { idDistributeur: "226000", ville: "Ouaga" }));
+    await assertFails(updateDoc(doc(d, "users/fbo1"), { idDistributeur: "999" }));
+    await assertSucceeds(updateDoc(doc(d, "users/fbo1"), { ville: "Bobo" }));
   });
 
   it("un utilisateur ne peut pas créer ni supprimer de profil", async () => {
@@ -156,6 +173,15 @@ describe("commandes et livraisons", () => {
     );
     await assertFails(updateDoc(doc(db("liv1", "livreur"), "deliveries/d1"), { montantEncaisse: 9999 }));
     await assertFails(updateDoc(doc(db("liv2", "livreur"), "deliveries/d1"), { position: { lat: 0, lng: 0 } }));
+  });
+
+  it("un FBO suit la livraison de sa commande, pas celle d'un autre", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "deliveries/d1"), { fboId: "fbo1" });
+    });
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "deliveries/d1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "deliveries/d1")));
+    await assertFails(updateDoc(doc(db("fbo1", "fbo"), "deliveries/d1"), { statut: "livree" }));
   });
 
   it("un FBO dont l'identifiant vaut celui d'un livreur n'en a pas les droits", async () => {
