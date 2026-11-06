@@ -2,6 +2,7 @@ package com.benjo.fboplus.viewmodel
 
 import android.app.Activity
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.benjo.fboplus.auth.SecureTokenStorage
@@ -40,6 +41,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private var verificationId: String? = null
     private var jetonRenvoi: PhoneAuthProvider.ForceResendingToken? = null
     private var inscription = false
+    private var numeroVerifie = false
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -49,6 +51,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     /** Inscription et connexion partagent le même envoi de code SMS. */
     fun envoyerCode(activity: Activity, telephone: String, inscription: Boolean) {
         this.inscription = inscription
+        numeroVerifie = false
         executer {
             traiterEnvoi(repository.envoyerCode(activity, telephone), telephone)
         }
@@ -75,7 +78,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = AuthUiState.Error("Code expiré. Demandez un nouveau code.")
             return
         }
-        executer { terminerConnexion(repository.identifiantDepuisCode(id, code)) }
+        executer {
+            // Un code SMS ne sert qu'une fois : après un échec du profil, on ne reprend que le profil.
+            if (numeroVerifie) chargerProfil()
+            else terminerConnexion(repository.identifiantDepuisCode(id, code))
+        }
     }
 
     fun creerPin(pin: String) {
@@ -147,7 +154,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = AuthUiState.Error("Aucun compte trouvé avec ce numéro.")
             return
         }
+        numeroVerifie = true
+        chargerProfil()
+    }
 
+    private suspend fun chargerProfil() {
         val profil = repository.initialiserProfil()
         if (profil.role != ROLE_APPLICATION) {
             repository.deconnecter()
@@ -176,7 +187,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun messagePour(e: Exception): String = when (e) {
+    private fun messagePour(e: Exception): String {
+        Log.w("AuthViewModel", "Échec de l'authentification", e)
+        return when (e) {
         is FirebaseNetworkException -> "Erreur réseau : impossible de contacter le serveur."
         is FirebaseAuthInvalidCredentialsException -> "Code ou numéro incorrect."
         is FirebaseTooManyRequestsException -> "Trop de tentatives. Réessayez plus tard."
@@ -188,6 +201,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             else -> "Une erreur est survenue. Réessayez."
         }
         else -> "Une erreur est survenue. Réessayez."
+        }
     }
 
     private companion object {

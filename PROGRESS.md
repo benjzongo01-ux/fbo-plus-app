@@ -33,9 +33,17 @@ Branche : `feature/phase-1-socle-firebase`
 - `./gradlew assembleDebug` et `compileReleaseKotlin` réussissent.
 - 40 tests réussis sur l'émulateur Firebase (`cd firebase && npm test`) : 25 sur les règles, 15 sur les fonctions.
 
+- Parcours testé sur un vrai téléphone (TECNO Spark 10C, Android 12), relié aux émulateurs Firebase par USB, avec des codes SMS simulés :
+  - inscription, création du profil et du rôle `fbo`, création du PIN, arrivée au catalogue ;
+  - session conservée après fermeture complète de l'application ;
+  - déconnexion, puis reconnexion demandant le PIN ;
+  - numéro inconnu refusé, sans compte résiduel ;
+  - mauvais PIN refusé avec le nombre d'essais restants, puis bon PIN accepté.
+
 ### Non vérifié
 
-- **L'application n'a jamais été lancée** : ce PC n'a ni émulateur Android ni appareil connecté. Le parcours SMS → PIN → catalogue reste à tester.
+- Envoi et réception de **vrais SMS** : à tester avec le vrai projet Firebase.
+- Activation et usage de la biométrie, verrouillage automatique après 5 minutes et modification du PIN depuis Sécurité : non testés sur appareil.
 - Rien n'est déployé : aucun vrai projet Firebase n'existe encore.
 - App Check n'a pas pu être testé, car l'émulateur Firebase ne le gère pas.
 
@@ -48,10 +56,11 @@ Branche : `feature/phase-1-socle-firebase`
 5. Définir le secret : `firebase functions:secrets:set PIN_PEPPER`.
 6. Déployer : `firebase deploy --only firestore,storage,functions`.
 7. Créer le premier compte avec `scripts/creer-super-admin.mjs`.
-8. Tester le parcours complet sur un appareil, y compris la réception réelle des SMS.
+8. Refaire le parcours sur un appareil avec de vrais SMS.
 
 ### Points d'attention
 
+- Textes mal encodés (« RÃ©f », « ðŸŒ¿ ») dans six écrans : défaut antérieur à cette phase, encore à corriger.
 - Les comptes de l'ancien backend Ktor ne sont pas migrés : ces utilisateurs devront se réinscrire.
 - `PIN_PEPPER` ne doit plus changer une fois en production : tous les PIN existants deviendraient invalides.
 - Firebase BoM reste en 34.19.0 : la version 35 exige Kotlin 2.4, le projet est en 2.2.10.

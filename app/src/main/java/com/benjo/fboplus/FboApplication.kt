@@ -32,7 +32,9 @@ class FboApplication : Application() {
             FirebaseOptions.Builder()
                 .setProjectId("demo-fbo-plus")
                 .setApplicationId("1:1:android:0000000000000000")
-                .setApiKey("demo")
+                // Clé factice : le SDK refuse les appels aux Functions sans ce format, même vers l'émulateur.
+                .setApiKey("AIza" + "0".repeat(35))
+                .setGcmSenderId("1")
                 .build()
         )
         FirebaseAuth.getInstance().useEmulator(HOTE_EMULATEUR, 9099)

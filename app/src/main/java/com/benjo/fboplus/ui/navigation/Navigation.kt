@@ -105,8 +105,8 @@ fun FBONavigation() {
     }
 
     val routesSansBarre = setOf(
-        "connexion", "inscription", "verification/{email}", "pin_entry/{token}", "complete_profile",
-        "pin_creation/{token}", "biometric_suggestion", "pin_verification",
+        "connexion", "inscription", "verification/{telephone}", "pin_entry", "complete_profile",
+        "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande"
     )
