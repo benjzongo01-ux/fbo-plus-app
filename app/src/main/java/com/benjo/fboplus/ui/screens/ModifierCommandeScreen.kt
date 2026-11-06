@@ -52,7 +52,7 @@ fun ModifierCommandeScreen(
         }
     }
 
-    // â”€â”€ Calcul du prix de validation selon le grade du profil â”€â”€
+    // ── Calcul du prix de validation selon le grade du profil ──
     val reduction = reductionPourGrade(profil.grade)
     val caCommande = lignes.sumOf { it.montantTotal }
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
@@ -64,7 +64,7 @@ fun ModifierCommandeScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // â”€â”€ TOP BAR â”€â”€
+            // ── TOP BAR ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +88,7 @@ fun ModifierCommandeScreen(
                 }
             }
 
-            // â”€â”€ LISTE PRODUITS â”€â”€
+            // ── LISTE PRODUITS ──
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -148,7 +148,7 @@ fun ModifierCommandeScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "ðŸ‘† Cliquez pour ajouter Â· âœ• dans le rÃ©cap pour retirer",
+                    "👆 Cliquez pour ajouter · ✕ dans le récap pour retirer",
                     fontSize = 11.sp,
                     color = WhiteFaint
                 )
@@ -175,7 +175,7 @@ fun ModifierCommandeScreen(
                 }
             }
 
-            // â”€â”€ PARTIE BASSE â”€â”€
+            // ── PARTIE BASSE ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,7 +185,7 @@ fun ModifierCommandeScreen(
                 Column {
                     if (lignes.isNotEmpty()) {
 
-                        // Barre rÃ©sumÃ© cliquable
+                        // Barre résumé cliquable
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -216,7 +216,7 @@ fun ModifierCommandeScreen(
                                     Text("${lignes.size} art.", fontSize = 12.sp, color = WhiteFaint)
                                 }
                                 Text(
-                                    if (recapExpanded) "â–² RÃ©duire" else "â–¼ Voir",
+                                    if (recapExpanded) "▲ Réduire" else "▼ Voir",
                                     fontSize = 12.sp,
                                     color = GoldPrimary,
                                     fontWeight = FontWeight.Bold
@@ -234,7 +234,7 @@ fun ModifierCommandeScreen(
                             )
                         }
 
-                        // DÃ©tail dÃ©pliable
+                        // Détail dépliable
                         AnimatedVisibility(visible = recapExpanded) {
                             Box(
                                 modifier = Modifier
@@ -255,7 +255,7 @@ fun ModifierCommandeScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "${ligne.produitNom} Ã—${ligne.quantite}",
+                                                "${ligne.produitNom} ×${ligne.quantite}",
                                                 fontSize = 12.sp,
                                                 color = WhiteSub,
                                                 modifier = Modifier.weight(1f)
@@ -329,7 +329,7 @@ fun ModifierCommandeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "ðŸ’¾ Enregistrer les modifications",
+                            "💾 Enregistrer les modifications",
                             color = if (lignes.isNotEmpty()) BlackDeep else WhiteFaint,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp

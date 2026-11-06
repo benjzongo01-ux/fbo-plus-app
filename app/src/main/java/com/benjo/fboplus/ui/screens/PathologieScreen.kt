@@ -44,7 +44,7 @@ fun PathologieScreen() {
         }
     }
 
-    // â”€â”€ Ã‰CRAN DÃ‰TAIL D'UNE PATHOLOGIE â”€â”€
+    // ── ÉCRAN DÉTAIL D'UNE PATHOLOGIE ──
     pathologieSelectionnee?.let { patho ->
         val produits = remember(patho) {
             ProductRepository.allProducts.filter { p ->
@@ -93,14 +93,14 @@ fun PathologieScreen() {
                         .padding(16.dp)
                 ) {
                     Column {
-                        Text("ðŸ“‹ Description", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = GoldPrimary)
+                        Text("📋 Description", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = GoldPrimary)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(patho.description, fontSize = 13.sp, color = WhiteSub, lineHeight = 20.sp)
                     }
                 }
             }
 
-            // SymptÃ´mes
+            // Symptômes
             item {
                 Box(
                     modifier = Modifier
@@ -112,14 +112,14 @@ fun PathologieScreen() {
                         .padding(16.dp)
                 ) {
                     Column {
-                        Text("ðŸ” SymptÃ´mes", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2979FF))
+                        Text("🔍 Symptômes", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2979FF))
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(patho.symptomes, fontSize = 13.sp, color = WhiteSub, lineHeight = 20.sp)
                     }
                 }
             }
 
-            // Risques si nÃ©gligÃ©
+            // Risques si négligé
             item {
                 Box(
                     modifier = Modifier
@@ -131,7 +131,7 @@ fun PathologieScreen() {
                         .padding(16.dp)
                 ) {
                     Column {
-                        Text("âš ï¸ Risques si nÃ©gligÃ©", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFFF1744))
+                        Text("⚠️ Risques si négligé", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFFF1744))
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(patho.risquesSiNeglige, fontSize = 13.sp, color = WhiteSub, lineHeight = 20.sp)
                     }
@@ -151,7 +151,7 @@ fun PathologieScreen() {
                             .padding(16.dp)
                     ) {
                         Text(
-                            patho.pathologiesSimilaires.joinToString(" Â· "),
+                            patho.pathologiesSimilaires.joinToString(" · "),
                             fontSize = 12.sp,
                             color = WhiteFaint,
                             lineHeight = 18.sp
@@ -164,7 +164,7 @@ fun PathologieScreen() {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "  ðŸ’Š Produits entrant dans ce traitement (${produits.size})",
+                    "  💊 Produits entrant dans ce traitement (${produits.size})",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = GoldPrimary,
@@ -176,7 +176,7 @@ fun PathologieScreen() {
             // Liste produits
             items(produits) { product ->
                 val accent = CATEGORIES_UI[product.categorie]?.first ?: GoldPrimary
-                val emoji = CATEGORIES_UI[product.categorie]?.second ?: "ðŸ“¦"
+                val emoji = CATEGORIES_UI[product.categorie]?.second ?: "📦"
 
                 Box(
                     modifier = Modifier
@@ -272,7 +272,7 @@ fun PathologieScreen() {
         return
     }
 
-    // â”€â”€ Ã‰CRAN LISTE DES PATHOLOGIES â”€â”€
+    // ── ÉCRAN LISTE DES PATHOLOGIES ──
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -286,7 +286,7 @@ fun PathologieScreen() {
         ) {
             Column {
                 Text(
-                    "ðŸ¥ SantÃ©",
+                    "🏥 Santé",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 28.sp,
                     color = GoldPrimary
@@ -396,7 +396,7 @@ fun PathologieScreen() {
                         if (patho.pathologiesSimilaires.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                patho.pathologiesSimilaires.joinToString(" Â· "),
+                                patho.pathologiesSimilaires.joinToString(" · "),
                                 fontSize = 10.sp,
                                 color = WhiteFaint,
                                 lineHeight = 15.sp

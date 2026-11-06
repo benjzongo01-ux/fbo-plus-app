@@ -60,7 +60,6 @@ Branche : `feature/phase-1-socle-firebase`
 
 ### Points d'attention
 
-- Textes mal encodés (« RÃ©f », « ðŸŒ¿ ») dans six écrans : défaut antérieur à cette phase, encore à corriger.
 - Les comptes de l'ancien backend Ktor ne sont pas migrés : ces utilisateurs devront se réinscrire.
 - `PIN_PEPPER` ne doit plus changer une fois en production : tous les PIN existants deviendraient invalides.
 - Firebase BoM reste en 34.19.0 : la version 35 exige Kotlin 2.4, le projet est en 2.2.10.

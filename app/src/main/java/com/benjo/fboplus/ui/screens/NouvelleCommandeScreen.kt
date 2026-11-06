@@ -57,7 +57,7 @@ fun NouvelleCommandeScreen(
         }
     }
 
-    // â”€â”€ Calcul du prix de validation selon le grade du profil â”€â”€
+    // ── Calcul du prix de validation selon le grade du profil ──
     val reduction = reductionPourGrade(profil.grade)
     val caCommande = lignes.sumOf { it.montantTotal }
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
@@ -69,7 +69,7 @@ fun NouvelleCommandeScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // â”€â”€ TOP BAR â”€â”€
+            // ── TOP BAR ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -93,7 +93,7 @@ fun NouvelleCommandeScreen(
                 }
             }
 
-            // â”€â”€ LISTE PRODUITS â”€â”€
+            // ── LISTE PRODUITS ──
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -152,7 +152,7 @@ fun NouvelleCommandeScreen(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("ðŸ‘† Cliquez sur un produit pour l'ajouter", fontSize = 11.sp, color = WhiteFaint)
+                Text("👆 Cliquez sur un produit pour l'ajouter", fontSize = 11.sp, color = WhiteFaint)
                 Spacer(modifier = Modifier.height(6.dp))
 
                 LazyColumn(
@@ -176,7 +176,7 @@ fun NouvelleCommandeScreen(
                 }
             }
 
-            // â”€â”€ PARTIE BASSE â”€â”€
+            // ── PARTIE BASSE ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,7 +186,7 @@ fun NouvelleCommandeScreen(
                 Column {
                     if (lignes.isNotEmpty()) {
 
-                        // Barre rÃ©sumÃ© cliquable
+                        // Barre résumé cliquable
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -217,7 +217,7 @@ fun NouvelleCommandeScreen(
                                     Text("${lignes.size} art.", fontSize = 12.sp, color = WhiteFaint)
                                 }
                                 Text(
-                                    if (recapExpanded) "â–²" else "â–¼ Voir",
+                                    if (recapExpanded) "▲" else "▼ Voir",
                                     fontSize = 12.sp,
                                     color = GoldPrimary,
                                     fontWeight = FontWeight.Bold
@@ -235,7 +235,7 @@ fun NouvelleCommandeScreen(
                             )
                         }
 
-                        // DÃ©tail dÃ©pliable
+                        // Détail dépliable
                         AnimatedVisibility(visible = recapExpanded) {
                             Box(
                                 modifier = Modifier
@@ -256,7 +256,7 @@ fun NouvelleCommandeScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "${ligne.produitNom} Ã—${ligne.quantite}",
+                                                "${ligne.produitNom} ×${ligne.quantite}",
                                                 fontSize = 12.sp,
                                                 color = WhiteSub,
                                                 modifier = Modifier.weight(1f)
@@ -330,7 +330,7 @@ fun NouvelleCommandeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "âœ… Valider la commande",
+                            "✅ Valider la commande",
                             color = if (lignes.isNotEmpty()) BlackDeep else WhiteFaint,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp
@@ -349,7 +349,7 @@ fun CommandeProduitItem(
     onClick: () -> Unit
 ) {
     val accent = CATEGORIES_UI[product.categorie]?.first ?: GoldPrimary
-    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "ðŸ“¦"
+    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "📦"
     val isAdded = quantiteEnCours > 0
 
     Box(
@@ -374,7 +374,7 @@ fun CommandeProduitItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // â”€â”€ PHOTO DU PRODUIT (avec repli emoji) â”€â”€
+                // ── PHOTO DU PRODUIT (avec repli emoji) ──
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -418,7 +418,7 @@ fun CommandeProduitItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "RÃ©f: ${product.ref} Â· ${product.categorie}",
+                        "Réf: ${product.ref} · ${product.categorie}",
                         fontSize = 10.sp,
                         color = WhiteFaint
                     )
@@ -434,7 +434,7 @@ fun CommandeProduitItem(
                 Text("CC: ${product.cc}", fontSize = 10.sp, color = GoldLight)
                 if (isAdded) {
                     Text(
-                        "Ã— $quantiteEnCours",
+                        "× $quantiteEnCours",
                         fontWeight = FontWeight.ExtraBold,
                         color = GoldPrimary,
                         fontSize = 14.sp

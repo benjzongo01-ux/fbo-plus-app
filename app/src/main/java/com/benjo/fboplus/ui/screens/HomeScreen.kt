@@ -38,14 +38,14 @@ import com.benjo.fboplus.viewmodel.ProductViewModel
 import com.benjo.fboplus.viewmodel.VentesViewModel
 
 val CATEGORIES_UI = mapOf(
-    "Tous"                to Pair(GoldPrimary,      "ðŸŒ¿"),
-    "Buvable"             to Pair(Color(0xFF00C853), "ðŸ¥¤"),
-    "Produit de la ruche" to Pair(Color(0xFFFFB300), "ðŸ¯"),
-    "Soins de la peau"    to Pair(Color(0xFFAA00FF), "âœ¨"),
-    "Soins personnels"    to Pair(Color(0xFF2979FF), "ðŸ§´"),
-    "Nutrition"           to Pair(Color(0xFFFF6D00), "ðŸ’Š"),
-    "Gestion de poids"    to Pair(Color(0xFF00BCD4), "âš–ï¸"),
-    "Combo Packs"         to Pair(Color(0xFFD4AF37), "ðŸ“¦"),
+    "Tous"                to Pair(GoldPrimary,      "🌿"),
+    "Buvable"             to Pair(Color(0xFF00C853), "🥤"),
+    "Produit de la ruche" to Pair(Color(0xFFFFB300), "🍯"),
+    "Soins de la peau"    to Pair(Color(0xFFAA00FF), "✨"),
+    "Soins personnels"    to Pair(Color(0xFF2979FF), "🧴"),
+    "Nutrition"           to Pair(Color(0xFFFF6D00), "💊"),
+    "Gestion de poids"    to Pair(Color(0xFF00BCD4), "⚖️"),
+    "Combo Packs"         to Pair(Color(0xFFD4AF37), "📦"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -85,7 +85,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
 
-            // â”€â”€ HEADER â”€â”€
+            // ── HEADER ──
             item {
                 Box(
                     modifier = Modifier
@@ -117,12 +117,12 @@ fun HomeScreen(
                                 )
                             }
 
-                            // â”€â”€ Colonne de droite : badge + carte Aujourd'hui, MÃŠME LARGEUR â”€â”€
+                            // ── Colonne de droite : badge + carte Aujourd'hui, MÊME LARGEUR ──
                             Column(
                                 horizontalAlignment = Alignment.End,
                                 modifier = Modifier.width(IntrinsicSize.Max)
                             ) {
-                                // Badge ACTIF / NON ACTIF â€” largeur fixÃ©e par la carte du dessous
+                                // Badge ACTIF / NON ACTIF — largeur fixée par la carte du dessous
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -150,7 +150,7 @@ fun HomeScreen(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // Carte Aujourd'hui â€” dÃ©termine la largeur du groupe
+                                // Carte Aujourd'hui — détermine la largeur du groupe
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -207,7 +207,7 @@ fun HomeScreen(
                                     textStyle = TextStyle(color = WhitePrimary, fontSize = 14.sp),
                                     decorationBox = { innerTextField ->
                                         if (searchQuery.isEmpty()) {
-                                            Text("Rechercher un produit ou rÃ©f...", color = WhiteFaint, fontSize = 14.sp)
+                                            Text("Rechercher un produit ou réf...", color = WhiteFaint, fontSize = 14.sp)
                                         }
                                         innerTextField()
                                     },
@@ -232,7 +232,7 @@ fun HomeScreen(
                 }
             }
 
-            // â”€â”€ FILTRES CATÃ‰GORIES â”€â”€
+            // ── FILTRES CATÉGORIES ──
             item {
                 ScrollableTabRow(
                     selectedTabIndex = categories.indexOf(selectedCategorie).coerceAtLeast(0),
@@ -244,7 +244,7 @@ fun HomeScreen(
                 ) {
                     categories.forEach { cat ->
                         val selected = selectedCategorie == cat
-                        val emoji = CATEGORIES_UI[cat]?.second ?: "ðŸ“¦"
+                        val emoji = CATEGORIES_UI[cat]?.second ?: "📦"
                         Tab(
                             selected = selected,
                             onClick = { viewModel.setCategorie(cat) },
@@ -262,7 +262,7 @@ fun HomeScreen(
                                     .padding(horizontal = 14.dp, vertical = 7.dp)
                             ) {
                                 Text(
-                                    if (cat == "Tous") "ðŸŒ¿ Tous" else "$emoji $cat",
+                                    if (cat == "Tous") "🌿 Tous" else "$emoji $cat",
                                     fontSize = 11.sp,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selected) GoldPrimary else WhiteSub
@@ -273,7 +273,7 @@ fun HomeScreen(
                 }
             }
 
-            // â”€â”€ COMPTEUR â”€â”€
+            // ── COMPTEUR ──
             item {
                 Text(
                     "  ${products.size} produit(s)",
@@ -283,7 +283,7 @@ fun HomeScreen(
                 )
             }
 
-            // â”€â”€ LISTE PRODUITS AVEC IMAGES â”€â”€
+            // ── LISTE PRODUITS AVEC IMAGES ──
             items(products) { product ->
                 PremiumProductCard(
                     product = product,
@@ -293,7 +293,7 @@ fun HomeScreen(
         }
     }
 
-    // â”€â”€ MODAL PRODUIT AVEC GRANDE PHOTO â”€â”€
+    // ── MODAL PRODUIT AVEC GRANDE PHOTO ──
     selectedProduct?.let { product ->
         PremiumProductModal(
             product = product,
@@ -308,7 +308,7 @@ fun PremiumProductCard(
     onClick: () -> Unit
 ) {
     val accent = CATEGORIES_UI[product.categorie]?.first ?: GoldPrimary
-    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "ðŸ“¦"
+    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "📦"
 
     Box(
         modifier = Modifier
@@ -339,7 +339,7 @@ fun PremiumProductCard(
                 .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // â”€â”€ PHOTO DU PRODUIT â”€â”€
+            // ── PHOTO DU PRODUIT ──
             Box(
                 modifier = Modifier
                     .size(50.dp)
@@ -390,7 +390,7 @@ fun PremiumProductCard(
                         )
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("RÃ©f: ${product.ref}", fontSize = 9.sp, color = WhiteFaint)
+                    Text("Réf: ${product.ref}", fontSize = 9.sp, color = WhiteFaint)
                 }
                 Spacer(modifier = Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -427,7 +427,7 @@ fun PremiumProductModal(
     onClose: () -> Unit
 ) {
     val accent = CATEGORIES_UI[product.categorie]?.first ?: GoldPrimary
-    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "ðŸ“¦"
+    val emoji = CATEGORIES_UI[product.categorie]?.second ?: "📦"
 
     Box(
         modifier = Modifier
@@ -487,7 +487,7 @@ fun PremiumProductModal(
                         Text(product.categorie, fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("RÃ©f: ${product.ref}", fontSize = 11.sp, color = WhiteFaint)
+                    Text("Réf: ${product.ref}", fontSize = 11.sp, color = WhiteFaint)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -520,7 +520,7 @@ fun PremiumProductModal(
 
                 if (product.description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("ðŸ“‹ Description", fontSize = 11.sp, color = WhiteFaint, fontWeight = FontWeight.Bold)
+                    Text("📋 Description", fontSize = 11.sp, color = WhiteFaint, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         product.description,
@@ -532,7 +532,7 @@ fun PremiumProductModal(
 
                 if (product.pathologies.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("ðŸ¥ Pathologies", fontSize = 11.sp, color = WhiteFaint, fontWeight = FontWeight.Bold)
+                    Text("🏥 Pathologies", fontSize = 11.sp, color = WhiteFaint, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),

@@ -60,7 +60,7 @@ fun VentesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // â”€â”€ HEADER â”€â”€
+            // ── HEADER ──
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -88,7 +88,7 @@ fun VentesScreen(
                 }
             }
 
-            // â”€â”€ Suggestion clÃ´ture mois â”€â”€
+            // ── Suggestion clôture mois ──
             if (suggererCloture) {
                 item {
                     Box(
@@ -101,13 +101,13 @@ fun VentesScreen(
                     ) {
                         Column {
                             Text(
-                                "ðŸ“… Fin de mois approche !",
+                                "📅 Fin de mois approche !",
                                 fontWeight = FontWeight.Bold,
                                 color = GoldPrimary,
                                 fontSize = 14.sp
                             )
                             Text(
-                                "Voulez-vous clÃ´turer le mois en cours ?",
+                                "Voulez-vous clôturer le mois en cours ?",
                                 fontSize = 12.sp,
                                 color = WhiteSub
                             )
@@ -121,7 +121,7 @@ fun VentesScreen(
                                         .padding(horizontal = 16.dp, vertical = 10.dp)
                                 ) {
                                     Text(
-                                        "âœ… ClÃ´turer",
+                                        "✅ Clôturer",
                                         color = BlackDeep,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -143,7 +143,7 @@ fun VentesScreen(
                 }
             }
 
-            // â”€â”€ TABLEAU DE BORD DU JOUR â”€â”€
+            // ── TABLEAU DE BORD DU JOUR ──
             item {
                 Box(
                     modifier = Modifier
@@ -158,7 +158,7 @@ fun VentesScreen(
                         .padding(20.dp)
                 ) {
                     Column {
-                        Text("ðŸ“Š Aujourd'hui", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("📊 Aujourd'hui", color = GoldPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -200,7 +200,7 @@ fun VentesScreen(
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("BÃ©nÃ©fice", color = WhiteFaint, fontSize = 11.sp)
+                                Text("Bénéfice", color = WhiteFaint, fontSize = 11.sp)
                                 Text(
                                     "%,d FCFA".format(bnfDuJour),
                                     color = GreenPrimary,
@@ -213,7 +213,7 @@ fun VentesScreen(
                         HorizontalDivider(color = GoldPrimary.copy(0.15f))
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "${commandesDuJour.size} commande(s) enregistrÃ©e(s)",
+                            "${commandesDuJour.size} commande(s) enregistrée(s)",
                             color = WhiteSub,
                             fontSize = 12.sp
                         )
@@ -221,7 +221,7 @@ fun VentesScreen(
                 }
             }
 
-            // â”€â”€ BOUTON NOUVELLE COMMANDE â”€â”€
+            // ── BOUTON NOUVELLE COMMANDE ──
             item {
                 Box(
                     modifier = Modifier
@@ -233,7 +233,7 @@ fun VentesScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "âž• Nouvelle Commande",
+                        "➕ Nouvelle Commande",
                         color = BlackDeep,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp
@@ -241,7 +241,7 @@ fun VentesScreen(
                 }
             }
 
-            // â”€â”€ LISTE COMMANDES â”€â”€
+            // ── LISTE COMMANDES ──
             if (commandesDuJour.isEmpty()) {
                 item {
                     Box(
@@ -251,7 +251,7 @@ fun VentesScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("ðŸ›’", fontSize = 40.sp)
+                            Text("🛒", fontSize = 40.sp)
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 "Aucune commande aujourd'hui",
@@ -304,7 +304,7 @@ fun GoldCommandeCard(
             .background(BlackCard)
             .border(1.dp, GoldPrimary.copy(0.2f), RoundedCornerShape(18.dp))
     ) {
-        // Barre gauche dorÃ©e
+        // Barre gauche dorée
         Box(
             modifier = Modifier
                 .width(3.dp)
@@ -323,7 +323,7 @@ fun GoldCommandeCard(
                 top = 14.dp, bottom = 14.dp
             )
         ) {
-            // En-tÃªte
+            // En-tête
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -337,7 +337,7 @@ fun GoldCommandeCard(
                         color = WhitePrimary
                     )
                     Text(
-                        "${commande.dateStr} Â· ${commande.lignes.size} produit(s)",
+                        "${commande.dateStr} · ${commande.lignes.size} produit(s)",
                         fontSize = 11.sp,
                         color = WhiteFaint
                     )
@@ -346,25 +346,25 @@ fun GoldCommandeCard(
                     // Partager avec nom + ID distributeur
                     IconButton(onClick = {
                         val texte = buildString {
-                            appendLine("ðŸŒ¿ *FBO+ â€” Commande Forever Living*")
+                            appendLine("🌿 *FBO+ — Commande Forever Living*")
                             appendLine()
                             if (nomDistributeur.isNotEmpty()) {
-                                appendLine("ðŸ‘¤ *$nomDistributeur*")
+                                appendLine("👤 *$nomDistributeur*")
                             }
                             if (idDistributeur.isNotEmpty()) {
-                                appendLine("ðŸ†” ID: $idDistributeur")
+                                appendLine("🆔 ID: $idDistributeur")
                             }
-                            appendLine("ðŸ“… ${commande.dateStr}")
-                            appendLine("ðŸ“‹ *${commande.titre.ifBlank { "Commande" }}*")
-                            appendLine("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
+                            appendLine("📅 ${commande.dateStr}")
+                            appendLine("📋 *${commande.titre.ifBlank { "Commande" }}*")
+                            appendLine("─────────────────")
                             commande.lignes.forEach { ligne ->
-                                appendLine("â€¢ ${ligne.produitNom} Ã—${ligne.quantite} â†’ %,d FCFA".format(ligne.montantTotal))
+                                appendLine("• ${ligne.produitNom} ×${ligne.quantite} → %,d FCFA".format(ligne.montantTotal))
                             }
-                            appendLine("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
-                            appendLine("ðŸ’° *CA Total : %,d FCFA*".format(commande.caTotal))
-                            appendLine("â­ *CC Total : %.3f CC*".format(commande.ccTotal))
-                            appendLine("ðŸ’³ *Prix de validation : %,d FCFA*".format(commande.prixValidation))
-                            appendLine("ðŸ“ˆ *BÃ©nÃ©fice : %,d FCFA*".format(commande.beneficeTotal))
+                            appendLine("─────────────────")
+                            appendLine("💰 *CA Total : %,d FCFA*".format(commande.caTotal))
+                            appendLine("⭐ *CC Total : %.3f CC*".format(commande.ccTotal))
+                            appendLine("💳 *Prix de validation : %,d FCFA*".format(commande.prixValidation))
+                            appendLine("📈 *Bénéfice : %,d FCFA*".format(commande.beneficeTotal))
                         }
                         val intent = android.content.Intent(
                             android.content.Intent.ACTION_SEND
@@ -429,7 +429,7 @@ fun GoldCommandeCard(
                 )
             }
 
-            // Voir dÃ©tail
+            // Voir détail
             Row(
                 modifier = Modifier
                     .clickable { expanded = !expanded }
@@ -437,7 +437,7 @@ fun GoldCommandeCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (expanded) "â–² Masquer le dÃ©tail" else "â–¼ Voir le dÃ©tail",
+                    if (expanded) "▲ Masquer le détail" else "▼ Voir le détail",
                     fontSize = 12.sp,
                     color = GoldPrimary,
                     fontWeight = FontWeight.Bold
@@ -456,7 +456,7 @@ fun GoldCommandeCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "${ligne.produitNom} Ã—${ligne.quantite}",
+                            "${ligne.produitNom} ×${ligne.quantite}",
                             fontSize = 12.sp,
                             color = WhiteSub,
                             modifier = Modifier.weight(1f)
