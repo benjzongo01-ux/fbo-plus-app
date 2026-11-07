@@ -138,7 +138,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .grille h2 { font-size: 15px; margin-bottom: 6px; }
 .grille p { margin: 0 0 8px; font-size: 14px; }
-.grille img { width: 100%; height: 170px; object-fit: contain; margin-bottom: 8px; }
+.grille img { width: 100%; height: 170px; object-fit: contain; margin-bottom: 8px; background: #fff; border-radius: 8px; }
 
 @media (max-width: 900px) {
   .cadre { flex-direction: column; }

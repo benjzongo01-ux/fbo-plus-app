@@ -47,7 +47,13 @@ export default function Boutique() {
       <div className="grille">
         {visibles.map((p) => (
           <article key={p.id} className="carte">
-            {p.image && <img src={p.image} alt={p.nom} />}
+            {/* Photo fournie par le produit, sinon celle de l'application (scripts/copier-photos-boutique.mjs). */}
+            <img
+              src={p.image || `/produits/${encodeURIComponent(String(p.reference ?? p.id))}.jpg`}
+              alt={p.nom}
+              loading="lazy"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
             <h2>{p.nom}</h2>
             <p className="discret">{p.description}</p>
             <p><strong>{fcfa(p.prix)}</strong></p>

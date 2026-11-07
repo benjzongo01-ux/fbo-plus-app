@@ -69,6 +69,10 @@ data class Commande(
     // Bénéfice / recette = CA (prix public) - prix de validation
     val beneficeTotal: Int get() = caTotal - prixValidation - reduction
 
+    /** Titre choisi, sinon le client, sinon le bénéficiaire (une validation n'a pas de client). */
+    val nomAffiche: String get() = titre.takeIf { it.isNotBlank() && it != "Commande" }
+        ?: clientNom.ifBlank { beneficiaireNom.ifBlank { "Commande" } }
+
     val modifiable: Boolean get() = docId.isNotEmpty() && statut == "nouvelle"
     val annulable: Boolean get() = docId.isNotEmpty() && statut in setOf("nouvelle", "confirmee")
 }
