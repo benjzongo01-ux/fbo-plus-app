@@ -349,10 +349,12 @@ private fun CarteChiffre(libelle: String, valeur: String, detail: String) {
     }
 }
 
-/** Partage la position tant que la mission est en cours et l'écran ouvert. */
-@SuppressLint("MissingPermission")
+/**
+ * Démarre le partage de position dès que la livraison est en cours. Le service continue
+ * écran éteint et s'arrête seul à la fin de la livraison.
+ */
 @Composable
-private fun SuiviPosition(mission: Mission, vm: MissionsViewModel) {
+private fun SuiviPosition(mission: Mission, @Suppress("UNUSED_PARAMETER") vm: MissionsViewModel) {
     val context = LocalContext.current
     var autorise by remember {
         mutableStateOf(
@@ -370,18 +372,7 @@ private fun SuiviPosition(mission: Mission, vm: MissionsViewModel) {
             demande.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             return@LaunchedEffect
         }
-        val localisation = LocationServices.getFusedLocationProviderClient(context)
-        while (true) {
-            try {
-                localisation.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null).await()
-                    ?.let { vm.enregistrerPosition(mission.id, it.latitude, it.longitude) }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                android.util.Log.w("Position", "Position indisponible", e)
-            }
-            delay(30_000)
-        }
+        SuiviPositionService.demarrer(context, mission.id)
     }
 }
 

@@ -265,6 +265,30 @@ async function tarifsDuPays(tx: Transaction, pays: string) {
   };
 }
 
+/**
+ * Un pays peut avoir plusieurs entrepôts : la commande part du premier (par ordre de priorité,
+ * puis de nom) qui a tout le stock demandé. Sinon, le premier entrepôt signalera le manque.
+ */
+async function choisirEntrepot(tx: Transaction, pays: string, demandes: LigneDemandee[]) {
+  const entrepots = (
+    await tx.get(db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true))
+  ).docs.sort(
+    (a, b) =>
+      Number(a.data().priorite ?? 100) - Number(b.data().priorite ?? 100) ||
+      String(a.data().nom ?? a.id).localeCompare(String(b.data().nom ?? b.id)),
+  );
+  if (entrepots.length === 0) {
+    throw new HttpsError("failed-precondition", `Les commandes ne sont pas encore ouvertes pour : ${pays}.`);
+  }
+  if (entrepots.length === 1) return entrepots[0].id;
+
+  for (const entrepot of entrepots) {
+    const stocks = await tx.getAll(...demandes.map((l) => db.doc(`stock/${entrepot.id}_${l.produitId}`)));
+    if (stocks.every((s, i) => Number(s.data()?.disponible ?? 0) >= demandes[i].quantite)) return entrepot.id;
+  }
+  return entrepots[0].id;
+}
+
 const etapeHistorique = (statut: string, auteurId: string) => ({
   statut,
   auteurId,
@@ -293,13 +317,7 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     if (!estPays(d.pays)) throw new HttpsError("invalid-argument", "Choisissez le pays de la commande.");
     const pays = d.pays;
     const tarifs = await tarifsDuPays(tx, pays);
-    const entrepots = await tx.get(
-      db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true).limit(1),
-    );
-    if (entrepots.empty) {
-      throw new HttpsError("failed-precondition", `Les commandes ne sont pas encore ouvertes pour : ${pays}.`);
-    }
-    const entrepotId = entrepots.docs[0].id;
+    const entrepotId = await choisirEntrepot(tx, pays, demandes);
     const mode = lireMode(d.mode);
     const beneficiaire = lireBeneficiaire(d, profil);
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;

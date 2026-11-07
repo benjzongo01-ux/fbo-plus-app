@@ -447,6 +447,19 @@ describe("expédition vers une autre ville", () => {
   });
 });
 
+describe("plusieurs entrepôts dans un pays", () => {
+  it("la commande part du premier entrepôt qui a tout le stock", async () => {
+    await adminDb().doc("warehouses/bobo").set({ nom: "Bobo", pays: "Burkina Faso", actif: true, priorite: 1 });
+    await adminDb().doc(`stock/bobo_${produit}`).set({ disponible: 1, reserve: 0 });
+    const u = await fbo();
+    const { id: petite } = await nouvelle(u, { lignes: [{ produitId: produit, quantite: 1 }] });
+    const { id: grande } = await nouvelle(u, { lignes: [{ produitId: produit, quantite: 3 }] });
+    await adminDb().doc("warehouses/bobo").delete();
+    expect((await commande(petite)).entrepotId).toBe("bobo");
+    expect((await commande(grande)).entrepotId).toBe("principal");
+  });
+});
+
 describe("grade et ID Forever tenus par l'administration", () => {
   it("la remise suit le grade validé, pas le grade demandé", async () => {
     const u = await compte("fbo", { gradeDemande: "Manager (M)", idDistributeur: "226000111222", prenom: "Ali", nom: "Test" });

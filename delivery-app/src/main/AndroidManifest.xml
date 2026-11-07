@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <queries>
         <intent>
@@ -40,6 +42,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/chemins_fichiers" />
         </provider>
+
+        <!-- Position partagée pendant une livraison, même écran éteint. -->
+        <service
+            android:name=".SuiviPositionService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <service
             android:name=".NotificationsService"
