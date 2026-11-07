@@ -94,6 +94,12 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("le distributeur demande un grade mais ne se l'attribue pas", async () => {
+    const d = db("fbo1", "fbo");
+    await assertFails(updateDoc(doc(d, "users/fbo1"), { grade: "Manager (M)" }));
+    await assertSucceeds(updateDoc(doc(d, "users/fbo1"), { gradeDemande: "Manager (M)" }));
+  });
+
   it("l'ID Forever se renseigne une seule fois", async () => {
     const d = db("fbo1", "fbo");
     await assertSucceeds(updateDoc(doc(d, "users/fbo1"), { idDistributeur: "226000", ville: "Ouaga" }));
@@ -126,6 +132,15 @@ describe("administration par pays", () => {
   it("un administrateur ne crée d'entrepôt que dans son pays", async () => {
     await assertSucceeds(setDoc(doc(db("a", "admin"), "warehouses/w2"), { nom: "Bobo", pays: "Burkina Faso" }));
     await assertFails(setDoc(doc(db("a", "admin"), "warehouses/w3"), { nom: "Dakar", pays: "Sénégal" }));
+  });
+
+  it("chaque administration règle les tarifs de son pays seulement", async () => {
+    const tarifs = { fraisLivraison: 1000, commissionLivreur: 500 };
+    await assertSucceeds(setDoc(doc(db("a", "admin"), "tarifsPays/Burkina Faso"), tarifs));
+    await assertFails(setDoc(doc(db("a", "admin"), "tarifsPays/Côte d'Ivoire"), tarifs));
+    await assertFails(setDoc(doc(db("op", "operateur"), "tarifsPays/Burkina Faso"), tarifs));
+    await assertSucceeds(setDoc(doc(db("sa", "super_admin", ""), "tarifsPays/Sénégal"), tarifs));
+    await assertSucceeds(getDoc(doc(db("f", "fbo"), "tarifsPays/Burkina Faso")));
   });
 
   it("chaque administration tient les villes d'expédition de son pays", async () => {

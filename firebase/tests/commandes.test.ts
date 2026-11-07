@@ -121,6 +121,28 @@ describe("creerCommande", () => {
     expect((await commande(id)).fraisLivraison).toBe(1500);
   });
 
+  it("chaque pays a ses propres frais de livraison et sa commission", async () => {
+    await adminDb().doc("parametres/tarifs").set({ fraisLivraison: 1500, commissionLivreur: 400 });
+    await adminDb().doc("tarifsPays/Côte d'Ivoire").set({ fraisLivraison: 2000, commissionLivreur: 700 });
+    await adminDb().doc("stock/abidjan_" + produit).set({ disponible: 10, reserve: 0 });
+    const u = await fbo();
+    const { total: bf } = await nouvelle(u);
+    const { id, total: ci } = await nouvelle(u, { pays: "Côte d'Ivoire" });
+    expect(bf).toBe(45500); // tarifs communs, faute de tarifs propres au Burkina
+    expect(ci).toBe(46000);
+
+    const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
+    const livreurCI = await compte("livreur", { pays: "Côte d'Ivoire" });
+    await adminCI.appeler("avancerCommande", { id });
+    await adminCI.appeler("avancerCommande", { id });
+    await adminCI.appeler("avancerCommande", { id });
+    await adminCI.appeler("assignerLivreur", { id, livreurId: livreurCI.uid });
+    expect((await adminDb().doc(`deliveries/${id}`).get()).data()!.commission).toBe(700);
+
+    await adminDb().doc("tarifsPays/Côte d'Ivoire").delete();
+    await adminDb().doc("parametres/tarifs").delete();
+  });
+
   it("refuse un produit inactif, le client d'un autre FBO et les autres rôles", async () => {
     await adminDb().doc(`products/${produit2}`).update({ actif: false });
     const u = await fbo();
@@ -422,6 +444,68 @@ describe("expédition vers une autre ville", () => {
     await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
     expect(await codeErreur(adminCI.appeler("expedierCommande", { id }))).toBe("functions/permission-denied");
+  });
+});
+
+describe("grade et ID Forever tenus par l'administration", () => {
+  it("la remise suit le grade validé, pas le grade demandé", async () => {
+    const u = await compte("fbo", { gradeDemande: "Manager (M)", idDistributeur: "226000111222", prenom: "Ali", nom: "Test" });
+    const admin = await compte("admin");
+    const { id: avant } = await nouvelle(u);
+    expect((await commande(avant)).beneficeFbo).toBe(2200); // Client Privilégié : 5 %
+
+    await admin.appeler("definirGrade", { uid: u.uid, grade: "Manager (M)" });
+    const profil = (await adminDb().doc(`users/${u.uid}`).get()).data()!;
+    expect(profil.grade).toBe("Manager (M)");
+    expect(profil.gradeDemande).toBeUndefined();
+    const { id: apres } = await nouvelle(u);
+    expect((await commande(apres)).beneficeFbo).toBe(21120); // Manager : 48 %
+
+    const avis = await adminDb().collection("notifications").where("userId", "==", u.uid).get();
+    expect(avis.docs.map((n) => n.data().corps).join()).toContain("Manager (M)");
+  });
+
+  it("une demande refusée est effacée sans changer le grade", async () => {
+    const u = await compte("fbo", { grade: "Animateur (A)", gradeDemande: "Manager (M)" });
+    const admin = await compte("admin");
+    await admin.appeler("definirGrade", { uid: u.uid, refuser: true });
+    const profil = (await adminDb().doc(`users/${u.uid}`).get()).data()!;
+    expect(profil.grade).toBe("Animateur (A)");
+    expect(profil.gradeDemande).toBeUndefined();
+    expect(await codeErreur(admin.appeler("definirGrade", { uid: u.uid, refuser: true }))).toBe(
+      "functions/failed-precondition",
+    );
+  });
+
+  it("seule l'administration du pays du distributeur décide", async () => {
+    const u = await compte("fbo", { gradeDemande: "Manager (M)" });
+    const operateur = await compte("operateur");
+    const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
+    const admin = await compte("admin");
+    expect(await codeErreur(operateur.appeler("definirGrade", { uid: u.uid, grade: "Manager (M)" }))).toBe(
+      "functions/permission-denied",
+    );
+    expect(await codeErreur(adminCI.appeler("definirGrade", { uid: u.uid, grade: "Manager (M)" }))).toBe(
+      "functions/permission-denied",
+    );
+    expect(await codeErreur(admin.appeler("definirGrade", { uid: u.uid, grade: "Roi" }))).toBe(
+      "functions/invalid-argument",
+    );
+    expect(await codeErreur(admin.appeler("definirGrade", { uid: admin.uid, grade: "Manager (M)" }))).toBe(
+      "functions/not-found",
+    );
+  });
+
+  it("l'administration corrige un ID Forever erroné", async () => {
+    const u = await compte("fbo", { idDistributeur: "226000111222" });
+    const admin = await compte("admin");
+    expect(await codeErreur(admin.appeler("corrigerIdForever", { uid: u.uid, idDistributeur: "12" }))).toBe(
+      "functions/invalid-argument",
+    );
+    await admin.appeler("corrigerIdForever", { uid: u.uid, idDistributeur: "226-000-999-888" });
+    expect((await adminDb().doc(`users/${u.uid}`).get()).data()!.idDistributeur).toBe("226-000-999-888");
+    const journal = await adminDb().collection("auditLogs").where("cibleId", "==", u.uid).get();
+    expect(journal.docs.some((j) => j.data().action === "id_forever_corrige")).toBe(true);
   });
 });
 

@@ -12,6 +12,7 @@ import {
   journaliser,
   OPTIONS_APPEL,
 } from "./commun.js";
+import { REMISES } from "./commandes.js";
 
 /**
  * Appelée après la vérification du code SMS. Un nouveau numéro devient un compte fbo :
@@ -106,6 +107,70 @@ export const definirStatut = onCall(OPTIONS_APPEL, async (req) => {
   await journaliser("statut_modifie", appelant.uid, uid, { statut });
 
   return { uid, statut };
+});
+
+/** Lit le distributeur visé et vérifie qu'il relève de l'administration de l'appelant. */
+async function distributeurDuPays(req: Parameters<typeof exigerMemePays>[0], uid: unknown) {
+  if (typeof uid !== "string" || uid.length === 0) throw new HttpsError("invalid-argument", "Compte manquant.");
+  const ref = db.doc(`users/${uid}`);
+  const compte = (await ref.get()).data();
+  if (!compte || compte.role !== "fbo") throw new HttpsError("not-found", "Distributeur introuvable.");
+  exigerMemePays(req, compte.pays);
+  return { ref, compte };
+}
+
+/** Prévient le distributeur dans son fil de notifications, sans lien vers une commande. */
+async function prevenir(userId: string, cle: string, corps: string) {
+  await db.doc(`notifications/${cle}_${userId}_${Date.now()}`).set({
+    userId,
+    titre: "Votre compte",
+    corps,
+    commandeId: "",
+    lu: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * Le grade fixe la remise et le plafond des réductions : seul l'administration l'attribue.
+ * Le distributeur ne fait qu'une demande (gradeDemande), acceptée ou refusée ici.
+ */
+export const definirGrade = onCall(OPTIONS_APPEL, async (req) => {
+  const appelant = exigerAdmin(req);
+  const d = (req.data ?? {}) as { uid?: unknown; grade?: unknown; refuser?: unknown };
+  const { ref, compte } = await distributeurDuPays(req, d.uid);
+
+  if (d.refuser === true) {
+    if (!compte.gradeDemande) throw new HttpsError("failed-precondition", "Aucune demande de grade en attente.");
+    await ref.update({ gradeDemande: FieldValue.delete() });
+    await journaliser("grade_refuse", appelant.uid, ref.id, { demande: compte.gradeDemande });
+    await prevenir(ref.id, "grade", `Votre demande de grade « ${compte.gradeDemande} » n'a pas été acceptée.`);
+    return { grade: compte.grade ?? null };
+  }
+
+  if (typeof d.grade !== "string" || !(d.grade in REMISES)) {
+    throw new HttpsError("invalid-argument", "Grade inconnu.");
+  }
+  await ref.update({ grade: d.grade, gradeDemande: FieldValue.delete() });
+  await journaliser("grade_defini", appelant.uid, ref.id, { avant: compte.grade ?? null, apres: d.grade });
+  await prevenir(ref.id, "grade", `Votre grade « ${d.grade} » est validé : remise de ${REMISES[d.grade]} %.`);
+  return { grade: d.grade };
+});
+
+/** L'ID Forever est verrouillé pour le distributeur ; l'administration corrige une erreur de saisie. */
+export const corrigerIdForever = onCall(OPTIONS_APPEL, async (req) => {
+  const appelant = exigerAdmin(req);
+  const d = (req.data ?? {}) as { uid?: unknown; idDistributeur?: unknown };
+  const { ref, compte } = await distributeurDuPays(req, d.uid);
+
+  const id = typeof d.idDistributeur === "string" ? d.idDistributeur.trim() : "";
+  if (!/^[0-9][0-9 -]{5,29}$/.test(id) || id.replace(/\D/g, "").length < 6) {
+    throw new HttpsError("invalid-argument", "ID Forever invalide (au moins 6 chiffres).");
+  }
+  await ref.update({ idDistributeur: id });
+  await journaliser("id_forever_corrige", appelant.uid, ref.id, { avant: compte.idDistributeur ?? "", apres: id });
+  await prevenir(ref.id, "idforever", `Votre ID Forever a été corrigé par l'administration : ${id}.`);
+  return { idDistributeur: id };
 });
 
 /** Comptes livreur et personnel : créés uniquement par l'administration. */

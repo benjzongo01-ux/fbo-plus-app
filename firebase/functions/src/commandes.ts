@@ -4,7 +4,7 @@ import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPE
 
 export const ENTREPOT_DEFAUT = "principal";
 
-const REMISES: Record<string, number> = {
+export const REMISES: Record<string, number> = {
   "Client Privilégié (CP)": 5,
   "Animateur Adjoint (AA)": 35,
   "Animateur (A)": 38,
@@ -249,6 +249,22 @@ async function preparerReservations(tx: Transaction, entrepot: string, ecarts: M
   };
 }
 
+/**
+ * Frais de livraison et commission du livreur : chaque pays a les siens (tarifsPays/{pays}).
+ * Les anciens tarifs communs (parametres/tarifs) servent tant qu'un pays n'a pas réglé les siens.
+ */
+async function tarifsDuPays(tx: Transaction, pays: string) {
+  const [propres, communs] = await tx.getAll(
+    db.doc(`tarifsPays/${pays || PAYS_DEFAUT}`),
+    db.doc("parametres/tarifs"),
+  );
+  const t = propres.exists ? propres.data()! : communs.data() ?? {};
+  return {
+    fraisLivraison: Number(t.fraisLivraison ?? 0),
+    commissionLivreur: Number(t.commissionLivreur ?? 0),
+  };
+}
+
 const etapeHistorique = (statut: string, auteurId: string) => ({
   statut,
   auteurId,
@@ -273,10 +289,10 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     if (existante.exists) return { id: ref.id, total: existante.data()!.total as number, cree: false };
 
     const profil = (await tx.get(db.doc(`users/${uid}`))).data();
-    const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
 
     if (!estPays(d.pays)) throw new HttpsError("invalid-argument", "Choisissez le pays de la commande.");
     const pays = d.pays;
+    const tarifs = await tarifsDuPays(tx, pays);
     const entrepots = await tx.get(
       db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true).limit(1),
     );
@@ -289,7 +305,7 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
     const frais =
-      mode === "livraison" ? Number(tarifs?.fraisLivraison ?? 0) : (envoi?.expedition.frais ?? 0);
+      mode === "livraison" ? tarifs.fraisLivraison : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
@@ -489,7 +505,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
       throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
     }
 
-    const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
+    const tarifs = await tarifsDuPays(tx, commande.pays);
     tx.update(ref, {
       statut: "assignee",
       livreurId,
@@ -505,7 +521,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
       adresse: commande.adresse,
       lignes: commande.lignes,
       montantAEncaisser: commande.total,
-      commission: Number(tarifs?.commissionLivreur ?? 0),
+      commission: tarifs.commissionLivreur,
       statut: "assignee",
       montantEncaisse: 0,
       preuvePhoto: null,

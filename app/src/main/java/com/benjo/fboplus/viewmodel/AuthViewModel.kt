@@ -43,6 +43,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private var inscription = false
     private var numeroVerifie = false
 
+    // Le serveur accepte un nouveau PIN sans l'ancien pendant 5 minutes après un code SMS.
+    private var smsVerifieA = 0L
+
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
@@ -84,6 +87,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             else terminerConnexion(repository.identifiantDepuisCode(id, code))
         }
     }
+
+    /** Vrai si le code SMS vient d'être vérifié : on peut alors choisir un nouveau PIN. */
+    fun smsRecent(): Boolean = System.currentTimeMillis() - smsVerifieA < 4 * 60 * 1000L
 
     fun creerPin(pin: String) {
         executer {
@@ -155,6 +161,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         numeroVerifie = true
+        smsVerifieA = System.currentTimeMillis()
         chargerProfil()
     }
 

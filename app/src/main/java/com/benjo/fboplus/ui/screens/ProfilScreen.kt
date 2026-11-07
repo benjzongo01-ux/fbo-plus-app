@@ -393,7 +393,16 @@ private fun EnTeteProfil(profil: Profil, onModifier: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(8.dp))
-            BadgeGrade(grade = profil.grade)
+            BadgeGrade(grade = profil.gradeApplique)
+            if (profil.gradeEnAttente) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Demande « ${profil.grade} » en attente de validation par l'administration",
+                    color = WhiteSub,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
             if (profil.lieu().isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -34,7 +34,8 @@ service cloud.firestore {
       allow read: if moi(uid) || voitPays(resource.data.get('pays', ''));
       allow update: if moi(uid)
         && champsModifies().hasOnly([
-          'nom', 'prenom', 'email', 'pays', 'ville', 'grade',
+          // Le grade est attribué par l'administration : le distributeur ne fait qu'une demande.
+          'nom', 'prenom', 'email', 'pays', 'ville', 'gradeDemande',
           'indicatifTelephone', 'telephone', 'indicatifWhatsapp', 'whatsapp',
           'objectifCC', 'objectifCA', 'idDistributeur'
         ])
@@ -58,6 +59,13 @@ service cloud.firestore {
     match /parametres/{id} {
       allow read: if aUnRole();
       allow write: if estAdmin();
+    }
+
+    // Frais de livraison et commission du livreur : un document par pays, nommé d'après le pays.
+    match /tarifsPays/{pays} {
+      allow read: if aUnRole();
+      allow write: if role() == 'super_admin'
+        || (estAdmin() && pays == request.auth.token.get('pays', ''));
     }
 
     // Villes d'expédition et leurs frais, tenues par l'administration de chaque pays.
