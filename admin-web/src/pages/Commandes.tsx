@@ -165,7 +165,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
       </table>
       <p className="droite">
         {commande.reduction > 0 && <>Réduction : -{fcfa(commande.reduction)}<br /></>}
-        {commande.fraisLivraison > 0 && <>Livraison : {fcfa(commande.fraisLivraison)}<br /></>}
+        {commande.fraisLivraison > 0 && <>{expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
         <strong>Total : {fcfa(commande.total)}</strong>
       </p>
 

@@ -304,6 +304,12 @@ fun FBONavigation() {
                         navController.navigate("biometric_suggestion") {
                             popUpTo("connexion") { inclusive = true }
                         }
+                    },
+                    onOublie = {
+                        authViewModel.deconnecter()
+                        navController.navigate("connexion") {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -321,6 +327,12 @@ fun FBONavigation() {
                     onVerifie = {
                         navController.navigate("catalogue") {
                             popUpTo("pin_verification") { inclusive = true }
+                        }
+                    },
+                    onOublie = {
+                        authViewModel.deconnecter()
+                        navController.navigate("connexion") {
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 )

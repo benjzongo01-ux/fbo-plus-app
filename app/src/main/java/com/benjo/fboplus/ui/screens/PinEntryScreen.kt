@@ -25,7 +25,8 @@ import com.benjo.fboplus.viewmodel.AuthViewModel
 @Composable
 fun PinEntryScreen(
     authViewModel: AuthViewModel,
-    onSuccess: () -> Unit
+    onSuccess: () -> Unit,
+    onOublie: () -> Unit
 ) {
     val uiState by authViewModel.uiState.collectAsState()
     var currentInput by remember { mutableStateOf("") }
@@ -108,6 +109,11 @@ fun PinEntryScreen(
                     }
                 }
             }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
+        TextButton(onClick = onOublie) {
+            Text("Code oublié ? Se reconnecter avec mon numéro", color = SGoldPrimary, fontSize = 14.sp)
         }
     }
 }

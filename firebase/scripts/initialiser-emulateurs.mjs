@@ -34,6 +34,8 @@ const comptes = [
   { telephone: "+2250700000014", nom: "Livreur Côte d'Ivoire Test", role: "livreur", pays: CI },
 ];
 
+// Distributeur de test créé depuis le téléphone : +22670000020, PIN 2468 (émulateurs uniquement).
+
 // Un entrepôt par pays ouvert. Le Sénégal reste fermé tant qu'il n'a pas d'entrepôt.
 const entrepots = [
   { id: "principal", nom: "Entrepôt de Ouagadougou", ville: "Ouagadougou", pays: BF },
