@@ -25,7 +25,8 @@ const telephone = () => `+2267${++numero}`;
 async function compte(role?: string, avecTelephone = true) {
   const uid = randomUUID();
   await getAuth().createUser({ uid, ...(avecTelephone ? { phoneNumber: telephone() } : {}) });
-  if (role) await getAuth().setCustomUserClaims(uid, { role });
+  if (role) await getAuth().setCustomUserClaims(uid, role === "fbo" ? { role } : { role, pays: "Burkina Faso" });
+  if (role && role !== "fbo") await getFirestore().doc(`users/${uid}`).set({ pays: "Burkina Faso" }, { merge: true });
 
   const app = initClient({ apiKey: "demo", projectId: PROJET }, uid);
   applis.push(app);
@@ -132,7 +133,7 @@ describe("creerCompteInterne", () => {
   it("un admin crée un livreur, un FBO non", async () => {
     const admin = await compte("admin");
     const fbo = await compte("fbo");
-    const data = { telephone: telephone(), nom: "Issa", role: "livreur" };
+    const data = { telephone: telephone(), nom: "Issa", role: "livreur", pays: "Burkina Faso" };
 
     expect(await codeErreur(fbo.appeler("creerCompteInterne", data))).toBe(
       "functions/permission-denied",

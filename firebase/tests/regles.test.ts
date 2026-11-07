@@ -12,10 +12,11 @@ import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 let env: RulesTestEnvironment;
 
-const db = (uid: string, role?: string) =>
-  env.authenticatedContext(uid, role ? { role } : {}).firestore();
+// Le personnel travaille au Burkina Faso sauf indication contraire.
+const db = (uid: string, role?: string, pays = "Burkina Faso") =>
+  env.authenticatedContext(uid, role ? { role, pays } : {}).firestore();
 const stockage = (uid: string, role?: string) =>
-  env.authenticatedContext(uid, role ? { role } : {}).storage();
+  env.authenticatedContext(uid, role ? { role, pays: "Burkina Faso" } : {}).storage();
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -32,11 +33,12 @@ beforeEach(async () => {
   await env.clearStorage();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
-    await setDoc(doc(d, "users/fbo1"), { nom: "Awa", role: "fbo", statut: "actif" });
+    await setDoc(doc(d, "users/fbo1"), { nom: "Awa", role: "fbo", statut: "actif", pays: "Burkina Faso" });
     await setDoc(doc(d, "products/p1"), { nom: "Aloe Vera", prix: 15000, actif: true });
-    await setDoc(doc(d, "stock/w1_p1"), { disponible: 10 });
+    await setDoc(doc(d, "stock/w1_p1"), { disponible: 10, pays: "Burkina Faso" });
     await setDoc(doc(d, "customers/c1"), { ownerId: "fbo1", nom: "Client A" });
-    await setDoc(doc(d, "orders/o1"), { fboId: "fbo1", livreurId: "liv1", total: 15000 });
+    await setDoc(doc(d, "orders/o1"), { fboId: "fbo1", livreurId: "liv1", total: 15000, pays: "Burkina Faso" });
+    await setDoc(doc(d, "orders/oci"), { fboId: "fbo2", total: 9000, pays: "Côte d'Ivoire" });
     await setDoc(doc(d, "deliveries/d1"), { livreurId: "liv1", montantEncaisse: 0 });
     await setDoc(doc(d, "notifications/n1"), { userId: "fbo1", lu: false, titre: "Bonjour" });
     await setDoc(doc(d, "auditLogs/a1"), { action: "test" });
@@ -102,6 +104,28 @@ describe("users", () => {
   it("un utilisateur ne peut pas créer ni supprimer de profil", async () => {
     await assertFails(setDoc(doc(db("neuf", "fbo"), "users/neuf"), { role: "admin" }));
     await assertFails(deleteDoc(doc(db("fbo1", "fbo"), "users/fbo1")));
+  });
+});
+
+describe("administration par pays", () => {
+  it("le personnel ne lit que les commandes, stocks et comptes de son pays", async () => {
+    const ci = db("op-ci", "operateur", "Côte d'Ivoire");
+    await assertSucceeds(getDoc(doc(ci, "orders/oci")));
+    await assertFails(getDoc(doc(ci, "orders/o1")));
+    await assertFails(getDoc(doc(ci, "stock/w1_p1")));
+    await assertFails(getDoc(doc(ci, "users/fbo1")));
+    await assertFails(getDoc(doc(db("op-bf", "operateur"), "orders/oci")));
+  });
+
+  it("le super administrateur voit tous les pays", async () => {
+    const sa = db("sa", "super_admin", "");
+    await assertSucceeds(getDoc(doc(sa, "orders/oci")));
+    await assertSucceeds(getDoc(doc(sa, "orders/o1")));
+  });
+
+  it("un administrateur ne crée d'entrepôt que dans son pays", async () => {
+    await assertSucceeds(setDoc(doc(db("a", "admin"), "warehouses/w2"), { nom: "Bobo", pays: "Burkina Faso" }));
+    await assertFails(setDoc(doc(db("a", "admin"), "warehouses/w3"), { nom: "Dakar", pays: "Sénégal" }));
   });
 });
 

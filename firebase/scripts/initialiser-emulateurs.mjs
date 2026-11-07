@@ -21,26 +21,39 @@ const db = getFirestore();
 const ici = dirname(fileURLToPath(import.meta.url));
 const produits = JSON.parse(readFileSync(resolve(ici, "../seed/products.json"), "utf8"));
 
+const BF = "Burkina Faso";
+const CI = "Côte d'Ivoire";
+
 const comptes = [
-  { telephone: "+22670000010", nom: "Super Admin Test", role: "super_admin" },
-  { telephone: "+22670000011", nom: "Admin Test", role: "admin" },
-  { telephone: "+22670000012", nom: "Opérateur Test", role: "operateur" },
-  { telephone: "+22670000013", nom: "Gestionnaire Test", role: "gestionnaire_stock" },
-  { telephone: "+22670000014", nom: "Livreur Test", role: "livreur" },
+  { telephone: "+22670000010", nom: "Super Admin Test", role: "super_admin", pays: BF },
+  { telephone: "+22670000011", nom: "Admin Burkina Test", role: "admin", pays: BF },
+  { telephone: "+22670000012", nom: "Opérateur Burkina Test", role: "operateur", pays: BF },
+  { telephone: "+22670000013", nom: "Gestionnaire Burkina Test", role: "gestionnaire_stock", pays: BF },
+  { telephone: "+22670000014", nom: "Livreur Burkina Test", role: "livreur", pays: BF },
+  { telephone: "+2250700000011", nom: "Admin Côte d'Ivoire Test", role: "admin", pays: CI },
+  { telephone: "+2250700000014", nom: "Livreur Côte d'Ivoire Test", role: "livreur", pays: CI },
+];
+
+// Un entrepôt par pays ouvert. Le Sénégal reste fermé tant qu'il n'a pas d'entrepôt.
+const entrepots = [
+  { id: "principal", nom: "Entrepôt de Ouagadougou", ville: "Ouagadougou", pays: BF },
+  { id: "abidjan", nom: "Entrepôt d'Abidjan", ville: "Abidjan", pays: CI },
 ];
 
 const lot = db.bulkWriter();
-lot.set(db.doc("warehouses/principal"), { nom: "Entrepôt principal", ville: "Ouagadougou", actif: true });
+for (const { id, ...entrepot } of entrepots) lot.set(db.doc(`warehouses/${id}`), { ...entrepot, actif: true });
 lot.set(db.doc("centres/ouagadougou"), { nom: "Ouagadougou", actif: true });
 lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, commissionLivreur: 500 });
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);
-  lot.set(
-    db.doc(`stock/principal_${id}`),
-    { entrepotId: "principal", produitId: id, disponible: 100, reserve: 0, seuilAlerte: 10 },
-    { merge: true },
-  );
+  for (const e of entrepots) {
+    lot.set(
+      db.doc(`stock/${e.id}_${id}`),
+      { entrepotId: e.id, pays: e.pays, produitId: id, disponible: 100, reserve: 0, seuilAlerte: 10 },
+      { merge: true },
+    );
+  }
 }
 await lot.close();
 
@@ -48,12 +61,13 @@ for (const c of comptes) {
   const compte = await auth
     .getUserByPhoneNumber(c.telephone)
     .catch(() => auth.createUser({ phoneNumber: c.telephone, displayName: c.nom }));
-  await auth.setCustomUserClaims(compte.uid, { role: c.role });
+  await auth.setCustomUserClaims(compte.uid, { role: c.role, pays: c.pays });
   await db.doc(`users/${compte.uid}`).set(
     {
       nom: c.nom,
       telephone: c.telephone,
       role: c.role,
+      pays: c.pays,
       statut: "actif",
       createdAt: FieldValue.serverTimestamp(),
     },
