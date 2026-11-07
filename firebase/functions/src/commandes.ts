@@ -133,9 +133,42 @@ async function lireClientLivraison(tx: Transaction, d: Record<string, unknown>, 
   return { id: clientId, nom, telephone, telephone2, quartier, adresse: texte(d.adresse) };
 }
 
-function lireMode(valeur: unknown): "livraison" | "validation" {
-  if (valeur === "livraison" || valeur === "validation") return valeur;
-  throw new HttpsError("invalid-argument", "Choisissez livraison ou validation.");
+type Mode = "livraison" | "validation" | "expedition";
+
+function lireMode(valeur: unknown): Mode {
+  if (valeur === "livraison" || valeur === "validation" || valeur === "expedition") return valeur;
+  throw new HttpsError("invalid-argument", "Choisissez livraison, validation ou expédition.");
+}
+
+/**
+ * Expédition vers une autre ville : la ville vient de la liste tenue par l'administration du pays,
+ * qui fixe aussi ses frais. Le distributeur donne le destinataire et, s'il la connaît, la compagnie
+ * de transport ; sinon celui qui expédie la choisit.
+ */
+async function lireExpedition(tx: Transaction, d: Record<string, unknown>, pays: string) {
+  const villeId = texte(d.villeExpeditionId, 128);
+  const ville = villeId ? (await tx.get(db.doc(`villesExpedition/${villeId}`))).data() : undefined;
+  if (!ville || ville.actif !== true || ville.pays !== pays) {
+    throw new HttpsError("invalid-argument", "Choisissez une ville d'expédition de la liste.");
+  }
+  const nom = texte(d.destinataireNom, 120);
+  const telephone = texte(d.destinataireTelephone, 20);
+  const telephone2 = texte(d.destinataireTelephone2, 20);
+  if (!nom) throw new HttpsError("invalid-argument", "Nom et prénom du destinataire obligatoires.");
+  if (!TELEPHONE.test(telephone)) throw new HttpsError("invalid-argument", "Téléphone du destinataire invalide.");
+  if (telephone2 && !TELEPHONE.test(telephone2)) {
+    throw new HttpsError("invalid-argument", "Deuxième téléphone du destinataire invalide.");
+  }
+  return {
+    expedition: {
+      villeId,
+      ville: String(ville.ville),
+      compagnie: texte(d.compagnie, 80),
+      frais: Number(ville.frais ?? 0),
+      numeroColis: "",
+    },
+    destinataire: { id: null, nom, telephone, telephone2, quartier: "", adresse: texte(d.adresse) },
+  };
 }
 
 /** Les prix viennent toujours de products : ceux envoyés par un client sont ignorés. */
@@ -254,13 +287,16 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     const mode = lireMode(d.mode);
     const beneficiaire = lireBeneficiaire(d, profil);
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
+    const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
+    const frais =
+      mode === "livraison" ? Number(tarifs?.fraisLivraison ?? 0) : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
       lignes,
       REMISES[String(profil?.grade)] ?? REMISES["Client Privilégié (CP)"],
       reduction,
-      mode === "livraison" ? Number(tarifs?.fraisLivraison ?? 0) : 0,
+      frais,
     );
 
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
@@ -273,8 +309,14 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
       titre: texte(d.titre, 120) || "Commande",
       mode,
       beneficiaire,
-      client,
-      adresse: client ? [client.quartier, client.adresse].filter(Boolean).join(", ") : "",
+      // En expédition, « client » désigne le destinataire du colis.
+      client: client ?? envoi?.destinataire ?? null,
+      expedition: envoi?.expedition ?? null,
+      adresse: client
+        ? [client.quartier, client.adresse].filter(Boolean).join(", ")
+        : envoi
+          ? [envoi.expedition.ville, envoi.destinataire.adresse].filter(Boolean).join(", ")
+          : "",
       lignes,
       ...montants,
       entrepotId,
@@ -433,8 +475,8 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
     exigerMemePays(req, commande.pays);
-    if (commande.mode === "validation") {
-      throw new HttpsError("failed-precondition", "Cette commande est une validation : elle ne se livre pas.");
+    if (commande.mode === "validation" || commande.mode === "expedition") {
+      throw new HttpsError("failed-precondition", "Seule une commande en livraison reçoit un livreur.");
     }
     if (!["prete", "assignee"].includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "La commande n'est pas prête à être livrée.");
@@ -611,6 +653,92 @@ export const signalerRetour = onCall(OPTIONS_APPEL, async (req) => {
  * Clôture d'une commande sans livraison : l'achat est validé sur l'ID Forever du bénéficiaire
  * et le produit quitte l'entrepôt.
  */
+/** Le stock réservé quitte définitivement l'entrepôt. Lectures d'abord, écritures ensuite. */
+async function sortirStock(tx: Transaction, commande: FirebaseFirestore.DocumentData, id: string, uid: string) {
+  const lignes = commande.lignes as LigneCommande[];
+  const stocks = await tx.getAll(...lignes.map((l) => db.doc(`stock/${commande.entrepotId}_${l.produitId}`)));
+  lignes.forEach((l, i) => {
+    tx.update(stocks[i].ref, { reserve: FieldValue.increment(-l.quantite) });
+    tx.create(db.collection("stockMovements").doc(), {
+      type: "sortie",
+      entrepotId: commande.entrepotId,
+      produitId: l.produitId,
+      quantite: l.quantite,
+      commandeId: id,
+      auteurId: uid,
+      date: FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+/** Le centre d'appel ajuste les frais d'une expédition (colis lourd, autre tarif de la compagnie). */
+export const fixerFraisExpedition = onCall(OPTIONS_APPEL, async (req) => {
+  const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const id = texte(d.id, 200);
+  const frais = lireMontant(d.frais);
+  const ref = db.doc(`orders/${id}`);
+
+  await db.runTransaction(async (tx) => {
+    const commande = (await tx.get(ref)).data();
+    if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
+    if (commande.mode !== "expedition") {
+      throw new HttpsError("failed-precondition", "Cette commande n'est pas une expédition.");
+    }
+    if (!["nouvelle", "confirmee"].includes(commande.statut)) {
+      throw new HttpsError("failed-precondition", "Les frais ne peuvent plus changer à cette étape.");
+    }
+    const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais);
+    tx.update(ref, {
+      ...montants,
+      "expedition.frais": frais,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  await journaliser("frais_expedition", uid, id, { frais });
+  return { id };
+});
+
+/**
+ * Le colis est remis à la compagnie : le stock sort et le numéro du colis est noté.
+ * Si le distributeur n'a pas indiqué de compagnie, celui qui expédie la choisit ici.
+ */
+export const expedierCommande = onCall(OPTIONS_APPEL, async (req) => {
+  const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const id = texte(d.id, 200);
+  const numeroColis = texte(d.numeroColis, 60);
+  const ref = db.doc(`orders/${id}`);
+
+  await db.runTransaction(async (tx) => {
+    const commande = (await tx.get(ref)).data();
+    if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
+    if (commande.mode !== "expedition") {
+      throw new HttpsError("failed-precondition", "Cette commande n'est pas une expédition.");
+    }
+    if (commande.statut !== "prete") {
+      throw new HttpsError("failed-precondition", "La commande doit d'abord être prête.");
+    }
+    const compagnie = texte(d.compagnie, 80) || String(commande.expedition?.compagnie ?? "");
+    if (!compagnie) throw new HttpsError("invalid-argument", "Indiquez la compagnie qui transporte le colis.");
+
+    await sortirStock(tx, commande, id, uid);
+    tx.update(ref, {
+      statut: "expediee",
+      "expedition.compagnie": compagnie,
+      "expedition.numeroColis": numeroColis,
+      historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("expediee", uid)),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  await journaliser("commande_expediee", uid, id, { numeroColis });
+  return { id };
+});
+
 export const validerSurId = onCall(OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const id = texte((req.data as Record<string, unknown> | null)?.id, 200);
@@ -627,21 +755,7 @@ export const validerSurId = onCall(OPTIONS_APPEL, async (req) => {
       throw new HttpsError("failed-precondition", "La commande doit d'abord être prête.");
     }
 
-    const stocks = await tx.getAll(
-      ...(commande.lignes as LigneCommande[]).map((l) => db.doc(`stock/${commande.entrepotId}_${l.produitId}`)),
-    );
-    (commande.lignes as LigneCommande[]).forEach((l, i) => {
-      tx.update(stocks[i].ref, { reserve: FieldValue.increment(-l.quantite) });
-      tx.create(db.collection("stockMovements").doc(), {
-        type: "sortie",
-        entrepotId: commande.entrepotId,
-        produitId: l.produitId,
-        quantite: l.quantite,
-        commandeId: id,
-        auteurId: uid,
-        date: FieldValue.serverTimestamp(),
-      });
-    });
+    await sortirStock(tx, commande, id, uid);
     tx.update(ref, {
       statut: "validee",
       historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("validee", uid)),

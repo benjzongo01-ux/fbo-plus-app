@@ -43,6 +43,19 @@ const entrepots = [
 const lot = db.bulkWriter();
 for (const { id, ...entrepot } of entrepots) lot.set(db.doc(`warehouses/${id}`), { ...entrepot, actif: true });
 lot.set(db.doc("centres/ouagadougou"), { nom: "Ouagadougou", actif: true });
+
+// Villes d'expédition fictives et leurs frais, une liste par pays.
+const villes = [
+  ["bobo", BF, "Bobo-Dioulasso", 2500],
+  ["koudougou", BF, "Koudougou", 1500],
+  ["ouahigouya", BF, "Ouahigouya", 2000],
+  ["bouake", CI, "Bouaké", 3000],
+  ["yamoussoukro", CI, "Yamoussoukro", 2500],
+  ["san-pedro", CI, "San-Pédro", 3500],
+];
+for (const [id, pays, ville, frais] of villes) {
+  lot.set(db.doc(`villesExpedition/${id}`), { pays, ville, frais, actif: true });
+}
 lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, commissionLivreur: 500 });
 
 for (const { id, ...produit } of produits) {

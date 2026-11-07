@@ -168,10 +168,25 @@ object VentesRepository {
                 "clientTelephone2" to details.clientTelephone2.trim(),
                 "clientQuartier" to details.quartier.trim(),
                 "adresse" to details.adresse.trim(),
+                "villeExpeditionId" to details.villeId,
+                "destinataireNom" to details.clientNom.trim(),
+                "destinataireTelephone" to details.clientTelephone.trim(),
+                "destinataireTelephone2" to details.clientTelephone2.trim(),
+                "compagnie" to details.compagnie.trim(),
                 "reduction" to reduction
             )
         ).await()
     }
+
+    /** Villes où l'administration du pays accepte d'expédier, avec leurs frais. */
+    suspend fun villesExpedition(pays: String): List<VilleExpedition> =
+        FirebaseFirestore.getInstance().collection("villesExpedition")
+            .whereEqualTo("pays", pays)
+            .whereEqualTo("actif", true)
+            .get().await()
+            .documents
+            .map { VilleExpedition(it.id, it.getString("ville").orEmpty(), it.getLong("frais")?.toInt() ?: 0) }
+            .sortedBy { it.nom }
 
     suspend fun modifierCommande(
         docId: String,
@@ -219,6 +234,7 @@ object VentesRepository {
         }
         val client = doc.get("client") as? Map<String, Any?>
         val beneficiaire = doc.get("beneficiaire") as? Map<String, Any?>
+        val expedition = doc.get("expedition") as? Map<String, Any?>
         return Commande(
             id = doc.id.hashCode().toLong(),
             titre = doc.getString("titre").orEmpty(),
@@ -244,7 +260,10 @@ object VentesRepository {
                 .mapNotNull { (it as? String)?.takeIf(String::isNotBlank) }.joinToString(" "),
             beneficiaireId = beneficiaire?.get("idForever") as? String ?: "",
             clientTelephone = client?.get("telephone") as? String ?: "",
-            clientTelephone2 = client?.get("telephone2") as? String ?: ""
+            clientTelephone2 = client?.get("telephone2") as? String ?: "",
+            villeExpedition = expedition?.get("ville") as? String ?: "",
+            compagnie = expedition?.get("compagnie") as? String ?: "",
+            numeroColis = expedition?.get("numeroColis") as? String ?: ""
         )
     }
 

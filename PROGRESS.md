@@ -6,7 +6,7 @@
 
 Dernière mise à jour : 2026-11-07. Tout le travail est sur `main`, à jour sur GitHub.
 
-Situation : les phases 1 à 5 sont terminées, ainsi que le nouveau parcours de commande (pays, pour moi ou un filleul, livraison ou validation), pas encore essayé sur téléphone. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
+Situation : les phases 1 à 5 sont terminées, ainsi que le nouveau parcours de commande (pays, pour moi ou un filleul, livraison, validation ou expédition), pas encore essayé sur téléphone. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
 
 Prochaines étapes, dans l'ordre :
 
@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 81 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 86 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -99,6 +99,16 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Delivery : bouton d'appel du deuxième numéro du client.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
+## Expédition vers une autre ville
+
+Branche `feature/expedition`, fusionnée dans `main`.
+
+- FBO+ : troisième choix « Expédition ». Le distributeur choisit la ville dans la liste du pays (avec ses frais), puis donne le nom et le téléphone du destinataire (deuxième téléphone facultatif), la compagnie de transport s'il la connaît, et des précisions (gare, point de retrait).
+- Les frais de la ville s'ajoutent au total. Le centre d'appel peut les ajuster tant que la commande est nouvelle ou confirmée.
+- Admin, Paramètres : chaque pays tient sa liste de villes d'expédition et leurs frais (ajouter, changer les frais, fermer).
+- Admin, Centre d'appel : une expédition prête se marque « Expédiée » avec la compagnie (obligatoire à ce moment si le distributeur ne l'a pas donnée) et le numéro du colis. Le stock sort à ce moment.
+- Villes de test : Bobo-Dioulasso, Koudougou, Ouahigouya (Burkina) ; Bouaké, Yamoussoukro, San-Pédro (Côte d'Ivoire).
 
 ## Test de bout en bout sur téléphone
 

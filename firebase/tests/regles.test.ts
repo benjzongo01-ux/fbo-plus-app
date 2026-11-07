@@ -127,6 +127,15 @@ describe("administration par pays", () => {
     await assertSucceeds(setDoc(doc(db("a", "admin"), "warehouses/w2"), { nom: "Bobo", pays: "Burkina Faso" }));
     await assertFails(setDoc(doc(db("a", "admin"), "warehouses/w3"), { nom: "Dakar", pays: "Sénégal" }));
   });
+
+  it("chaque administration tient les villes d'expédition de son pays", async () => {
+    const ville = { pays: "Burkina Faso", ville: "Bobo-Dioulasso", frais: 2500, actif: true };
+    await assertSucceeds(setDoc(doc(db("a", "admin"), "villesExpedition/v1"), ville));
+    await assertFails(setDoc(doc(db("ci", "admin", "Côte d'Ivoire"), "villesExpedition/v1"), { ...ville, frais: 0 }));
+    await assertFails(setDoc(doc(db("ci", "admin", "Côte d'Ivoire"), "villesExpedition/v2"), ville));
+    await assertFails(setDoc(doc(db("op", "operateur"), "villesExpedition/v3"), ville));
+    await assertSucceeds(getDoc(doc(db("f", "fbo"), "villesExpedition/v1")));
+  });
 });
 
 describe("catalogue et stock", () => {

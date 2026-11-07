@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Client
 import com.benjo.fboplus.data.ClientsRepository
 import com.benjo.fboplus.data.Profil
+import com.benjo.fboplus.data.VilleExpedition
+import com.benjo.fboplus.data.VentesRepository
 import com.benjo.fboplus.data.paysAutorises
 import com.benjo.fboplus.ui.theme.*
 import com.benjo.fboplus.viewmodel.DetailsCommande
@@ -58,6 +60,15 @@ fun DetailsCommandeEcran(
     val envoi by ventesViewModel.envoi.collectAsState()
     var tentative by remember { mutableStateOf(false) }
     var choixClient by remember { mutableStateOf(false) }
+
+    // Villes d'expédition du pays choisi : rechargées à chaque changement de pays.
+    var villes by remember { mutableStateOf<List<VilleExpedition>?>(null) }
+    LaunchedEffect(details.pays) {
+        villes = null
+        if (details.pays.isNotBlank()) {
+            villes = runCatching { VentesRepository.villesExpedition(details.pays) }.getOrDefault(emptyList())
+        }
+    }
 
     // Le pays du profil est proposé par défaut, s'il fait partie des pays ouverts.
     LaunchedEffect(Unit) {
@@ -108,7 +119,11 @@ fun DetailsCommandeEcran(
                             texte = "${p.drapeau} ${p.nom}",
                             choisie = details.pays == p.nom,
                             modifier = Modifier.weight(1f)
-                        ) { ventesViewModel.modifierDetails { it.copy(pays = p.nom) } }
+                        ) {
+                            ventesViewModel.modifierDetails {
+                                if (it.pays == p.nom) it else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0)
+                            }
+                        }
                     }
                 }
                 Aide("La commande sera traitée par l'administration de ce pays.")
@@ -147,17 +162,58 @@ fun DetailsCommandeEcran(
                 }
             }
 
-            Section("3. Livraison ou validation ?") {
-                Choix(
-                    gauche = "Livraison",
-                    droite = "Validation",
-                    droiteChoisie = details.mode == "validation",
-                    onChoix = { validation ->
-                        ventesViewModel.modifierDetails { it.copy(mode = if (validation) "validation" else "livraison") }
-                    }
-                )
+            Section("3. Livraison, validation ou expédition ?") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("livraison" to "Livraison", "validation" to "Validation", "expedition" to "Expédition")
+                        .forEach { (mode, libelle) ->
+                            Pastille(libelle, details.mode == mode, Modifier.weight(1f)) {
+                                ventesViewModel.modifierDetails { it.copy(mode = mode) }
+                            }
+                        }
+                }
                 if (details.mode == "validation") {
                     Aide("Pas de livraison : les produits sont seulement validés sur l'ID. Aucune information client n'est demandée.")
+                } else if (details.mode == "expedition") {
+                    Aide("Le colis part de l'entrepôt du pays vers une autre ville, par une compagnie de transport.")
+                    val liste = villes
+                    when {
+                        liste == null -> Aide("Chargement des villes…")
+                        liste.isEmpty() -> Text(
+                            "Aucune ville d'expédition n'est encore ouverte pour ce pays.",
+                            color = RedAlert,
+                            fontSize = 13.sp
+                        )
+                        else -> liste.forEach { v ->
+                            Pastille(
+                                "${v.nom} · ${fcfa(v.frais)}",
+                                details.villeId == v.id,
+                                Modifier.fillMaxWidth()
+                            ) {
+                                ventesViewModel.modifierDetails {
+                                    it.copy(villeId = v.id, villeNom = v.nom, fraisVille = v.frais)
+                                }
+                            }
+                        }
+                    }
+                    Champ("Nom et prénom du destinataire", details.clientNom, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientNom = v) }
+                    }
+                    Champ("Téléphone du destinataire", details.clientTelephone, clavier = KeyboardType.Phone) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientTelephone = v) }
+                    }
+                    Champ("Deuxième téléphone (facultatif)", details.clientTelephone2, clavier = KeyboardType.Phone) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientTelephone2 = v) }
+                    }
+                    Champ("Compagnie de transport (facultatif)", details.compagnie, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(compagnie = v) }
+                    }
+                    Aide("Si vous n'indiquez pas de compagnie, celui qui expédie la choisira.")
+                    Champ("Précisions : gare, point de retrait (facultatif)", details.adresse) { v ->
+                        ventesViewModel.modifierDetails { it.copy(adresse = v) }
+                    }
+                    if (details.villeId.isNotBlank()) {
+                        Aide("Frais d'expédition vers ${details.villeNom} : ${fcfa(details.fraisVille)}, ajoutés au total. L'administration peut les ajuster selon le colis.")
+                    }
                 } else {
                     OutlinedButton(
                         onClick = { choixClient = true },
@@ -211,7 +267,11 @@ fun DetailsCommandeEcran(
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
                 Text(
-                    if (details.mode == "validation") "Envoyer pour validation" else "Envoyer pour livraison",
+                    when (details.mode) {
+                        "validation" -> "Envoyer pour validation"
+                        "expedition" -> "Envoyer pour expédition"
+                        else -> "Envoyer pour livraison"
+                    },
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
                 )
