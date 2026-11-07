@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Product
 import com.benjo.fboplus.data.reductionPourGrade
+import com.benjo.fboplus.viewmodel.EnvoiCommande
 import com.benjo.fboplus.viewmodel.ProfilViewModel
 import com.benjo.fboplus.viewmodel.VentesViewModel
 
@@ -44,6 +45,16 @@ fun NouvelleCommandeScreen(
     onAnnuler: () -> Unit
 ) {
     val lignes by ventesViewModel.commandeEnCours.collectAsState()
+
+    // Le panier est vidé dès que le serveur accepte : l'écran des détails disparaît alors,
+    // c'est donc ici, et non dans les détails, qu'on referme la commande envoyée.
+    val envoi by ventesViewModel.envoi.collectAsState()
+    LaunchedEffect(envoi) {
+        if (envoi == EnvoiCommande.Reussi) {
+            ventesViewModel.reinitialiserEnvoi()
+            onCommandeValidee()
+        }
+    }
     val titre by ventesViewModel.titreCommande.collectAsState()
     val profil by profilViewModel.profil.collectAsState()
     var recherche by remember { mutableStateOf("") }
@@ -74,7 +85,7 @@ fun NouvelleCommandeScreen(
             sousTotal = caCommande,
             reductionMax = reductionMax,
             onRetour = { detailsOuverts = false },
-            onValidee = onCommandeValidee
+            onValidee = {}
         )
         return
     }

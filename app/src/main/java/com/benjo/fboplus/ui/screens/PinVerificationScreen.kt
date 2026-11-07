@@ -22,7 +22,8 @@ import com.benjo.fboplus.ui.components.*
 
 @Composable
 fun PinVerificationScreen(
-    onVerifie: () -> Unit
+    onVerifie: () -> Unit,
+    onOublie: () -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as FragmentActivity
@@ -128,6 +129,11 @@ fun PinVerificationScreen(
                     }
                 }
             }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
+        TextButton(onClick = onOublie) {
+            Text("Code oublié ? Se reconnecter avec mon numéro", color = SGoldPrimary, fontSize = 14.sp)
         }
     }
 }

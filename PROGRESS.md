@@ -6,11 +6,11 @@
 
 Dernière mise à jour : 2026-11-07. Tout le travail est sur `main`, à jour sur GitHub.
 
-Situation : les phases 1 à 5 sont terminées, ainsi que le nouveau parcours de commande (pays, pour moi ou un filleul, livraison, validation ou expédition), pas encore essayé sur téléphone. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
+Situation : les phases 1 à 5 sont terminées, ainsi que le nouveau parcours de commande (pays, pour moi ou un filleul, livraison, validation ou expédition). L'expédition a été testée de bout en bout sur téléphone le 2026-11-07. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
 
 Prochaines étapes, dans l'ordre :
 
-1. Essayer le nouveau parcours de commande sur téléphone et dans l'admin (voir « Commandes par pays »).
+1. Essayer sur téléphone la livraison avec filleul, et l'administration de la Côte d'Ivoire (+2250700000011).
 2. Ouvrir un entrepôt au Sénégal quand l'administration y sera prête.
 3. Faire les tests de la section « Reste à tester sur téléphone ».
 4. Traiter les « Limites connues » choisies par l'utilisateur.
@@ -109,6 +109,15 @@ Branche `feature/expedition`, fusionnée dans `main`.
 - Admin, Paramètres : chaque pays tient sa liste de villes d'expédition et leurs frais (ajouter, changer les frais, fermer).
 - Admin, Centre d'appel : une expédition prête se marque « Expédiée » avec la compagnie (obligatoire à ce moment si le distributeur ne l'a pas donnée) et le numéro du colis. Le stock sort à ce moment.
 - Villes de test : Bobo-Dioulasso, Koudougou, Ouahigouya (Burkina) ; Bouaké, Yamoussoukro, San-Pédro (Côte d'Ivoire).
+
+Testé sur téléphone le 2026-11-07 : commande en expédition vers Bobo-Dioulasso sans compagnie, frais ajustés de 2 500 à 3 000 FCFA dans l'admin, confirmée, préparée, expédiée par STAF avec un numéro de colis. Le suivi du téléphone a tout affiché en direct, le stock est sorti (100 → 99, rien de réservé), 4 notifications envoyées. Une validation a aussi été envoyée.
+
+Défauts trouvés par ce test et corrigés :
+- après l'envoi, FBO+ restait sur une liste de produits vide au lieu de revenir aux ventes ;
+- l'écran du PIN n'avait aucune sortie si le code était oublié : ajout de « Code oublié ? Se reconnecter avec mon numéro », qui conserve les ventes du téléphone ;
+- l'admin affichait « Livraison » pour les frais d'une expédition.
+
+À savoir : après `npm run donnees`, l'ancien compte du téléphone n'existe plus, donc son PIN est refusé. Utiliser « Code oublié ? » pour se reconnecter.
 
 ## Test de bout en bout sur téléphone
 
