@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Commande
 import com.benjo.fboplus.data.VentesRepository
 import com.benjo.fboplus.data.etapesPour
+import com.benjo.fboplus.data.libelleMode
 import com.benjo.fboplus.data.libelleStatut
 import com.benjo.fboplus.ui.theme.*
 import com.benjo.fboplus.viewmodel.VentesViewModel
@@ -35,7 +36,7 @@ import java.util.Locale
 private val FormeCarte = RoundedCornerShape(16.dp)
 
 fun couleurStatut(statut: String): Color = when (statut) {
-    "livree", "validee" -> GreenPrimary
+    "livree", "validee", "expediee" -> GreenPrimary
     "annulee", "retournee" -> RedAlert
     "en_livraison", "assignee" -> BlueAccent
     else -> GoldPrimary
@@ -175,7 +176,7 @@ fun CommandeDetailScreen(
                     BadgeStatut(commande.statut)
                 }
                 if (commande.mode.isNotBlank()) {
-                    Ligne("Type", if (commande.mode == "validation") "Validation sur l'ID" else "Livraison")
+                    Ligne("Type", libelleMode(commande.mode))
                 }
                 if (commande.pays.isNotBlank()) Ligne("Pays", commande.pays)
                 if (commande.beneficiaireId.isNotBlank()) {
@@ -183,7 +184,12 @@ fun CommandeDetailScreen(
                     Ligne("Bénéficiaire", qui)
                     Ligne("ID Forever", commande.beneficiaireId)
                 }
-                if (commande.clientNom.isNotBlank()) Ligne("Client", commande.clientNom)
+                if (commande.villeExpedition.isNotBlank()) Ligne("Expédiée vers", commande.villeExpedition)
+                if (commande.compagnie.isNotBlank()) Ligne("Compagnie", commande.compagnie)
+                if (commande.numeroColis.isNotBlank()) Ligne("N° du colis", commande.numeroColis)
+                if (commande.clientNom.isNotBlank()) {
+                    Ligne(if (commande.mode == "expedition") "Destinataire" else "Client", commande.clientNom)
+                }
                 if (commande.clientTelephone.isNotBlank()) Ligne("Téléphone", commande.clientTelephone)
                 if (commande.clientTelephone2.isNotBlank()) Ligne("Téléphone 2", commande.clientTelephone2)
                 if (commande.adresse.isNotBlank()) Ligne("Adresse", commande.adresse)
@@ -202,7 +208,10 @@ fun CommandeDetailScreen(
                     Ligne("Réduction", "-%,d F".format(Locale.FRANCE, commande.reduction))
                 }
                 if (commande.fraisLivraison > 0) {
-                    Ligne("Livraison", "%,d F".format(Locale.FRANCE, commande.fraisLivraison))
+                    Ligne(
+                        if (commande.mode == "expedition") "Expédition" else "Livraison",
+                        "%,d F".format(Locale.FRANCE, commande.fraisLivraison)
+                    )
                 }
                 Ligne("Total", "%,d FCFA".format(Locale.FRANCE, commande.total), gras = true)
             }

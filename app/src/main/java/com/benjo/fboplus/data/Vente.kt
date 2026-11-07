@@ -54,7 +54,10 @@ data class Commande(
     val beneficiaireNom: String = "",
     val beneficiaireId: String = "",
     val clientTelephone: String = "",
-    val clientTelephone2: String = ""
+    val clientTelephone2: String = "",
+    val villeExpedition: String = "",
+    val compagnie: String = "",
+    val numeroColis: String = ""
 ) {
     // CA = prix public total (somme des lignes au prix public)
     val caTotal: Int get() = lignes.sumOf { it.montantTotal }
@@ -78,7 +81,21 @@ val etapesCommande = listOf(
 
 val etapesValidation = listOf("nouvelle", "confirmee", "en_preparation", "prete", "validee")
 
-fun etapesPour(mode: String) = if (mode == "validation") etapesValidation else etapesCommande
+val etapesExpedition = listOf("nouvelle", "confirmee", "en_preparation", "prete", "expediee")
+
+fun etapesPour(mode: String) = when (mode) {
+    "validation" -> etapesValidation
+    "expedition" -> etapesExpedition
+    else -> etapesCommande
+}
+
+fun libelleMode(mode: String) = when (mode) {
+    "validation" -> "Validation sur l'ID"
+    "expedition" -> "Expédition"
+    else -> "Livraison"
+}
+
+data class VilleExpedition(val id: String, val nom: String, val frais: Int)
 
 fun libelleStatut(statut: String): String = when (statut) {
     "nouvelle" -> "Nouvelle"
@@ -89,6 +106,7 @@ fun libelleStatut(statut: String): String = when (statut) {
     "en_livraison" -> "En livraison"
     "livree" -> "Livrée"
     "validee" -> "Validée sur l'ID"
+    "expediee" -> "Expédiée"
     "annulee" -> "Annulée"
     "retournee" -> "Retournée"
     else -> statut

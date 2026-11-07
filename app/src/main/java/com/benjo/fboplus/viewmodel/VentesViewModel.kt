@@ -26,7 +26,12 @@ data class DetailsCommande(
     val clientTelephone: String = "",
     val clientTelephone2: String = "",
     val quartier: String = "",
-    val adresse: String = ""
+    val adresse: String = "",
+    // Expédition : ville de la liste du pays (frais fixés par l'administration) et compagnie facultative.
+    val villeId: String = "",
+    val villeNom: String = "",
+    val fraisVille: Int = 0,
+    val compagnie: String = ""
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {
@@ -43,6 +48,11 @@ data class DetailsCommande(
             mode == "livraison" && clientTelephone2.isNotBlank() && !telephone.matches(clientTelephone2.trim()) ->
                 "Deuxième téléphone invalide."
             mode == "livraison" && quartier.isBlank() -> "Indiquez le quartier du client."
+            mode == "expedition" && villeId.isBlank() -> "Choisissez la ville où expédier le colis."
+            mode == "expedition" && clientNom.isBlank() -> "Indiquez le nom et le prénom du destinataire."
+            mode == "expedition" && !telephone.matches(clientTelephone.trim()) -> "Téléphone du destinataire invalide."
+            mode == "expedition" && clientTelephone2.isNotBlank() && !telephone.matches(clientTelephone2.trim()) ->
+                "Deuxième téléphone invalide."
             else -> null
         }
     }

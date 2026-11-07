@@ -1,7 +1,90 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { useEffect, useState, type FormEvent } from "react";
-import { useAction, useCollection } from "../commun";
+import { fcfa, filtrePays, PAYS, useAction, useCollection } from "../commun";
 import { db } from "../firebase";
+import { useSession } from "../session";
+
+/** Villes où chaque pays expédie, et leurs frais : proposées au distributeur lors de la commande. */
+function VillesExpedition() {
+  const { role, pays } = useSession();
+  const superAdmin = role === "super_admin";
+  const action = useAction();
+  const { docs: villes } = useCollection("villesExpedition", ...filtrePays(role, pays));
+  const [ville, setVille] = useState("");
+  const [frais, setFrais] = useState("");
+  const [paysVille, setPaysVille] = useState(pays || PAYS[0]);
+
+  function ajouter(e: FormEvent) {
+    e.preventDefault();
+    action.lancer(async () => {
+      await addDoc(collection(db, "villesExpedition"), {
+        pays: superAdmin ? paysVille : pays,
+        ville: ville.trim(),
+        frais: Number(frais),
+        actif: true,
+      });
+      setVille("");
+      setFrais("");
+    });
+  }
+
+  const triees = [...(villes ?? [])].sort((a, b) => `${a.pays}${a.ville}`.localeCompare(`${b.pays}${b.ville}`));
+
+  return (
+    <section className="carte etroit">
+      <h2>Villes d'expédition</h2>
+      <p className="discret">Le distributeur choisit une de ces villes ; ses frais s'ajoutent au total de la commande.</p>
+      <ul className="liste">
+        {triees.map((v) => (
+          <li key={v.id}>
+            <span>
+              {v.ville}{superAdmin ? ` (${v.pays})` : ""} · {fcfa(v.frais)}
+              {!v.actif && <span className="discret"> · fermée</span>}
+            </span>
+            <span>
+              <button
+                className="lien"
+                onClick={() => {
+                  const saisi = window.prompt(`Nouveaux frais pour ${v.ville} (FCFA)`, String(v.frais));
+                  if (saisi !== null && /^\d+$/.test(saisi.trim())) {
+                    action.lancer(() => setDoc(doc(db, "villesExpedition", v.id), { frais: Number(saisi) }, { merge: true }));
+                  }
+                }}
+              >
+                Frais
+              </button>{" "}
+              <button
+                className="lien"
+                onClick={() => action.lancer(() => setDoc(doc(db, "villesExpedition", v.id), { actif: !v.actif }, { merge: true }))}
+              >
+                {v.actif ? "Fermer" : "Rouvrir"}
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {action.erreur && <p className="erreur">{action.erreur}</p>}
+      <form className="actions" onSubmit={ajouter}>
+        <input placeholder="Ville" aria-label="Ville" value={ville} onChange={(e) => setVille(e.target.value)} required />
+        <input
+          type="number"
+          min={0}
+          placeholder="Frais (FCFA)"
+          aria-label="Frais d'expédition"
+          value={frais}
+          onChange={(e) => setFrais(e.target.value)}
+          required
+        />
+        {superAdmin && (
+          <select aria-label="Pays" value={paysVille} onChange={(e) => setPaysVille(e.target.value)}>
+            {PAYS.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        )}
+        <button className="secondaire" disabled={action.enCours}>Ajouter</button>
+      </form>
+    </section>
+  );
+}
 
 export default function Parametres() {
   const [frais, setFrais] = useState("");
@@ -51,6 +134,8 @@ export default function Parametres() {
         {enregistre && <p className="succes">Tarifs enregistrés.</p>}
         <button className="principal" disabled={action.enCours}>Enregistrer</button>
       </form>
+
+      <VillesExpedition />
 
       <section className="carte etroit">
         <h2>Centres</h2>

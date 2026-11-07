@@ -12,6 +12,7 @@ const MESSAGES_FBO: Record<string, string> = {
   en_livraison: "Votre commande est en cours de livraison.",
   livree: "Votre commande a été livrée.",
   validee: "Votre commande a été validée sur l'ID Forever.",
+  expediee: "Votre commande a été expédiée.",
   annulee: "Votre commande a été annulée.",
   retournee: "Votre commande n'a pas pu être livrée.",
 };

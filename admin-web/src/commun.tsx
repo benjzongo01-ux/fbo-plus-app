@@ -30,6 +30,7 @@ export const LIBELLES_STATUTS: Record<string, string> = {
   en_livraison: "En livraison",
   livree: "Livrée",
   validee: "Validée sur l'ID",
+  expediee: "Expédiée",
   annulee: "Annulée",
   retournee: "Retournée",
 };

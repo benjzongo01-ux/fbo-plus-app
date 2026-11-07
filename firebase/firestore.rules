@@ -60,6 +60,18 @@ service cloud.firestore {
       allow write: if estAdmin();
     }
 
+    // Villes d'expédition et leurs frais, tenues par l'administration de chaque pays.
+    match /villesExpedition/{id} {
+      allow read: if aUnRole();
+      allow create: if role() == 'super_admin'
+        || (estAdmin() && request.resource.data.pays == request.auth.token.get('pays', ''));
+      allow update: if role() == 'super_admin'
+        || (estAdmin() && resource.data.pays == request.auth.token.get('pays', '')
+          && request.resource.data.pays == resource.data.pays);
+      allow delete: if role() == 'super_admin'
+        || (estAdmin() && resource.data.pays == request.auth.token.get('pays', ''));
+    }
+
     match /centres/{id} {
       allow read: if aUnRole();
       allow write: if estAdmin();

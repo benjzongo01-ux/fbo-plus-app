@@ -21,10 +21,10 @@ Modèle de données Firestore (première version)
 • warehouses/{id} et stock/{warehouseId_productId} : quantité disponible, quantité réservée, seuil d'alerte.
 • stockMovements/{id} : entrée, sortie, réservation, retour, inventaire, auteur, date.
 • customers/{id} : appartient à un FBO (ownerId), nom, téléphone, adresse, notes, historique.
-• orders/{id} : fboId, pays, mode (livraison ou validation), bénéficiaire (moi ou filleul : nom, prénom, ID Forever), client (nom, deux téléphones, quartier, adresse ; seulement en livraison), lignes (produit, quantité, prix), réduction, frais de livraison, total, adresse, statut, historique des statuts, livreur assigné.
+• orders/{id} : fboId, pays, mode (livraison, validation ou expedition), expedition (ville, compagnie, frais, numéro du colis), bénéficiaire (moi ou filleul : nom, prénom, ID Forever), client (nom, deux téléphones, quartier, adresse ; seulement en livraison), lignes (produit, quantité, prix), réduction, frais de livraison, total, adresse, statut, historique des statuts, livreur assigné.
 • deliveries/{id} : commande, livreur, position GPS, preuve photo, signature, montant encaissé, statut.
 • notifications/{id} et auditLogs/{id}.
-Statuts de commande : nouvelle → confirmee → en_preparation → prete → assignee → en_livraison → livree (ou annulee, retournee). Une commande en validation s'arrête à prete → validee : le centre d'appel la valide sur l'ID Forever du bénéficiaire, sans livreur ni frais de livraison.
+Statuts de commande : nouvelle → confirmee → en_preparation → prete → assignee → en_livraison → livree (ou annulee, retournee). Une commande en validation s'arrête à prete → validee : le centre d'appel la valide sur l'ID Forever du bénéficiaire, sans livreur ni frais de livraison. Une expédition s'arrête à prete → expediee : le colis part vers une ville de la liste villesExpedition du pays, dont les frais s'ajoutent au total ; la compagnie de transport est facultative à la commande et choisie par l'expéditeur sinon.
 
 Pays : Burkina Faso, Côte d'Ivoire, Sénégal (liste PAYS dans firebase/functions/src/commun.ts). Chaque commande part vers l'entrepôt actif de son pays. Le personnel porte un pays dans ses claims et ne voit que son pays ; le super administrateur voit tout. Les données sans pays comptent comme Burkina Faso.
 Règles de sécurité (obligatoires)

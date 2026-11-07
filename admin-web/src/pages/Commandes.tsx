@@ -4,8 +4,9 @@ import { dateCourte, Etat, fcfa, filtrePays, LIBELLES_STATUTS, useAction, useCol
 import { appeler } from "../firebase";
 import { useSession } from "../session";
 
-const FILTRES = ["a_traiter", "nouvelle", "confirmee", "en_preparation", "prete", "assignee", "en_livraison", "livree", "validee", "annulee", "retournee"];
+const FILTRES = ["a_traiter", "nouvelle", "confirmee", "en_preparation", "prete", "assignee", "en_livraison", "livree", "validee", "expediee", "annulee", "retournee"];
 const A_TRAITER = ["nouvelle", "confirmee", "en_preparation", "prete"];
+const MODES: Record<string, string> = { livraison: "Livraison", validation: "Validation", expedition: "Expédition" };
 const ADMIN = ["admin", "super_admin"];
 
 const ETAPE_SUIVANTE: Record<string, { libelle: string; roles: string[] }> = {
@@ -46,7 +47,7 @@ export default function Commandes() {
                   <tr key={c.id} onClick={() => setOuverteId(c.id)} className={c.id === ouverteId ? "selection" : ""}>
                     <td>{dateCourte(c.createdAt)}</td>
                     <td>{nomCommande(c)}</td>
-                    <td>{c.mode === "validation" ? "Validation" : "Livraison"}</td>
+                    <td>{MODES[c.mode] ?? "Livraison"}{c.expedition ? ` · ${c.expedition.ville}` : ""}</td>
                     {role === "super_admin" && <td>{c.pays ?? "Burkina Faso"}</td>}
                     <td>{fcfa(c.total)}</td>
                     <td><span className={`statut ${c.statut}`}>{LIBELLES_STATUTS[c.statut]}</span></td>
@@ -79,6 +80,10 @@ function DetailCommande({ commande }: { commande: Doc }) {
     where("pays", "==", commande.pays ?? "Burkina Faso"),
   );
   const validation = commande.mode === "validation";
+  const expedition = commande.mode === "expedition";
+  const [frais, setFrais] = useState(String(commande.expedition?.frais ?? 0));
+  const [compagnie, setCompagnie] = useState(commande.expedition?.compagnie ?? "");
+  const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
   const [motif, setMotif] = useState<string | null>(null);
 
@@ -103,7 +108,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
     <section className="carte detail">
       <h2>{nomCommande(commande)}</h2>
       <p>
-        <strong>{validation ? "Validation sur l'ID" : "Livraison"}</strong> · {commande.pays ?? "Burkina Faso"}
+        <strong>{validation ? "Validation sur l'ID" : expedition ? "Expédition" : "Livraison"}</strong> · {commande.pays ?? "Burkina Faso"}
       </p>
       {commande.beneficiaire && (
         <div className="encadre">
@@ -114,8 +119,18 @@ function DetailCommande({ commande }: { commande: Doc }) {
           <div>ID Forever : <strong>{commande.beneficiaire.idForever}</strong></div>
         </div>
       )}
+      {commande.expedition && (
+        <div className="encadre">
+          <div className="discret">Expédition</div>
+          <div>Vers : <strong>{commande.expedition.ville}</strong></div>
+          <div>Compagnie : {commande.expedition.compagnie || <em>à choisir par l'expéditeur</em>}</div>
+          {commande.expedition.numeroColis && <div>N° du colis : {commande.expedition.numeroColis}</div>}
+          <div>Frais : {fcfa(commande.expedition.frais)}</div>
+        </div>
+      )}
       {commande.client && (
         <p>
+          {expedition && <span className="discret">Destinataire<br /></span>}
           {commande.client.nom}
           {commande.client.telephone && <><br /><a href={`tel:${commande.client.telephone}`}>{commande.client.telephone}</a></>}
           {commande.client.telephone2 && <><br /><a href={`tel:${commande.client.telephone2}`}>{commande.client.telephone2}</a></>}
@@ -201,7 +216,47 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </div>
       )}
 
-      {centreAppel && !validation && ["prete", "assignee"].includes(commande.statut) && (
+      {centreAppel && expedition && ["nouvelle", "confirmee"].includes(commande.statut) && (
+        <div className="actions">
+          <label>
+            Frais d'expédition (FCFA)
+            <input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} />
+          </label>
+          <button
+            className="secondaire"
+            disabled={enCours || Number(frais) === commande.expedition?.frais || !/^\d+$/.test(frais)}
+            onClick={() => lancer(() => appeler("fixerFraisExpedition", { id: commande.id, frais: Number(frais) }))}
+          >
+            Ajuster les frais
+          </button>
+        </div>
+      )}
+
+      {centreAppel && expedition && commande.statut === "prete" && (
+        <div className="actions">
+          <input
+            placeholder="Compagnie de transport"
+            aria-label="Compagnie de transport"
+            value={compagnie}
+            onChange={(e) => setCompagnie(e.target.value)}
+          />
+          <input
+            placeholder="N° du colis (facultatif)"
+            aria-label="Numéro du colis"
+            value={numeroColis}
+            onChange={(e) => setNumeroColis(e.target.value)}
+          />
+          <button
+            className="principal"
+            disabled={enCours || !compagnie.trim()}
+            onClick={() => lancer(() => appeler("expedierCommande", { id: commande.id, compagnie, numeroColis }))}
+          >
+            Marquer expédiée
+          </button>
+        </div>
+      )}
+
+      {centreAppel && !validation && !expedition && ["prete", "assignee"].includes(commande.statut) && (
         <div className="actions">
           <select aria-label="Livreur" value={livreurId} onChange={(e) => setLivreurId(e.target.value)}>
             <option value="">Choisir un livreur</option>

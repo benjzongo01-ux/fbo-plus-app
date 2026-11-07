@@ -19,4 +19,6 @@ export {
   signalerRetour,
   terminerLivraison,
   validerSurId,
+  fixerFraisExpedition,
+  expedierCommande,
 } from "./commandes.js";

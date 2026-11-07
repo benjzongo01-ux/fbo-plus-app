@@ -353,6 +353,78 @@ describe("pour qui, livraison ou validation", () => {
   });
 });
 
+describe("expédition vers une autre ville", () => {
+  const EXPEDITION = {
+    mode: "expedition",
+    villeExpeditionId: "bobo",
+    destinataireNom: "Issa Destinataire",
+    destinataireTelephone: "+22670000040",
+  };
+
+  beforeAll(async () => {
+    await adminDb().doc("villesExpedition/bobo").set({ pays: "Burkina Faso", ville: "Bobo-Dioulasso", frais: 2500, actif: true });
+    await adminDb().doc("villesExpedition/bouake").set({ pays: "Côte d'Ivoire", ville: "Bouaké", frais: 3000, actif: true });
+    await adminDb().doc("villesExpedition/fermee").set({ pays: "Burkina Faso", ville: "Gaoua", frais: 3000, actif: false });
+  });
+
+  it("applique les frais de la ville et garde le destinataire et la compagnie", async () => {
+    const u = await fbo();
+    const { id, total } = await nouvelle(u, { ...EXPEDITION, compagnie: "STAF", adresse: "Gare STAF" });
+    expect(total).toBe(46500);
+    const c = await commande(id);
+    expect(c.expedition).toMatchObject({ ville: "Bobo-Dioulasso", compagnie: "STAF", frais: 2500 });
+    expect(c.client).toMatchObject({ nom: "Issa Destinataire", telephone: "+22670000040" });
+    expect(c.adresse).toBe("Bobo-Dioulasso, Gare STAF");
+  });
+
+  it("exige une ville de la liste du pays, le nom et le téléphone du destinataire", async () => {
+    const u = await fbo();
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpeditionId: "bouake" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpeditionId: "fermee" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, destinataireNom: "" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, destinataireTelephone: "12" }))).toBe("functions/invalid-argument");
+  });
+
+  it("sans compagnie, celui qui expédie la choisit ; le stock sort à l'expédition", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const gestionnaire = await compte("gestionnaire_stock");
+    const livreur = await compte("livreur");
+    const { id } = await nouvelle(u, EXPEDITION);
+    expect((await commande(id)).expedition.compagnie).toBe("");
+
+    await operateur.appeler("fixerFraisExpedition", { id, frais: 4000 });
+    expect(await commande(id)).toMatchObject({ fraisLivraison: 4000, total: 48000, expedition: { frais: 4000 } });
+
+    await operateur.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    expect(await codeErreur(operateur.appeler("fixerFraisExpedition", { id, frais: 0 }))).toBe("functions/failed-precondition");
+    expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid }))).toBe(
+      "functions/failed-precondition",
+    );
+    expect(await codeErreur(operateur.appeler("expedierCommande", { id }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(gestionnaire.appeler("expedierCommande", { id, compagnie: "TSR" }))).toBe(
+      "functions/permission-denied",
+    );
+
+    await operateur.appeler("expedierCommande", { id, compagnie: "TSR", numeroColis: "B-1234" });
+    expect(await commande(id)).toMatchObject({
+      statut: "expediee",
+      expedition: { compagnie: "TSR", numeroColis: "B-1234" },
+    });
+    expect(await stock()).toMatchObject({ disponible: 8, reserve: 0 });
+  });
+
+  it("l'administration d'un autre pays ne peut pas expédier", async () => {
+    const u = await fbo();
+    const { id } = await nouvelle(u, { ...EXPEDITION, compagnie: "STAF" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
+    expect(await codeErreur(adminCI.appeler("expedierCommande", { id }))).toBe("functions/permission-denied");
+  });
+});
+
 describe("administration par pays", () => {
   it("la commande se sert dans l'entrepôt de son pays", async () => {
     await adminDb().doc(`stock/abidjan_${produit}`).set({ disponible: 4, reserve: 0 });
