@@ -148,8 +148,7 @@ object VentesRepository {
         cle: String,
         lignes: List<LigneCommande>,
         titre: String,
-        client: Client?,
-        adresse: String,
+        details: com.benjo.fboplus.viewmodel.DetailsCommande,
         reduction: Int
     ) {
         functions.getHttpsCallable("creerCommande").call(
@@ -157,8 +156,18 @@ object VentesRepository {
                 "cleIdempotence" to cle,
                 "lignes" to enLignes(lignes),
                 "titre" to titre,
-                "clientId" to (client?.id ?: ""),
-                "adresse" to adresse,
+                "pays" to details.pays,
+                "pourQui" to details.pourQui,
+                "filleulNom" to details.filleulNom.trim(),
+                "filleulPrenom" to details.filleulPrenom.trim(),
+                "filleulId" to details.filleulId.trim(),
+                "mode" to details.mode,
+                "clientId" to (details.clientId ?: ""),
+                "clientNom" to details.clientNom.trim(),
+                "clientTelephone" to details.clientTelephone.trim(),
+                "clientTelephone2" to details.clientTelephone2.trim(),
+                "clientQuartier" to details.quartier.trim(),
+                "adresse" to details.adresse.trim(),
                 "reduction" to reduction
             )
         ).await()
@@ -209,6 +218,7 @@ object VentesRepository {
             )
         }
         val client = doc.get("client") as? Map<String, Any?>
+        val beneficiaire = doc.get("beneficiaire") as? Map<String, Any?>
         return Commande(
             id = doc.id.hashCode().toLong(),
             titre = doc.getString("titre").orEmpty(),
@@ -226,7 +236,15 @@ object VentesRepository {
             fraisLivraison = doc.getLong("fraisLivraison")?.toInt() ?: 0,
             total = doc.getLong("total")?.toInt() ?: 0,
             historique = historique,
-            motif = doc.getString("motifAnnulation") ?: doc.getString("motifRetour").orEmpty()
+            motif = doc.getString("motifAnnulation") ?: doc.getString("motifRetour").orEmpty(),
+            pays = doc.getString("pays").orEmpty(),
+            mode = doc.getString("mode").orEmpty(),
+            pourQui = beneficiaire?.get("type") as? String ?: "",
+            beneficiaireNom = listOf(beneficiaire?.get("prenom"), beneficiaire?.get("nom"))
+                .mapNotNull { (it as? String)?.takeIf(String::isNotBlank) }.joinToString(" "),
+            beneficiaireId = beneficiaire?.get("idForever") as? String ?: "",
+            clientTelephone = client?.get("telephone") as? String ?: "",
+            clientTelephone2 = client?.get("telephone2") as? String ?: ""
         )
     }
 

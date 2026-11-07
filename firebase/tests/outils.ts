@@ -24,8 +24,10 @@ export const telephone = () => `+2265${++numero}`;
 export async function compte(role?: string, profil: Record<string, unknown> = {}) {
   const uid = randomUUID();
   await getAuth().createUser({ uid, phoneNumber: telephone() });
-  if (role) await getAuth().setCustomUserClaims(uid, { role });
-  await getFirestore().doc(`users/${uid}`).set({ role: role ?? null, statut: "actif", ...profil });
+  // Le personnel et les livreurs travaillent dans un pays, le Burkina Faso par défaut.
+  const pays = (profil.pays as string | undefined) ?? "Burkina Faso";
+  if (role) await getAuth().setCustomUserClaims(uid, role === "fbo" ? { role } : { role, pays });
+  await getFirestore().doc(`users/${uid}`).set({ role: role ?? null, statut: "actif", pays, ...profil });
 
   const app = initClient({ apiKey: "demo", projectId: PROJET }, uid);
   applis.push(app);

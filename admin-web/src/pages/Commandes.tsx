@@ -1,10 +1,10 @@
 import { orderBy, where } from "firebase/firestore";
 import { useState } from "react";
-import { dateCourte, Etat, fcfa, LIBELLES_STATUTS, useAction, useCollection, type Doc } from "../commun";
+import { dateCourte, Etat, fcfa, filtrePays, LIBELLES_STATUTS, useAction, useCollection, type Doc } from "../commun";
 import { appeler } from "../firebase";
 import { useSession } from "../session";
 
-const FILTRES = ["a_traiter", "nouvelle", "confirmee", "en_preparation", "prete", "assignee", "en_livraison", "livree", "annulee", "retournee"];
+const FILTRES = ["a_traiter", "nouvelle", "confirmee", "en_preparation", "prete", "assignee", "en_livraison", "livree", "validee", "annulee", "retournee"];
 const A_TRAITER = ["nouvelle", "confirmee", "en_preparation", "prete"];
 const ADMIN = ["admin", "super_admin"];
 
@@ -17,7 +17,8 @@ const ETAPE_SUIVANTE: Record<string, { libelle: string; roles: string[] }> = {
 export default function Commandes() {
   const [filtre, setFiltre] = useState("a_traiter");
   const [ouverteId, setOuverteId] = useState<string | null>(null);
-  const { docs, erreur } = useCollection("orders", orderBy("createdAt", "desc"));
+  const { role, pays } = useSession();
+  const { docs, erreur } = useCollection("orders", ...filtrePays(role, pays), orderBy("createdAt", "desc"));
 
   const visibles = docs?.filter((c) =>
     filtre === "a_traiter" ? A_TRAITER.includes(c.statut) : c.statut === filtre,
@@ -39,12 +40,14 @@ export default function Commandes() {
           <Etat docs={visibles} erreur={erreur} vide="Aucune commande dans cette file." />
           {visibles && visibles.length > 0 && (
             <table>
-              <thead><tr><th>Date</th><th>Client</th><th>Total</th><th>Statut</th></tr></thead>
+              <thead><tr><th>Date</th><th>Pour</th><th>Type</th>{role === "super_admin" && <th>Pays</th>}<th>Total</th><th>Statut</th></tr></thead>
               <tbody>
                 {visibles.map((c) => (
                   <tr key={c.id} onClick={() => setOuverteId(c.id)} className={c.id === ouverteId ? "selection" : ""}>
                     <td>{dateCourte(c.createdAt)}</td>
-                    <td>{c.client?.nom || c.titre}</td>
+                    <td>{nomCommande(c)}</td>
+                    <td>{c.mode === "validation" ? "Validation" : "Livraison"}</td>
+                    {role === "super_admin" && <td>{c.pays ?? "Burkina Faso"}</td>}
                     <td>{fcfa(c.total)}</td>
                     <td><span className={`statut ${c.statut}`}>{LIBELLES_STATUTS[c.statut]}</span></td>
                   </tr>
@@ -59,13 +62,23 @@ export default function Commandes() {
   );
 }
 
+const nomBeneficiaire = (c: Doc) =>
+  [c.beneficiaire?.prenom, c.beneficiaire?.nom].filter(Boolean).join(" ");
+
+const nomCommande = (c: Doc) => c.client?.nom || nomBeneficiaire(c) || c.titre;
+
 function DetailCommande({ commande }: { commande: Doc }) {
   const { role } = useSession();
   const { enCours, erreur, lancer } = useAction();
   const [quantites, setQuantites] = useState<Record<string, number>>(() =>
     Object.fromEntries(commande.lignes.map((l: Doc) => [l.produitId, l.quantite])),
   );
-  const { docs: livreurs } = useCollection("users", where("role", "==", "livreur"));
+  const { docs: livreurs } = useCollection(
+    "users",
+    where("role", "==", "livreur"),
+    where("pays", "==", commande.pays ?? "Burkina Faso"),
+  );
+  const validation = commande.mode === "validation";
   const [livreurId, setLivreurId] = useState("");
   const [motif, setMotif] = useState<string | null>(null);
 
@@ -88,11 +101,27 @@ function DetailCommande({ commande }: { commande: Doc }) {
 
   return (
     <section className="carte detail">
-      <h2>{commande.client?.nom || commande.titre}</h2>
+      <h2>{nomCommande(commande)}</h2>
       <p>
-        {commande.client?.telephone && <a href={`tel:${commande.client.telephone}`}>{commande.client.telephone}</a>}
-        {commande.adresse && <><br />{commande.adresse}</>}
+        <strong>{validation ? "Validation sur l'ID" : "Livraison"}</strong> · {commande.pays ?? "Burkina Faso"}
       </p>
+      {commande.beneficiaire && (
+        <div className="encadre">
+          <div className="discret">
+            {commande.beneficiaire.type === "filleul" ? "Commande pour un filleul" : "Commande pour le distributeur"}
+          </div>
+          <div>{nomBeneficiaire(commande)}</div>
+          <div>ID Forever : <strong>{commande.beneficiaire.idForever}</strong></div>
+        </div>
+      )}
+      {commande.client && (
+        <p>
+          {commande.client.nom}
+          {commande.client.telephone && <><br /><a href={`tel:${commande.client.telephone}`}>{commande.client.telephone}</a></>}
+          {commande.client.telephone2 && <><br /><a href={`tel:${commande.client.telephone2}`}>{commande.client.telephone2}</a></>}
+          {commande.adresse && <><br />{commande.adresse}</>}
+        </p>
+      )}
       <p><span className={`statut ${commande.statut}`}>{LIBELLES_STATUTS[commande.statut]}</span></p>
       {commande.motifAnnulation && <p className="discret">Motif : {commande.motifAnnulation}</p>}
       {commande.motifRetour && <p className="discret">Motif : {commande.motifRetour}</p>}
@@ -160,7 +189,19 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </div>
       )}
 
-      {centreAppel && ["prete", "assignee"].includes(commande.statut) && (
+      {centreAppel && validation && commande.statut === "prete" && (
+        <div className="actions">
+          <button
+            className="principal"
+            disabled={enCours}
+            onClick={() => lancer(() => appeler("validerSurId", { id: commande.id }))}
+          >
+            Valider sur l'ID {commande.beneficiaire?.idForever}
+          </button>
+        </div>
+      )}
+
+      {centreAppel && !validation && ["prete", "assignee"].includes(commande.statut) && (
         <div className="actions">
           <select aria-label="Livreur" value={livreurId} onChange={(e) => setLivreurId(e.target.value)}>
             <option value="">Choisir un livreur</option>

@@ -3,7 +3,7 @@ import { where } from "firebase/firestore";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { LIBELLES_ROLES, useCollection } from "./commun";
+import { filtrePays, LIBELLES_ROLES, useCollection } from "./commun";
 import { auth, surEmulateurs } from "./firebase";
 import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
@@ -35,8 +35,8 @@ function Application() {
 }
 
 function Cadre() {
-  const { utilisateur, role } = useSession();
-  const { docs: nouvelles } = useCollection("orders", where("statut", "==", "nouvelle"));
+  const { utilisateur, role, pays } = useSession();
+  const { docs: nouvelles } = useCollection("orders", where("statut", "==", "nouvelle"), ...filtrePays(role, pays));
   const aTraiter = nouvelles?.length ?? 0;
   const pages = PAGES.filter((p) => p.roles.includes(role));
   return (
@@ -53,7 +53,7 @@ function Cadre() {
         </nav>
         <div className="pied-menu">
           <div>{utilisateur?.phoneNumber}</div>
-          <div className="discret">{LIBELLES_ROLES[role]}</div>
+          <div className="discret">{LIBELLES_ROLES[role]}{role === "super_admin" ? " · Tous les pays" : ` · ${pays}`}</div>
           <button className="lien" onClick={() => signOut(auth)}>Se déconnecter</button>
         </div>
       </aside>

@@ -1,128 +1,317 @@
 package com.benjo.fboplus.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Client
 import com.benjo.fboplus.data.ClientsRepository
+import com.benjo.fboplus.data.Profil
+import com.benjo.fboplus.data.paysAutorises
 import com.benjo.fboplus.ui.theme.*
+import com.benjo.fboplus.viewmodel.DetailsCommande
 import com.benjo.fboplus.viewmodel.EnvoiCommande
 import com.benjo.fboplus.viewmodel.VentesViewModel
+import java.util.Locale
 
-/** Client, adresse et réduction d'une commande. `choixClient` est masqué en modification. */
+private val Forme = RoundedCornerShape(12.dp)
+private val FormeSection = RoundedCornerShape(16.dp)
+private fun fcfa(n: Int) = "%,d FCFA".format(Locale.FRANCE, n)
+
+/**
+ * Deuxième étape de la commande : pays, bénéficiaire, livraison ou validation.
+ * Les coordonnées du client ne sont demandées que pour une livraison.
+ */
 @Composable
-fun ChampsCommande(
+fun DetailsCommandeEcran(
     ventesViewModel: VentesViewModel,
+    profil: Profil,
+    sousTotal: Int,
     reductionMax: Int,
-    choixClient: Boolean = true
+    onRetour: () -> Unit,
+    onValidee: () -> Unit
 ) {
-    val client by ventesViewModel.client.collectAsState()
-    val adresse by ventesViewModel.adresse.collectAsState()
+    val details by ventesViewModel.details.collectAsState()
     val reduction by ventesViewModel.reduction.collectAsState()
-    var selection by remember { mutableStateOf(false) }
+    val titre by ventesViewModel.titreCommande.collectAsState()
+    val envoi by ventesViewModel.envoi.collectAsState()
+    var tentative by remember { mutableStateOf(false) }
+    var choixClient by remember { mutableStateOf(false) }
+
+    // Le pays du profil est proposé par défaut, s'il fait partie des pays ouverts.
+    LaunchedEffect(Unit) {
+        if (details.pays.isBlank() && paysAutorises.any { it.nom == profil.pays }) {
+            ventesViewModel.modifierDetails { it.copy(pays = profil.pays) }
+        }
+    }
+
+    val erreur = details.erreur(profil.idDistributeur) ?: if (reduction > reductionMax) {
+        "La réduction dépasse votre marge sur cette commande."
+    } else null
+
+    BackHandler(onBack = onRetour)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(BlackDeep)
+            .imePadding()
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(BlackCard)
+                .padding(top = 40.dp, start = 4.dp, end = 16.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onRetour) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour aux produits", tint = GoldPrimary)
+            }
+            Column {
+                Text("Détails de la commande", color = WhitePrimary, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Sous-total : ${fcfa(sousTotal)}", color = WhiteSub, fontSize = 13.sp)
+            }
+        }
+
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Section("1. Pays") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    paysAutorises.forEach { p ->
+                        Pastille(
+                            texte = "${p.drapeau} ${p.nom}",
+                            choisie = details.pays == p.nom,
+                            modifier = Modifier.weight(1f)
+                        ) { ventesViewModel.modifierDetails { it.copy(pays = p.nom) } }
+                    }
+                }
+                Aide("La commande sera traitée par l'administration de ce pays.")
+            }
+
+            Section("2. Pour qui ?") {
+                Choix(
+                    gauche = "Ma commande",
+                    droite = "Mon filleul",
+                    droiteChoisie = details.pourQui == "filleul",
+                    onChoix = { filleul ->
+                        ventesViewModel.modifierDetails { it.copy(pourQui = if (filleul) "filleul" else "moi") }
+                    }
+                )
+                if (details.pourQui == "moi") {
+                    if (profil.idDistributeur.isBlank()) {
+                        Text(
+                            "Renseignez votre ID Forever dans votre profil pour commander à votre nom.",
+                            color = RedAlert,
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        Aide("Validée sur votre ID Forever : ${profil.idDistributeur}")
+                    }
+                } else {
+                    Champ("Nom du filleul", details.filleulNom, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(filleulNom = v) }
+                    }
+                    Champ("Prénom du filleul", details.filleulPrenom, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(filleulPrenom = v) }
+                    }
+                    Champ("ID Forever du filleul", details.filleulId, clavier = KeyboardType.Number) { v ->
+                        ventesViewModel.modifierDetails { it.copy(filleulId = v.filter { c -> c.isDigit() || c == '-' }) }
+                    }
+                    Aide("La commande sera validée sur cet ID.")
+                }
+            }
+
+            Section("3. Livraison ou validation ?") {
+                Choix(
+                    gauche = "Livraison",
+                    droite = "Validation",
+                    droiteChoisie = details.mode == "validation",
+                    onChoix = { validation ->
+                        ventesViewModel.modifierDetails { it.copy(mode = if (validation) "validation" else "livraison") }
+                    }
+                )
+                if (details.mode == "validation") {
+                    Aide("Pas de livraison : les produits sont seulement validés sur l'ID. Aucune information client n'est demandée.")
+                } else {
+                    OutlinedButton(
+                        onClick = { choixClient = true },
+                        shape = Forme,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Remplir depuis mes clients", color = GoldPrimary) }
+                    Champ("Nom et prénom du client", details.clientNom, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientNom = v) }
+                    }
+                    Champ("Téléphone du client", details.clientTelephone, clavier = KeyboardType.Phone) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientTelephone = v) }
+                    }
+                    Champ("Deuxième téléphone (facultatif)", details.clientTelephone2, clavier = KeyboardType.Phone) { v ->
+                        ventesViewModel.modifierDetails { it.copy(clientTelephone2 = v) }
+                    }
+                    Champ("Quartier", details.quartier, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(quartier = v) }
+                    }
+                    Champ("Adresse, repère (facultatif)", details.adresse) { v ->
+                        ventesViewModel.modifierDetails { it.copy(adresse = v) }
+                    }
+                    Aide("Les frais de livraison du pays s'ajoutent au total.")
+                }
+            }
+
+            Section("4. Réduction et titre") {
+                Champ(
+                    "Réduction client en FCFA (max ${"%,d".format(Locale.FRANCE, reductionMax)})",
+                    if (reduction == 0) "" else reduction.toString(),
+                    clavier = KeyboardType.Number
+                ) { v -> ventesViewModel.setReduction(v.filter(Char::isDigit).take(9).toIntOrNull() ?: 0) }
+                Champ("Titre de la commande (facultatif)", titre) { ventesViewModel.setTitreCommande(it) }
+            }
+
+            Spacer(Modifier.height(4.dp))
+        }
+
+        Column(Modifier.fillMaxWidth().background(BlackCard).padding(16.dp)) {
+            if (tentative && erreur != null) {
+                Text(erreur, color = RedAlert, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            SuiviEnvoi(ventesViewModel, onValidee)
+            Button(
+                onClick = {
+                    tentative = true
+                    if (erreur == null) ventesViewModel.validerCommande()
+                },
+                enabled = envoi != EnvoiCommande.EnCours,
+                shape = Forme,
+                colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary, contentColor = BlackDeep),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text(
+                    if (details.mode == "validation") "Envoyer pour validation" else "Envoyer pour livraison",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+            }
+        }
+    }
 
     if (choixClient) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(BlackSurface)
-                .border(1.dp, BlackBorder, RoundedCornerShape(12.dp))
-                .clickable { selection = true }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                client?.nom ?: "Choisir un client (optionnel)",
-                color = if (client == null) WhiteFaint else WhitePrimary,
-                fontSize = 14.sp
-            )
-            Text("Changer", color = GoldPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.height(10.dp))
-    }
-
-    ChampCompact(
-        valeur = adresse,
-        indication = "Adresse de livraison",
-        onChange = ventesViewModel::setAdresse
-    )
-    Spacer(Modifier.height(10.dp))
-    ChampCompact(
-        valeur = if (reduction == 0) "" else reduction.toString(),
-        indication = "Réduction client en FCFA (max %,d)".format(reductionMax),
-        clavier = KeyboardType.Number,
-        onChange = { saisie ->
-            ventesViewModel.setReduction(saisie.filter(Char::isDigit).take(9).toIntOrNull() ?: 0)
-        }
-    )
-    if (reduction > reductionMax) {
-        Text(
-            "La réduction dépasse votre marge sur cette commande.",
-            color = RedAlert,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-    }
-    Spacer(Modifier.height(10.dp))
-
-    if (selection) {
         DialogueClient(
-            onChoix = {
-                ventesViewModel.setClient(it)
-                selection = false
+            onChoix = { client ->
+                if (client != null) ventesViewModel.setClient(client)
+                choixClient = false
             },
-            onFermer = { selection = false }
+            onFermer = { choixClient = false }
         )
     }
 }
 
 @Composable
-private fun ChampCompact(
-    valeur: String,
-    indication: String,
-    clavier: KeyboardType = KeyboardType.Text,
-    onChange: (String) -> Unit
-) {
-    Box(
-        modifier = Modifier
+private fun Section(titre: String, contenu: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(BlackSurface)
-            .border(1.dp, BlackBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 13.dp)
+            .clip(FormeSection)
+            .background(BlackCard)
+            .border(1.dp, BlackBorder, FormeSection)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        BasicTextField(
-            value = valeur,
-            onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = clavier),
-            cursorBrush = SolidColor(GoldPrimary),
-            textStyle = TextStyle(color = WhitePrimary, fontSize = 14.sp),
-            decorationBox = { champ ->
-                if (valeur.isEmpty()) Text(indication, color = WhiteFaint, fontSize = 14.sp)
-                champ()
-            }
+        Text(titre, color = GoldPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        contenu()
+    }
+}
+
+@Composable
+private fun Aide(texte: String) {
+    Text(texte, color = WhiteSub, fontSize = 13.sp)
+}
+
+@Composable
+private fun Pastille(texte: String, choisie: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(Forme)
+            .background(if (choisie) GoldFaint else BlackSurface)
+            .border(1.dp, if (choisie) GoldPrimary else BlackBorder, Forme)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            texte,
+            color = if (choisie) GoldPrimary else WhitePrimary,
+            fontSize = 13.sp,
+            fontWeight = if (choisie) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+            maxLines = 2
         )
     }
+}
+
+@Composable
+private fun Choix(gauche: String, droite: String, droiteChoisie: Boolean, onChoix: (Boolean) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pastille(gauche, !droiteChoisie, Modifier.weight(1f)) { onChoix(false) }
+        Pastille(droite, droiteChoisie, Modifier.weight(1f)) { onChoix(true) }
+    }
+}
+
+@Composable
+private fun Champ(
+    libelle: String,
+    valeur: String,
+    clavier: KeyboardType = KeyboardType.Text,
+    majuscules: Boolean = false,
+    onChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = valeur,
+        onValueChange = onChange,
+        label = { Text(libelle) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = clavier,
+            capitalization = if (majuscules) KeyboardCapitalization.Words else KeyboardCapitalization.Sentences
+        ),
+        shape = Forme,
+        modifier = Modifier.fillMaxWidth(),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = BlackSurface,
+            unfocusedContainerColor = BlackSurface,
+            focusedTextColor = WhitePrimary,
+            unfocusedTextColor = WhitePrimary,
+            focusedBorderColor = GoldPrimary,
+            unfocusedBorderColor = Color.Transparent,
+            cursorColor = GoldPrimary,
+            focusedLabelColor = GoldPrimary,
+            unfocusedLabelColor = WhiteSub
+        )
+    )
 }
 
 @Composable
@@ -154,9 +343,7 @@ private fun DialogueClient(onChoix: (Client?) -> Unit, onFermer: () -> Unit) {
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = { onChoix(null) }) { Text("Sans client", color = GoldPrimary) }
-        },
+        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onFermer) { Text("Fermer", color = WhiteSub) }
         }

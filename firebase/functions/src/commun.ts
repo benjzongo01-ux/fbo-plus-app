@@ -30,13 +30,36 @@ export function exigerConnexion(req: CallableRequest<unknown>): string {
   return req.auth.uid;
 }
 
-export function exigerAdmin(req: CallableRequest<unknown>): { uid: string; role: string } {
+export function exigerAdmin(req: CallableRequest<unknown>): { uid: string; role: string; pays: string } {
   const uid = exigerConnexion(req);
   const role = String(req.auth?.token.role ?? "");
   if (!ROLES_ADMIN.includes(role)) {
     throw new HttpsError("permission-denied", "Action réservée aux administrateurs.");
   }
-  return { uid, role };
+  return { uid, role, pays: paysDe(req) };
+}
+
+/** Pays où FBO+ opère, chacun géré par sa propre administration. */
+export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal"];
+
+/** Données d'avant la gestion par pays : elles relèvent du Burkina Faso. */
+export const PAYS_DEFAUT = "Burkina Faso";
+
+export function estPays(valeur: unknown): valeur is string {
+  return typeof valeur === "string" && PAYS.includes(valeur);
+}
+
+export function paysDe(req: CallableRequest<unknown>): string {
+  return String(req.auth?.token.pays ?? "");
+}
+
+/** Le personnel n'agit que dans son pays ; le super administrateur partout. */
+export function exigerMemePays(req: CallableRequest<unknown>, pays: unknown): void {
+  if (req.auth?.token.role === "super_admin") return;
+  const sien = paysDe(req);
+  if (!sien || sien !== (typeof pays === "string" && pays ? pays : PAYS_DEFAUT)) {
+    throw new HttpsError("permission-denied", "Cela relève de l'administration d'un autre pays.");
+  }
 }
 
 export function estRole(valeur: unknown): valeur is Role {

@@ -3,10 +3,12 @@ import { FieldValue } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {
   db,
+  estPays,
   estRole,
   exigerAdmin,
   exigerConnexion,
   exigerDroitSurRole,
+  exigerMemePays,
   journaliser,
   OPTIONS_APPEL,
 } from "./commun.js";
@@ -65,6 +67,7 @@ export const definirRole = onCall(OPTIONS_APPEL, async (req) => {
     throw new HttpsError("not-found", "Utilisateur introuvable.");
   });
   const ancienRole = compte.customClaims?.role as string | undefined;
+  exigerMemePays(req, (await db.doc(`users/${uid}`).get()).data()?.pays);
 
   exigerDroitSurRole(appelant.role, ancienRole);
   exigerDroitSurRole(appelant.role, role);
@@ -95,6 +98,7 @@ export const definirStatut = onCall(OPTIONS_APPEL, async (req) => {
     throw new HttpsError("not-found", "Utilisateur introuvable.");
   });
   exigerDroitSurRole(appelant.role, compte.customClaims?.role as string | undefined);
+  exigerMemePays(req, (await db.doc(`users/${uid}`).get()).data()?.pays);
 
   await auth.updateUser(uid, { disabled: statut === "suspendu" });
   if (statut === "suspendu") await auth.revokeRefreshTokens(uid);
@@ -107,7 +111,10 @@ export const definirStatut = onCall(OPTIONS_APPEL, async (req) => {
 /** Comptes livreur et personnel : créés uniquement par l'administration. */
 export const creerCompteInterne = onCall(OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
-  const { telephone, nom, role, centre } = (req.data ?? {}) as Record<string, unknown>;
+  const { telephone, nom, role, centre, pays: paysDemande } = (req.data ?? {}) as Record<string, unknown>;
+  // Un administrateur ne recrute que dans son pays ; le super administrateur choisit.
+  const pays = appelant.role === "super_admin" ? paysDemande : appelant.pays;
+  if (!estPays(pays)) throw new HttpsError("invalid-argument", "Choisissez le pays du compte.");
 
   if (typeof telephone !== "string" || !/^\+[1-9]\d{7,14}$/.test(telephone)) {
     throw new HttpsError("invalid-argument", "Numéro invalide (format international attendu).");
@@ -129,17 +136,41 @@ export const creerCompteInterne = onCall(OPTIONS_APPEL, async (req) => {
       throw e;
     });
 
-  await getAuth().setCustomUserClaims(compte.uid, { role });
+  await getAuth().setCustomUserClaims(compte.uid, { role, pays });
   await db.doc(`users/${compte.uid}`).create({
     nom: nom.trim(),
     telephone,
     email: null,
     role,
+    pays,
     centre: typeof centre === "string" ? centre : null,
     statut: "actif",
     createdAt: FieldValue.serverTimestamp(),
   });
-  await journaliser("compte_interne_cree", appelant.uid, compte.uid, { role });
+  await journaliser("compte_interne_cree", appelant.uid, compte.uid, { role, pays });
 
   return { uid: compte.uid, role };
+});
+
+/** Change le pays d'un compte du personnel : réservé au super administrateur. */
+export const definirPays = onCall(OPTIONS_APPEL, async (req) => {
+  const appelant = exigerAdmin(req);
+  if (appelant.role !== "super_admin") {
+    throw new HttpsError("permission-denied", "Action réservée au super administrateur.");
+  }
+  const { uid, pays } = (req.data ?? {}) as { uid?: unknown; pays?: unknown };
+  if (typeof uid !== "string" || !estPays(pays)) {
+    throw new HttpsError("invalid-argument", "Données invalides.");
+  }
+
+  const auth = getAuth();
+  const compte = await auth.getUser(uid).catch(() => {
+    throw new HttpsError("not-found", "Utilisateur introuvable.");
+  });
+  await auth.setCustomUserClaims(uid, { ...compte.customClaims, pays });
+  await db.doc(`users/${uid}`).set({ pays }, { merge: true });
+  await auth.revokeRefreshTokens(uid);
+  await journaliser("pays_modifie", appelant.uid, uid, { pays });
+
+  return { uid, pays };
 });

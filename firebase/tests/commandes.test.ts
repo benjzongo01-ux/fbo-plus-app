@@ -10,7 +10,8 @@ const commande = async (id: string) => (await adminDb().doc(`orders/${id}`).get(
 
 beforeAll(async () => {
   preparerAdmin();
-  await adminDb().doc("warehouses/principal").set({ nom: "Principal" });
+  await adminDb().doc("warehouses/principal").set({ nom: "Principal", pays: "Burkina Faso", actif: true });
+  await adminDb().doc("warehouses/abidjan").set({ nom: "Abidjan", pays: "Côte d'Ivoire", actif: true });
 });
 
 afterAll(fermerApplis);
@@ -24,11 +25,22 @@ beforeEach(async () => {
   await adminDb().doc(`stock/principal_${produit2}`).set({ disponible: 5, reserve: 0 });
 });
 
-const fbo = () => compte("fbo", { grade: "Manager (M)" });
+const fbo = () => compte("fbo", { grade: "Manager (M)", idDistributeur: "226000111222", prenom: "Awa", nom: "Test" });
+
+const LIVRAISON = {
+  pays: "Burkina Faso",
+  pourQui: "moi",
+  mode: "livraison",
+  clientNom: "Fatou Client",
+  clientTelephone: "+22670000030",
+  clientQuartier: "Secteur 15",
+};
+
 const nouvelle = (u: Awaited<ReturnType<typeof fbo>>, extra: object = {}) =>
   u.appeler("creerCommande", {
     cleIdempotence: cle(),
     lignes: [{ produitId: produit, quantite: 2 }],
+    ...LIVRAISON,
     ...extra,
   });
 
@@ -39,6 +51,7 @@ describe("creerCommande", () => {
       cleIdempotence: cle(),
       lignes: [{ produitId: produit, quantite: 2, prixUnitaire: 1 }],
       total: 1,
+      ...LIVRAISON,
     });
     expect(total).toBe(44000);
     const c = await commande(id);
@@ -74,7 +87,7 @@ describe("creerCommande", () => {
 
   it("une nouvelle tentative avec la même clé ne crée pas de doublon", async () => {
     const u = await fbo();
-    const donnees = { cleIdempotence: cle(), lignes: [{ produitId: produit, quantite: 1 }] };
+    const donnees = { cleIdempotence: cle(), lignes: [{ produitId: produit, quantite: 1 }], ...LIVRAISON };
     const a = await u.appeler("creerCommande", donnees);
     const b = await u.appeler("creerCommande", donnees);
     expect(a.id).toBe(b.id);
@@ -83,7 +96,7 @@ describe("creerCommande", () => {
 
   it("deux commandes simultanées ne dépassent jamais le stock", async () => {
     const u = await fbo();
-    const donnees = () => ({ cleIdempotence: cle(), lignes: [{ produitId: produit2, quantite: 3 }] });
+    const donnees = () => ({ cleIdempotence: cle(), lignes: [{ produitId: produit2, quantite: 3 }], ...LIVRAISON });
     const resultats = await Promise.all([
       codeErreur(u.appeler("creerCommande", donnees())),
       codeErreur(u.appeler("creerCommande", donnees())),
@@ -93,7 +106,7 @@ describe("creerCommande", () => {
   });
 
   it("plafonne la réduction à la marge du grade", async () => {
-    const u = await compte("fbo", { grade: "Client Privilégié (CP)" });
+    const u = await compte("fbo", { grade: "Client Privilégié (CP)", idDistributeur: "226000333444" });
     expect(await codeErreur(nouvelle(u, { reduction: 2201 }))).toBe("functions/invalid-argument");
     const { total } = await nouvelle(u, { reduction: 2200 });
     expect(total).toBe(41800);
@@ -125,6 +138,7 @@ describe("creerCommande", () => {
 
 describe("modifierCommande et annulerCommande", () => {
   it("ajuste le stock selon l'écart et recalcule le total", async () => {
+    await adminDb().doc("parametres/tarifs").delete();
     const u = await fbo();
     const { id } = await nouvelle(u);
     await u.appeler("modifierCommande", { id, lignes: [{ produitId: produit, quantite: 5 }] });
@@ -253,6 +267,168 @@ describe("cycle complet jusqu'à la livraison", () => {
   });
 });
 
+describe("pour qui, livraison ou validation", () => {
+  it("une commande pour soi est validée sur son propre ID Forever", async () => {
+    const u = await fbo();
+    const { id } = await nouvelle(u);
+    expect((await commande(id)).beneficiaire).toEqual({
+      type: "moi",
+      nom: "Test",
+      prenom: "Awa",
+      idForever: "226000111222",
+    });
+  });
+
+  it("refuse une commande pour soi sans ID Forever dans le profil", async () => {
+    const u = await compte("fbo", { grade: "Manager (M)" });
+    expect(await codeErreur(nouvelle(u))).toBe("functions/failed-precondition");
+  });
+
+  it("une commande de filleul exige son nom, son prénom et son ID", async () => {
+    const u = await fbo();
+    const filleul = { pourQui: "filleul", filleulNom: "Ouédraogo", filleulPrenom: "Paul", filleulId: "226-000-555-666" };
+    expect(await codeErreur(nouvelle(u, { ...filleul, filleulPrenom: "" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...filleul, filleulId: "12" }))).toBe("functions/invalid-argument");
+    const { id } = await nouvelle(u, filleul);
+    expect((await commande(id)).beneficiaire).toMatchObject({ type: "filleul", idForever: "226-000-555-666" });
+  });
+
+  it("une livraison exige le nom, un téléphone valide et le quartier du client", async () => {
+    const u = await fbo();
+    expect(await codeErreur(nouvelle(u, { clientNom: "" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { clientTelephone: "12" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { clientTelephone2: "abc" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { clientQuartier: "" }))).toBe("functions/invalid-argument");
+    const { id } = await nouvelle(u, { clientTelephone2: "+22676000000", adresse: "Près du marché" });
+    const c = await commande(id);
+    expect(c.client).toMatchObject({ telephone2: "+22676000000", quartier: "Secteur 15" });
+    expect(c.adresse).toBe("Secteur 15, Près du marché");
+  });
+
+  it("une validation ne demande aucun client, ne paie pas de livraison et ne se livre pas", async () => {
+    await adminDb().doc("parametres/tarifs").set({ fraisLivraison: 1500 });
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const gestionnaire = await compte("gestionnaire_stock");
+    const livreur = await compte("livreur");
+    const { id, total } = await u.appeler("creerCommande", {
+      cleIdempotence: cle(),
+      lignes: [{ produitId: produit, quantite: 2 }],
+      pays: "Burkina Faso",
+      pourQui: "moi",
+      mode: "validation",
+    });
+    await adminDb().doc("parametres/tarifs").delete();
+    expect(total).toBe(44000);
+    expect((await commande(id)).client).toBeNull();
+
+    await operateur.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid }))).toBe(
+      "functions/failed-precondition",
+    );
+    expect(await codeErreur(gestionnaire.appeler("validerSurId", { id }))).toBe("functions/permission-denied");
+
+    await operateur.appeler("validerSurId", { id });
+    expect((await commande(id)).statut).toBe("validee");
+    expect(await stock()).toMatchObject({ disponible: 8, reserve: 0 });
+  });
+
+  it("une commande à livrer ne se valide pas sans livraison", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const gestionnaire = await compte("gestionnaire_stock");
+    const { id } = await nouvelle(u);
+    await operateur.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    expect(await codeErreur(operateur.appeler("validerSurId", { id }))).toBe("functions/failed-precondition");
+  });
+
+  it("refuse un mode ou un bénéficiaire absent", async () => {
+    const u = await fbo();
+    expect(await codeErreur(nouvelle(u, { mode: "" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { pourQui: "" }))).toBe("functions/invalid-argument");
+  });
+});
+
+describe("administration par pays", () => {
+  it("la commande se sert dans l'entrepôt de son pays", async () => {
+    await adminDb().doc(`stock/abidjan_${produit}`).set({ disponible: 4, reserve: 0 });
+    const u = await fbo();
+    const { id } = await nouvelle(u, { pays: "Côte d'Ivoire", clientTelephone: "+2250700000000" });
+    expect(await commande(id)).toMatchObject({ pays: "Côte d'Ivoire", entrepotId: "abidjan" });
+    expect((await adminDb().doc(`stock/abidjan_${produit}`).get()).data()).toMatchObject({ disponible: 2, reserve: 2 });
+    expect((await stock()).disponible).toBe(10);
+  });
+
+  it("refuse un pays sans entrepôt ou hors de la liste", async () => {
+    const u = await fbo();
+    expect(await codeErreur(nouvelle(u, { pays: "Sénégal" }))).toBe("functions/failed-precondition");
+    expect(await codeErreur(nouvelle(u, { pays: "France" }))).toBe("functions/invalid-argument");
+  });
+
+  it("l'administration d'un pays ne traite pas les commandes d'un autre", async () => {
+    await adminDb().doc(`stock/abidjan_${produit}`).set({ disponible: 4, reserve: 0 });
+    const u = await fbo();
+    const operateurBf = await compte("operateur");
+    const operateurCi = await compte("operateur", { pays: "Côte d'Ivoire" });
+    const superAdmin = await compte("super_admin");
+    const { id } = await nouvelle(u, { pays: "Côte d'Ivoire", clientTelephone: "+2250700000000" });
+
+    expect(await codeErreur(operateurBf.appeler("avancerCommande", { id }))).toBe("functions/permission-denied");
+    expect(await codeErreur(operateurBf.appeler("annulerCommande", { id }))).toBe("functions/permission-denied");
+    await operateurCi.appeler("avancerCommande", { id });
+    expect((await commande(id)).statut).toBe("confirmee");
+    await superAdmin.appeler("annulerCommande", { id, motif: "Test" });
+    expect((await commande(id)).statut).toBe("annulee");
+  });
+
+  it("n'assigne qu'un livreur du pays de la commande", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const gestionnaire = await compte("gestionnaire_stock");
+    const livreurCi = await compte("livreur", { pays: "Côte d'Ivoire" });
+    const livreurBf = await compte("livreur");
+    const { id } = await nouvelle(u);
+    await operateur.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    await gestionnaire.appeler("avancerCommande", { id });
+    expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreurCi.uid }))).toBe(
+      "functions/failed-precondition",
+    );
+    await operateur.appeler("assignerLivreur", { id, livreurId: livreurBf.uid });
+    expect((await adminDb().doc(`deliveries/${id}`).get()).data()?.pays).toBe("Burkina Faso");
+  });
+
+  it("un admin crée des comptes dans son pays ; seul le super admin choisit le pays", async () => {
+    const adminCi = await compte("admin", { pays: "Côte d'Ivoire" });
+    const superAdmin = await compte("super_admin");
+    const { uid } = await adminCi.appeler("creerCompteInterne", {
+      telephone: "+2250700001234",
+      nom: "Koffi",
+      role: "livreur",
+      pays: "Burkina Faso",
+    });
+    expect((await adminDb().doc(`users/${uid}`).get()).data()?.pays).toBe("Côte d'Ivoire");
+
+    expect(await codeErreur(adminCi.appeler("definirPays", { uid, pays: "Sénégal" }))).toBe(
+      "functions/permission-denied",
+    );
+    await superAdmin.appeler("definirPays", { uid, pays: "Sénégal" });
+    expect((await adminDb().doc(`users/${uid}`).get()).data()?.pays).toBe("Sénégal");
+  });
+
+  it("un admin ne suspend pas un compte d'un autre pays", async () => {
+    const adminBf = await compte("admin");
+    const livreurCi = await compte("livreur", { pays: "Côte d'Ivoire" });
+    expect(await codeErreur(adminBf.appeler("definirStatut", { uid: livreurCi.uid, statut: "suspendu" }))).toBe(
+      "functions/permission-denied",
+    );
+  });
+});
+
 describe("notifications", () => {
   async function attendreNotification(userId: string, commandeId: string, nombre: number) {
     for (let i = 0; i < 40; i++) {
@@ -272,7 +448,7 @@ describe("notifications", () => {
     const operateur = await compte("operateur");
     const gestionnaire = await compte("gestionnaire_stock");
     const livreur = await compte("livreur");
-    const { id } = await nouvelle(u, { adresse: "Secteur 15" });
+    const { id } = await nouvelle(u, { clientQuartier: "Secteur 15" });
 
     await operateur.appeler("avancerCommande", { id });
     await gestionnaire.appeler("avancerCommande", { id });
@@ -281,10 +457,10 @@ describe("notifications", () => {
 
     const pourFbo = await attendreNotification(u.uid, id, 4);
     expect(pourFbo.map((n) => n.corps).sort()).toEqual([
-      "Un livreur a été assigné à votre commande.",
-      "Votre commande est confirmée.",
-      "Votre commande est en préparation.",
-      "Votre commande est prête.",
+      "Un livreur a été assigné à votre commande. (Fatou Client)",
+      "Votre commande est confirmée. (Fatou Client)",
+      "Votre commande est en préparation. (Fatou Client)",
+      "Votre commande est prête. (Fatou Client)",
     ]);
     const pourLivreur = await attendreNotification(livreur.uid, id, 1);
     expect(pourLivreur[0]).toMatchObject({ titre: "Nouvelle mission", lu: false });
@@ -322,6 +498,8 @@ describe("ajusterStock et importerVentes", () => {
     const f = await fbo();
     const entree = { produitId: produit, type: "entree", quantite: 5 };
     expect(await codeErreur(f.appeler("ajusterStock", entree))).toBe("functions/permission-denied");
+    const gestionnaireCi = await compte("gestionnaire_stock", { pays: "Côte d'Ivoire" });
+    expect(await codeErreur(gestionnaireCi.appeler("ajusterStock", entree))).toBe("functions/permission-denied");
     await g.appeler("ajusterStock", entree);
     expect((await stock()).disponible).toBe(15);
     await g.appeler("ajusterStock", { produitId: produit, type: "inventaire", quantite: 7 });

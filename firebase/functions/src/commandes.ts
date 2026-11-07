@@ -1,6 +1,6 @@
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
-import { db, exigerConnexion, journaliser, OPTIONS_APPEL } from "./commun.js";
+import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 
 export const ENTREPOT_DEFAUT = "principal";
 
@@ -67,6 +67,75 @@ function lireMontant(valeur: unknown): number {
 
 function texte(valeur: unknown, longueurMax = 300): string {
   return typeof valeur === "string" ? valeur.trim().slice(0, longueurMax) : "";
+}
+
+const TELEPHONE = /^\+?[0-9 ]{8,16}$/;
+
+/** Un ID Forever contient au moins 6 chiffres ; tirets et espaces sont tolérés. */
+function lireIdForever(valeur: unknown): string {
+  const id = texte(valeur, 30);
+  if (!/^[0-9][0-9 -]*$/.test(id) || id.replace(/\D/g, "").length < 6) {
+    throw new HttpsError("invalid-argument", "ID Forever invalide.");
+  }
+  return id;
+}
+
+interface Beneficiaire {
+  type: "moi" | "filleul";
+  nom: string;
+  prenom: string;
+  idForever: string;
+}
+
+/** La commande est toujours validée sur un ID Forever : celui du distributeur ou de son filleul. */
+function lireBeneficiaire(d: Record<string, unknown>, profil: FirebaseFirestore.DocumentData | undefined): Beneficiaire {
+  if (d.pourQui === "filleul") {
+    const nom = texte(d.filleulNom, 60);
+    const prenom = texte(d.filleulPrenom, 60);
+    if (!nom || !prenom) throw new HttpsError("invalid-argument", "Nom et prénom du filleul obligatoires.");
+    return { type: "filleul", nom, prenom, idForever: lireIdForever(d.filleulId) };
+  }
+  if (d.pourQui !== "moi") throw new HttpsError("invalid-argument", "Indiquez pour qui est la commande.");
+
+  const idForever = texte(profil?.idDistributeur, 30);
+  if (!idForever) {
+    throw new HttpsError("failed-precondition", "Renseignez votre ID Forever dans votre profil avant de commander.");
+  }
+  return {
+    type: "moi",
+    nom: texte(profil?.nom, 60),
+    prenom: texte(profil?.prenom, 60),
+    idForever,
+  };
+}
+
+/** Les coordonnées du client ne sont demandées que pour une livraison. */
+async function lireClientLivraison(tx: Transaction, d: Record<string, unknown>, uid: string) {
+  const nom = texte(d.clientNom, 120);
+  const telephone = texte(d.clientTelephone, 20);
+  const telephone2 = texte(d.clientTelephone2, 20);
+  const quartier = texte(d.clientQuartier, 120);
+  if (!nom) throw new HttpsError("invalid-argument", "Nom et prénom du client obligatoires.");
+  if (!TELEPHONE.test(telephone)) throw new HttpsError("invalid-argument", "Téléphone du client invalide.");
+  if (telephone2 && !TELEPHONE.test(telephone2)) {
+    throw new HttpsError("invalid-argument", "Deuxième téléphone du client invalide.");
+  }
+  if (!quartier) throw new HttpsError("invalid-argument", "Quartier du client obligatoire.");
+
+  // Une fiche client choisie dans le carnet doit appartenir au distributeur.
+  const clientId = texte(d.clientId, 128) || null;
+  if (clientId) {
+    const fiche = (await tx.get(db.doc(`customers/${clientId}`))).data();
+    if (!fiche || fiche.ownerId !== uid) {
+      throw new HttpsError("permission-denied", "Ce client ne vous appartient pas.");
+    }
+  }
+  return { id: clientId, nom, telephone, telephone2, quartier, adresse: texte(d.adresse) };
+}
+
+function lireMode(valeur: unknown): "livraison" | "validation" {
+  if (valeur === "livraison" || valeur === "validation") return valeur;
+  throw new HttpsError("invalid-argument", "Choisissez livraison ou validation.");
 }
 
 /** Les prix viennent toujours de products : ceux envoyés par un client sont ignorés. */
@@ -173,40 +242,42 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     const profil = (await tx.get(db.doc(`users/${uid}`))).data();
     const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
 
-    let client: Record<string, unknown> = {
-      id: null,
-      nom: texte(d.clientNom, 120),
-      telephone: texte(d.clientTelephone, 30),
-    };
-    const clientId = texte(d.clientId, 128);
-    if (clientId) {
-      const fiche = (await tx.get(db.doc(`customers/${clientId}`))).data();
-      if (!fiche || fiche.ownerId !== uid) {
-        throw new HttpsError("permission-denied", "Ce client ne vous appartient pas.");
-      }
-      client = { id: clientId, nom: fiche.nom, telephone: fiche.telephone ?? "" };
+    if (!estPays(d.pays)) throw new HttpsError("invalid-argument", "Choisissez le pays de la commande.");
+    const pays = d.pays;
+    const entrepots = await tx.get(
+      db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true).limit(1),
+    );
+    if (entrepots.empty) {
+      throw new HttpsError("failed-precondition", `Les commandes ne sont pas encore ouvertes pour : ${pays}.`);
     }
+    const entrepotId = entrepots.docs[0].id;
+    const mode = lireMode(d.mode);
+    const beneficiaire = lireBeneficiaire(d, profil);
+    const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
       lignes,
       REMISES[String(profil?.grade)] ?? REMISES["Client Privilégié (CP)"],
       reduction,
-      Number(tarifs?.fraisLivraison ?? 0),
+      mode === "livraison" ? Number(tarifs?.fraisLivraison ?? 0) : 0,
     );
 
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
-    const reserver = await preparerReservations(tx, ENTREPOT_DEFAUT, ecarts);
+    const reserver = await preparerReservations(tx, entrepotId, ecarts);
     reserver(uid, ref.id);
 
     tx.create(ref, {
+      pays,
       fboId: uid,
       titre: texte(d.titre, 120) || "Commande",
+      mode,
+      beneficiaire,
       client,
-      adresse: texte(d.adresse),
+      adresse: client ? [client.quartier, client.adresse].filter(Boolean).join(", ") : "",
       lignes,
       ...montants,
-      entrepotId: ENTREPOT_DEFAUT,
+      entrepotId,
       statut: "nouvelle",
       historiqueStatuts: [etapeHistorique("nouvelle", uid)],
       livreurId: null,
@@ -238,6 +309,7 @@ export const modifierCommande = onCall(OPTIONS_APPEL, async (req) => {
     if (!estProprietaire && !estCentreAppel) {
       throw new HttpsError("permission-denied", "Cette commande ne vous appartient pas.");
     }
+    if (!estProprietaire) exigerMemePays(req, commande.pays);
     const statuts = estCentreAppel ? ["nouvelle", "confirmee"] : ["nouvelle"];
     if (!statuts.includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "Cette commande ne peut plus être modifiée.");
@@ -289,6 +361,7 @@ export const annulerCommande = onCall(OPTIONS_APPEL, async (req) => {
     if (!estProprietaire && !estCentreAppel) {
       throw new HttpsError("permission-denied", "Cette commande ne vous appartient pas.");
     }
+    if (!estProprietaire) exigerMemePays(req, commande.pays);
     const statuts = estCentreAppel
       ? ["nouvelle", "confirmee", "en_preparation", "prete", "assignee"]
       : ["nouvelle", "confirmee"];
@@ -331,6 +404,7 @@ export const avancerCommande = onCall(OPTIONS_APPEL, async (req) => {
   const statut = await db.runTransaction(async (tx) => {
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
     const transition = TRANSITIONS[commande.statut];
     if (!transition) throw new HttpsError("failed-precondition", "Aucune étape suivante possible.");
     if (!transition.roles.includes(roleDe(req))) {
@@ -358,12 +432,19 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
   await db.runTransaction(async (tx) => {
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
+    if (commande.mode === "validation") {
+      throw new HttpsError("failed-precondition", "Cette commande est une validation : elle ne se livre pas.");
+    }
     if (!["prete", "assignee"].includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "La commande n'est pas prête à être livrée.");
     }
     const livreur = (await tx.get(db.doc(`users/${livreurId}`))).data();
     if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
       throw new HttpsError("failed-precondition", "Ce compte n'est pas un livreur actif.");
+    }
+    if ((livreur.pays || PAYS_DEFAUT) !== (commande.pays || PAYS_DEFAUT)) {
+      throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
     }
 
     const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
@@ -377,6 +458,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
       commandeId: id,
       livreurId,
       fboId: commande.fboId,
+      pays: commande.pays || PAYS_DEFAUT,
       client: commande.client,
       adresse: commande.adresse,
       lignes: commande.lignes,
@@ -525,6 +607,52 @@ export const signalerRetour = onCall(OPTIONS_APPEL, async (req) => {
   return { id };
 });
 
+/**
+ * Clôture d'une commande sans livraison : l'achat est validé sur l'ID Forever du bénéficiaire
+ * et le produit quitte l'entrepôt.
+ */
+export const validerSurId = onCall(OPTIONS_APPEL, async (req) => {
+  const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
+  const id = texte((req.data as Record<string, unknown> | null)?.id, 200);
+  const ref = db.doc(`orders/${id}`);
+
+  await db.runTransaction(async (tx) => {
+    const commande = (await tx.get(ref)).data();
+    if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
+    if (commande.mode !== "validation") {
+      throw new HttpsError("failed-precondition", "Cette commande est à livrer, pas à valider.");
+    }
+    if (commande.statut !== "prete") {
+      throw new HttpsError("failed-precondition", "La commande doit d'abord être prête.");
+    }
+
+    const stocks = await tx.getAll(
+      ...(commande.lignes as LigneCommande[]).map((l) => db.doc(`stock/${commande.entrepotId}_${l.produitId}`)),
+    );
+    (commande.lignes as LigneCommande[]).forEach((l, i) => {
+      tx.update(stocks[i].ref, { reserve: FieldValue.increment(-l.quantite) });
+      tx.create(db.collection("stockMovements").doc(), {
+        type: "sortie",
+        entrepotId: commande.entrepotId,
+        produitId: l.produitId,
+        quantite: l.quantite,
+        commandeId: id,
+        auteurId: uid,
+        date: FieldValue.serverTimestamp(),
+      });
+    });
+    tx.update(ref, {
+      statut: "validee",
+      historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("validee", uid)),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  await journaliser("commande_validee", uid, id);
+  return { id };
+});
+
 /** Entrée de marchandise ou correction après inventaire. */
 export const ajusterStock = onCall(OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["gestionnaire_stock", ...ROLES_ADMIN]);
@@ -545,9 +673,9 @@ export const ajusterStock = onCall(OPTIONS_APPEL, async (req) => {
     if (!(await tx.get(db.doc(`products/${produitId}`))).exists) {
       throw new HttpsError("not-found", "Produit introuvable.");
     }
-    if (!(await tx.get(db.doc(`warehouses/${entrepotId}`))).exists) {
-      throw new HttpsError("not-found", "Entrepôt introuvable.");
-    }
+    const entrepot = (await tx.get(db.doc(`warehouses/${entrepotId}`))).data();
+    if (!entrepot) throw new HttpsError("not-found", "Entrepôt introuvable.");
+    exigerMemePays(req, entrepot.pays);
     const actuel = (await tx.get(ref)).data();
     const disponible =
       type === "entree" ? Number(actuel?.disponible ?? 0) + (quantite as number) : (quantite as number);
@@ -555,6 +683,7 @@ export const ajusterStock = onCall(OPTIONS_APPEL, async (req) => {
       ref,
       {
         entrepotId,
+        pays: entrepot.pays || PAYS_DEFAUT,
         produitId,
         disponible,
         reserve: actuel?.reserve ?? 0,

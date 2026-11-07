@@ -46,7 +46,15 @@ data class Commande(
     val fraisLivraison: Int = 0,
     val total: Int = 0,
     val historique: List<EtapeCommande> = emptyList(),
-    val motif: String = ""
+    val motif: String = "",
+    val pays: String = "",
+    // "livraison", "validation", ou vide pour une vente d'avant ces choix.
+    val mode: String = "",
+    val pourQui: String = "",
+    val beneficiaireNom: String = "",
+    val beneficiaireId: String = "",
+    val clientTelephone: String = "",
+    val clientTelephone2: String = ""
 ) {
     // CA = prix public total (somme des lignes au prix public)
     val caTotal: Int get() = lignes.sumOf { it.montantTotal }
@@ -68,6 +76,10 @@ val etapesCommande = listOf(
     "nouvelle", "confirmee", "en_preparation", "prete", "assignee", "en_livraison", "livree"
 )
 
+val etapesValidation = listOf("nouvelle", "confirmee", "en_preparation", "prete", "validee")
+
+fun etapesPour(mode: String) = if (mode == "validation") etapesValidation else etapesCommande
+
 fun libelleStatut(statut: String): String = when (statut) {
     "nouvelle" -> "Nouvelle"
     "confirmee" -> "Confirmée"
@@ -76,6 +88,7 @@ fun libelleStatut(statut: String): String = when (statut) {
     "assignee" -> "Livreur assigné"
     "en_livraison" -> "En livraison"
     "livree" -> "Livrée"
+    "validee" -> "Validée sur l'ID"
     "annulee" -> "Annulée"
     "retournee" -> "Retournée"
     else -> statut

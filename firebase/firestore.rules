@@ -14,6 +14,11 @@ service cloud.firestore {
       return aRole(['fbo', 'livreur', 'operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
     }
     function moi(uid) { return connecte() && request.auth.uid == uid; }
+    // Le personnel ne voit que son pays ; le super administrateur voit tout.
+    function voitPays(pays) {
+      return role() == 'super_admin'
+        || (estPersonnel() && request.auth.token.get('pays', '') == pays);
+    }
     function champsModifies() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -26,7 +31,7 @@ service cloud.firestore {
     // Création et rôle : Cloud Functions uniquement.
     // L'utilisateur ne change que son nom et son email.
     match /users/{uid} {
-      allow read: if moi(uid) || estPersonnel();
+      allow read: if moi(uid) || voitPays(resource.data.get('pays', ''));
       allow update: if moi(uid)
         && champsModifies().hasOnly([
           'nom', 'prenom', 'email', 'pays', 'ville', 'grade',
@@ -62,12 +67,13 @@ service cloud.firestore {
 
     match /warehouses/{id} {
       allow read: if estPersonnel();
-      allow write: if estAdmin();
+      allow write: if role() == 'super_admin'
+        || (estAdmin() && request.resource.data.pays == request.auth.token.get('pays', ''));
     }
 
     // Stock et mouvements : écriture réservée aux Cloud Functions.
     match /stock/{id} {
-      allow read: if estPersonnel();
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'));
     }
     match /stockMovements/{id} {
       allow read: if estPersonnel();
@@ -93,14 +99,14 @@ service cloud.firestore {
 
     // Commandes : prix et statuts sont gérés côté serveur, aucune écriture cliente.
     match /orders/{id} {
-      allow read: if estPersonnel()
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
         || (role() == 'fbo' && resource.data.fboId == request.auth.uid)
         || (role() == 'livreur' && resource.data.livreurId == request.auth.uid);
     }
 
     // Le livreur assigné ne met à jour que sa position GPS.
     match /deliveries/{id} {
-      allow read: if estPersonnel()
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
         || (role() == 'livreur' && resource.data.livreurId == request.auth.uid)
         || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
       allow update: if role() == 'livreur'

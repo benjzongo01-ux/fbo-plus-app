@@ -1,15 +1,19 @@
 import { addDoc, collection } from "firebase/firestore";
 import { useState, type FormEvent } from "react";
-import { Etat, useAction, useCollection, type Doc } from "../commun";
+import { Etat, filtrePays, PAYS, useAction, useCollection, type Doc } from "../commun";
 import { appeler, db } from "../firebase";
 import { useSession } from "../session";
 
 export default function Stocks() {
-  const { role } = useSession();
-  const { docs: entrepots } = useCollection("warehouses");
-  const { docs: stock, erreur } = useCollection("stock");
+  const { role, pays } = useSession();
+  const superAdmin = role === "super_admin";
+  const { docs: tousEntrepots } = useCollection("warehouses");
+  const entrepots = tousEntrepots?.filter((w) => superAdmin || w.pays === pays);
+  const { docs: stock, erreur } = useCollection("stock", ...filtrePays(role, pays));
   const { docs: produits } = useCollection("products");
-  const [entrepotId, setEntrepotId] = useState("principal");
+  const [choix, setEntrepotId] = useState("");
+  const entrepotId = choix || entrepots?.[0]?.id || "";
+  const [paysEntrepot, setPaysEntrepot] = useState(PAYS[0]);
   const [recherche, setRecherche] = useState("");
   const [alertes, setAlertes] = useState(false);
   const [nouvelEntrepot, setNouvelEntrepot] = useState("");
@@ -25,7 +29,11 @@ export default function Stocks() {
   function ajouterEntrepot(e: FormEvent) {
     e.preventDefault();
     action.lancer(async () => {
-      await addDoc(collection(db, "warehouses"), { nom: nouvelEntrepot, actif: true });
+      await addDoc(collection(db, "warehouses"), {
+        nom: nouvelEntrepot,
+        pays: superAdmin ? paysEntrepot : pays,
+        actif: true,
+      });
       setNouvelEntrepot("");
     });
   }
@@ -35,7 +43,7 @@ export default function Stocks() {
       <h1>Stocks</h1>
       <div className="filtres">
         <select aria-label="Entrepôt" value={entrepotId} onChange={(e) => setEntrepotId(e.target.value)}>
-          {entrepots?.map((w) => <option key={w.id} value={w.id}>{w.nom}</option>)}
+          {entrepots?.map((w) => <option key={w.id} value={w.id}>{w.nom}{superAdmin ? ` (${w.pays})` : ""}</option>)}
         </select>
         <input placeholder="Rechercher un produit" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
         <label className="case">
@@ -56,6 +64,11 @@ export default function Stocks() {
       {["admin", "super_admin"].includes(role) && (
         <form className="filtres marge" onSubmit={ajouterEntrepot}>
           <input placeholder="Nom du nouvel entrepôt" value={nouvelEntrepot} onChange={(e) => setNouvelEntrepot(e.target.value)} required />
+          {superAdmin && (
+            <select aria-label="Pays de l'entrepôt" value={paysEntrepot} onChange={(e) => setPaysEntrepot(e.target.value)}>
+              {PAYS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          )}
           <button className="secondaire" disabled={action.enCours}>Ajouter un entrepôt</button>
           {action.erreur && <span className="erreur">{action.erreur}</span>}
         </form>

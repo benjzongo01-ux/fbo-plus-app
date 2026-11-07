@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Etat, LIBELLES_ROLES, useAction, useCollection, type Doc } from "../commun";
+import { Etat, filtrePays, LIBELLES_ROLES, PAYS, useAction, useCollection, type Doc } from "../commun";
 import { appeler } from "../firebase";
 import { useSession } from "../session";
 
@@ -7,8 +7,8 @@ const ROLES_INTERNES = ["livreur", "operateur", "gestionnaire_stock", "admin", "
 const ROLES_ADMIN = ["admin", "super_admin"];
 
 export default function Utilisateurs() {
-  const { role, utilisateur } = useSession();
-  const { docs, erreur } = useCollection("users");
+  const { role, utilisateur, pays } = useSession();
+  const { docs, erreur } = useCollection("users", ...filtrePays(role, pays));
   const [recherche, setRecherche] = useState("");
 
   const visibles = docs
@@ -25,7 +25,7 @@ export default function Utilisateurs() {
       <Etat docs={visibles} erreur={erreur} vide="Aucun utilisateur." />
       {visibles && visibles.length > 0 && (
         <table>
-          <thead><tr><th>Nom</th><th>Téléphone</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Nom</th><th>Téléphone</th><th>Pays</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             {visibles.map((u) => (
               <LigneUtilisateur key={u.id} compte={u} roleAppelant={role} moi={u.id === utilisateur?.uid} />
@@ -47,6 +47,19 @@ function LigneUtilisateur({ compte, roleAppelant, moi }: { compte: Doc; roleAppe
     <tr>
       <td>{[compte.prenom, compte.nom].filter(Boolean).join(" ") || "—"}{moi && " (vous)"}</td>
       <td>{compte.telephone}</td>
+      <td>
+        {superAdmin && !moi && compte.role !== "fbo" ? (
+          <select
+            aria-label={`Pays de ${compte.nom}`}
+            value={compte.pays ?? ""}
+            disabled={enCours}
+            onChange={(e) => lancer(() => appeler("definirPays", { uid: compte.id, pays: e.target.value }))}
+          >
+            {!compte.pays && <option value="">—</option>}
+            {PAYS.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        ) : (compte.pays || "—")}
+      </td>
       <td>
         {verrouille ? LIBELLES_ROLES[compte.role] : (
           <select
@@ -87,12 +100,13 @@ function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
   const [telephone, setTelephone] = useState("+226");
   const [nom, setNom] = useState("");
   const [role, setRole] = useState("livreur");
+  const [pays, setPays] = useState(PAYS[0]);
   const { enCours, erreur, lancer } = useAction();
   const roles = ROLES_INTERNES.filter((r) => roleAppelant === "super_admin" || !ROLES_ADMIN.includes(r));
 
   async function creer(e: FormEvent) {
     e.preventDefault();
-    const ok = await lancer(() => appeler("creerCompteInterne", { telephone, nom, role }));
+    const ok = await lancer(() => appeler("creerCompteInterne", { telephone, nom, role, pays }));
     if (ok) {
       setTelephone("+226");
       setNom("");
@@ -106,6 +120,11 @@ function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
       <select aria-label="Rôle" value={role} onChange={(e) => setRole(e.target.value)}>
         {roles.map((r) => <option key={r} value={r}>{LIBELLES_ROLES[r]}</option>)}
       </select>
+      {roleAppelant === "super_admin" && (
+        <select aria-label="Pays" value={pays} onChange={(e) => setPays(e.target.value)}>
+          {PAYS.map((p) => <option key={p}>{p}</option>)}
+        </select>
+      )}
       <button className="principal" disabled={enCours}>Créer le compte</button>
       {erreur && <span className="erreur">{erreur}</span>}
     </form>

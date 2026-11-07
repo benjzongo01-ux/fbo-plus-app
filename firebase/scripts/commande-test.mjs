@@ -23,7 +23,16 @@ const compte = await getAuth()
   .catch(() => getAuth().createUser({ phoneNumber: TELEPHONE }));
 await getAuth().setCustomUserClaims(compte.uid, { role: "fbo" });
 await getFirestore().doc(`users/${compte.uid}`).set(
-  { prenom: "Awa", nom: "Test", telephone: TELEPHONE, role: "fbo", statut: "actif", grade: "Animateur (A)" },
+  {
+    prenom: "Awa",
+    nom: "Test",
+    telephone: TELEPHONE,
+    role: "fbo",
+    statut: "actif",
+    grade: "Animateur (A)",
+    pays: "Burkina Faso",
+    idDistributeur: "226000777888",
+  },
   { merge: true },
 );
 
@@ -37,9 +46,13 @@ connectFunctionsEmulator(functions, "127.0.0.1", 5001);
 const { data } = await httpsCallable(functions, "creerCommande")({
   cleIdempotence: randomUUID(),
   titre: "Commande de démonstration",
+  pays: "Burkina Faso",
+  pourQui: "moi",
+  mode: "livraison",
   clientNom: "Fatou Client",
   clientTelephone: "+22670000030",
-  adresse: "Secteur 15, Ouagadougou",
+  clientQuartier: "Secteur 15",
+  adresse: "Ouagadougou",
   reduction: 2000,
   lignes: [
     { produitId: "15", quantite: 2 },

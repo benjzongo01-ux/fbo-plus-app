@@ -1,9 +1,11 @@
 import { where } from "firebase/firestore";
-import { Etat, useCollection } from "../commun";
+import { Etat, filtrePays, useCollection } from "../commun";
+import { useSession } from "../session";
 
 export default function Livreurs() {
-  const { docs: livreurs, erreur } = useCollection("users", where("role", "==", "livreur"));
-  const { docs: livraisons } = useCollection("deliveries");
+  const { role, pays } = useSession();
+  const { docs: livreurs, erreur } = useCollection("users", where("role", "==", "livreur"), ...filtrePays(role, pays));
+  const { docs: livraisons } = useCollection("deliveries", ...filtrePays(role, pays));
 
   return (
     <>

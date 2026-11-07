@@ -117,7 +117,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .actions.serre { flex-wrap: nowrap; }
 
 .statut { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: rgba(212, 175, 55, .14); color: var(--or); white-space: nowrap; }
-.statut.livree { background: rgba(0, 200, 83, .14); color: var(--vert); }
+.statut.livree, .statut.validee { background: rgba(0, 200, 83, .14); color: var(--vert); }
+.encadre { background: var(--surface); border-radius: 8px; padding: 10px 12px; line-height: 1.6; }
 .statut.annulee, .statut.retournee { background: rgba(255, 84, 112, .14); color: var(--rouge); }
 .statut.assignee, .statut.en_livraison { background: rgba(110, 168, 255, .14); color: var(--bleu); }
 

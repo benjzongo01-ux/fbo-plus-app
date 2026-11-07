@@ -1,5 +1,6 @@
 export {
   creerCompteInterne,
+  definirPays,
   definirRole,
   definirStatut,
   initialiserProfil,
@@ -17,4 +18,5 @@ export {
   modifierCommande,
   signalerRetour,
   terminerLivraison,
+  validerSurId,
 } from "./commandes.js";
