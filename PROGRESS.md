@@ -4,14 +4,14 @@
 
 ## Reprendre ici
 
-Dernière mise à jour : 2026-11-06. Tout le travail est sur `main`, à jour sur GitHub.
+Dernière mise à jour : 2026-11-07. Tout le travail est sur `main`, à jour sur GitHub.
 
-Situation : les phases 1 à 5 sont terminées. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
+Situation : les phases 1 à 5 sont terminées, ainsi que le nouveau parcours de commande (pays, pour moi ou un filleul, livraison ou validation), pas encore essayé sur téléphone. Le parcours complet (commande dans FBO+, traitement dans l'Admin, livraison dans Delivery) fonctionne sur téléphone avec les émulateurs. Rien n'est déployé.
 
 Prochaines étapes, dans l'ordre :
 
-1. Rendre le client obligatoire pour une commande à livrer : aujourd'hui, un livreur peut recevoir une mission sans nom ni téléphone.
-2. Revoir le formulaire de nouvelle commande, qui occupe la moitié de l'écran.
+1. Essayer le nouveau parcours de commande sur téléphone et dans l'admin (voir « Commandes par pays »).
+2. Ouvrir un entrepôt au Sénégal quand l'administration y sera prête.
 3. Faire les tests de la section « Reste à tester sur téléphone ».
 4. Traiter les « Limites connues » choisies par l'utilisateur.
 5. Quand la carte le permettra : suivre « Pour le lancement ».
@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 65 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 81 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -87,6 +87,19 @@ Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'histo
 - Écran Notifications dans FBO+, pastille du nombre de nouvelles commandes dans l'admin.
 - Envoi push FCM écrit et protégé : il ne s'exécute pas sur émulateur.
 
+## Commandes par pays, pour soi ou un filleul
+
+Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
+
+- FBO+ : la commande se fait en deux écrans. D'abord les produits, puis « Continuer » : pays, pour qui (ma commande, ou mon filleul avec nom, prénom et ID Forever), puis livraison ou validation.
+- Livraison : nom du client, téléphone obligatoire, deuxième téléphone facultatif, quartier et adresse. Validation : aucune information client, la commande est validée sur l'ID Forever du distributeur ou du filleul.
+- « Ma commande » exige l'ID Forever renseigné dans le profil.
+- Chaque commande part vers l'administration de son pays : l'admin, l'opérateur et le gestionnaire de stock ne voient que leur pays, côté règles Firestore comme côté Cloud Functions. Le super administrateur voit tout et change le pays d'un compte dans Utilisateurs.
+- Admin : colonnes Pour, Type et Pays, détail avec bénéficiaire et ID Forever, bouton « Valider sur l'ID » pour une commande en validation prête. Les livreurs proposés sont ceux du pays de la commande.
+- Delivery : bouton d'appel du deuxième numéro du client.
+- Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
+- Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
 ## Test de bout en bout sur téléphone
 
 Réalisé le 2026-11-06 sur TECNO Spark 10C (Android 12), avec les émulateurs Firebase et des codes SMS simulés. Une commande créée dans FBO+ a été suivie en direct pendant son traitement dans l'Admin, puis livrée avec FBO+ Delivery.
@@ -102,10 +115,8 @@ Défauts trouvés par ce test et corrigés :
 
 ## Limites connues
 
-- Une commande à livrer peut être créée sans client ni téléphone : le livreur ne peut alors joindre personne. Ce champ devrait devenir obligatoire.
-- Le formulaire de nouvelle commande occupe la moitié de l'écran et réduit la liste des produits.
 - Créer une commande exige une connexion, car le prix est calculé par le serveur. La consultation et les fiches clients fonctionnent hors ligne.
-- Les commandes partent toutes de l'entrepôt `principal`. Les autres entrepôts gèrent leur stock, mais le choix de l'entrepôt par commande reste à faire.
+- Une seule boutique par pays : la commande part du premier entrepôt actif du pays. Le choix entre plusieurs entrepôts d'un même pays reste à faire.
 - La boutique publique n'affiche pas encore de photos : elles sont dans l'application Android, pas sur Storage.
 - Le grade reste déclaré par le distributeur, alors qu'il plafonne ses réductions.
 - Le GPS du livreur n'est partagé que pendant que l'écran de mission est ouvert.

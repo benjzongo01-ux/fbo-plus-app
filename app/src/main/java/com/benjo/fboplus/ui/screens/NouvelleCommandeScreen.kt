@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,7 +64,20 @@ fun NouvelleCommandeScreen(
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
     val reductionClient by ventesViewModel.reduction.collectAsState()
     val reductionMax = caCommande - prixValidationCommande
-    val validable = lignes.isNotEmpty() && reductionClient <= reductionMax
+    val validable = lignes.isNotEmpty()
+    var detailsOuverts by rememberSaveable { mutableStateOf(false) }
+
+    if (detailsOuverts && lignes.isNotEmpty()) {
+        DetailsCommandeEcran(
+            ventesViewModel = ventesViewModel,
+            profil = profil,
+            sousTotal = caCommande,
+            reductionMax = reductionMax,
+            onRetour = { detailsOuverts = false },
+            onValidee = onCommandeValidee
+        )
+        return
+    }
 
     Box(
         modifier = Modifier
@@ -290,39 +304,7 @@ fun NouvelleCommandeScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                     }
 
-                    if (lignes.isNotEmpty()) {
-                        ChampsCommande(ventesViewModel, reductionMax)
-                    }
-
-                    // Champ titre
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(BlackSurface)
-                            .border(1.dp, BlackBorder, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 16.dp, vertical = 13.dp)
-                    ) {
-                        BasicTextField(
-                            value = titre,
-                            onValueChange = { ventesViewModel.setTitreCommande(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(color = WhitePrimary, fontSize = 14.sp),
-                            decorationBox = { innerTextField ->
-                                if (titre.isEmpty()) {
-                                    Text("Titre de la commande (optionnel)", color = WhiteFaint, fontSize = 14.sp)
-                                }
-                                innerTextField()
-                            },
-                            singleLine = true
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    SuiviEnvoi(ventesViewModel, onCommandeValidee)
-
-                    // Bouton valider
+                    // Bouton continuer vers les détails
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -331,14 +313,12 @@ fun NouvelleCommandeScreen(
                                 if (validable) GoldGradient
                                 else Brush.linearGradient(listOf(BlackBorder, BlackBorder))
                             )
-                            .clickable(enabled = validable) {
-                                ventesViewModel.validerCommande()
-                            }
+                            .clickable(enabled = validable) { detailsOuverts = true }
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "✅ Valider la commande",
+                            "Continuer",
                             color = if (validable) BlackDeep else WhiteFaint,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp

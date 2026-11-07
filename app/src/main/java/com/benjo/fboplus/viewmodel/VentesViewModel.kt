@@ -13,6 +13,41 @@ import java.util.UUID
 import java.text.SimpleDateFormat
 import java.util.*
 
+/** Pays, bénéficiaire et mode de la commande en cours. */
+data class DetailsCommande(
+    val pays: String = "",
+    val pourQui: String = "moi",
+    val filleulNom: String = "",
+    val filleulPrenom: String = "",
+    val filleulId: String = "",
+    val mode: String = "livraison",
+    val clientId: String? = null,
+    val clientNom: String = "",
+    val clientTelephone: String = "",
+    val clientTelephone2: String = "",
+    val quartier: String = "",
+    val adresse: String = ""
+) {
+    /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
+    fun erreur(idForeverProfil: String): String? {
+        val telephone = Regex("^\\+?[0-9 ]{8,16}$")
+        return when {
+            pays.isBlank() -> "Choisissez le pays de la commande."
+            pourQui == "moi" && idForeverProfil.isBlank() ->
+                "Renseignez votre ID Forever dans votre profil pour commander à votre nom."
+            pourQui == "filleul" && (filleulNom.isBlank() || filleulPrenom.isBlank()) ->
+                "Indiquez le nom et le prénom du filleul."
+            pourQui == "filleul" && filleulId.count(Char::isDigit) < 6 -> "Indiquez l'ID Forever du filleul."
+            mode == "livraison" && clientNom.isBlank() -> "Indiquez le nom et le prénom du client."
+            mode == "livraison" && !telephone.matches(clientTelephone.trim()) -> "Téléphone du client invalide."
+            mode == "livraison" && clientTelephone2.isNotBlank() && !telephone.matches(clientTelephone2.trim()) ->
+                "Deuxième téléphone invalide."
+            mode == "livraison" && quartier.isBlank() -> "Indiquez le quartier du client."
+            else -> null
+        }
+    }
+}
+
 sealed interface EnvoiCommande {
     data object Repos : EnvoiCommande
     data object EnCours : EnvoiCommande
@@ -43,11 +78,8 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
     private val _suggererClotureMois = MutableStateFlow(false)
     val suggererClotureMois: StateFlow<Boolean> = _suggererClotureMois
 
-    private val _client = MutableStateFlow<Client?>(null)
-    val client: StateFlow<Client?> = _client
-
-    private val _adresse = MutableStateFlow("")
-    val adresse: StateFlow<String> = _adresse
+    private val _details = MutableStateFlow(DetailsCommande())
+    val details: StateFlow<DetailsCommande> = _details
 
     private val _reduction = MutableStateFlow(0)
     val reduction: StateFlow<Int> = _reduction
@@ -65,13 +97,18 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
         verifierFinDeMois()
     }
 
-    fun setClient(client: Client?) {
-        _client.value = client
-        if (client != null && _adresse.value.isBlank()) _adresse.value = client.adresse
+    fun modifierDetails(modification: (DetailsCommande) -> DetailsCommande) {
+        _details.value = modification(_details.value)
     }
 
-    fun setAdresse(adresse: String) {
-        _adresse.value = adresse
+    /** Remplit la livraison depuis une fiche du carnet de clients. */
+    fun setClient(client: Client) {
+        _details.value = _details.value.copy(
+            clientId = client.id,
+            clientNom = client.nom,
+            clientTelephone = client.telephone,
+            adresse = _details.value.adresse.ifBlank { client.adresse }
+        )
     }
 
     fun setReduction(montant: Int) {
@@ -86,8 +123,7 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
         _commandeEnCours.value = emptyList()
         _titreCommande.value = ""
         _commandeEnEdition.value = null
-        _client.value = null
-        _adresse.value = ""
+        _details.value = DetailsCommande()
         _reduction.value = 0
     }
 
@@ -170,8 +206,7 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
                 cle = cleCommande,
                 lignes = lignes,
                 titre = _titreCommande.value.ifBlank { "Commande" },
-                client = _client.value,
-                adresse = _adresse.value,
+                details = _details.value,
                 reduction = _reduction.value
             )
             cleCommande = UUID.randomUUID().toString()
@@ -192,7 +227,6 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
         _commandeEnCours.value = commande.lignes.toMutableList()
         _titreCommande.value = commande.titre
         _commandeEnEdition.value = commande.id
-        _adresse.value = commande.adresse
         _reduction.value = commande.reduction
     }
 
@@ -207,7 +241,7 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
                 docId = ancienne.docId,
                 lignes = lignes,
                 titre = _titreCommande.value.ifBlank { "Commande" },
-                adresse = _adresse.value,
+                adresse = ancienne.adresse,
                 reduction = _reduction.value
             )
             viderCommande()

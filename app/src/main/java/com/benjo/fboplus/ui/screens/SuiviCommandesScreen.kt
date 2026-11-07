@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Commande
 import com.benjo.fboplus.data.VentesRepository
-import com.benjo.fboplus.data.etapesCommande
+import com.benjo.fboplus.data.etapesPour
 import com.benjo.fboplus.data.libelleStatut
 import com.benjo.fboplus.ui.theme.*
 import com.benjo.fboplus.viewmodel.VentesViewModel
@@ -35,7 +35,7 @@ import java.util.Locale
 private val FormeCarte = RoundedCornerShape(16.dp)
 
 fun couleurStatut(statut: String): Color = when (statut) {
-    "livree" -> GreenPrimary
+    "livree", "validee" -> GreenPrimary
     "annulee", "retournee" -> RedAlert
     "en_livraison", "assignee" -> BlueAccent
     else -> GoldPrimary
@@ -112,7 +112,7 @@ fun CarteCommande(commande: Commande, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                commande.clientNom.ifBlank { commande.titre.ifBlank { "Commande" } },
+                commande.clientNom.ifBlank { commande.beneficiaireNom.ifBlank { commande.titre.ifBlank { "Commande" } } },
                 color = WhitePrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -174,7 +174,18 @@ fun CommandeDetailScreen(
                     )
                     BadgeStatut(commande.statut)
                 }
+                if (commande.mode.isNotBlank()) {
+                    Ligne("Type", if (commande.mode == "validation") "Validation sur l'ID" else "Livraison")
+                }
+                if (commande.pays.isNotBlank()) Ligne("Pays", commande.pays)
+                if (commande.beneficiaireId.isNotBlank()) {
+                    val qui = if (commande.pourQui == "filleul") "Filleul : ${commande.beneficiaireNom}" else "Moi"
+                    Ligne("Bénéficiaire", qui)
+                    Ligne("ID Forever", commande.beneficiaireId)
+                }
                 if (commande.clientNom.isNotBlank()) Ligne("Client", commande.clientNom)
+                if (commande.clientTelephone.isNotBlank()) Ligne("Téléphone", commande.clientTelephone)
+                if (commande.clientTelephone2.isNotBlank()) Ligne("Téléphone 2", commande.clientTelephone2)
                 if (commande.adresse.isNotBlank()) Ligne("Adresse", commande.adresse)
                 if (commande.motif.isNotBlank()) Ligne("Motif", commande.motif)
             }
@@ -253,7 +264,7 @@ private fun Ligne(libelle: String, valeur: String, gras: Boolean = false) {
 private fun TimelineStatuts(commande: Commande) {
     val format = remember { SimpleDateFormat("dd/MM à HH:mm", Locale.FRANCE) }
     val terminee = commande.statut in setOf("annulee", "retournee")
-    val etapes = if (terminee) commande.historique.map { it.statut } else etapesCommande
+    val etapes = if (terminee) commande.historique.map { it.statut } else etapesPour(commande.mode)
     val atteintes = commande.historique.associateBy { it.statut }
 
     Column(Modifier.fillMaxWidth().clip(FormeCarte).background(BlackCard).padding(16.dp)) {

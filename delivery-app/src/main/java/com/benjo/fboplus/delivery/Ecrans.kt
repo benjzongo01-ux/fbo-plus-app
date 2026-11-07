@@ -497,6 +497,13 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
                 }
             }
 
+            if (mission.clientTelephone2.isNotBlank()) {
+                TextButton(
+                    onClick = { lancer(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${mission.clientTelephone2}"))) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Appeler le 2e numéro : ${mission.clientTelephone2}", color = Or) }
+            }
+
             Column(Modifier.fillMaxWidth().clip(Forme).background(Carte).padding(14.dp)) {
                 mission.lignes.forEach { l ->
                     Text("${l.quantite} × ${l.nom}", color = Texte, fontSize = 14.sp, modifier = Modifier.padding(vertical = 2.dp))

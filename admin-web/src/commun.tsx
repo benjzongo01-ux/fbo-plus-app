@@ -1,10 +1,16 @@
-import { collection, onSnapshot, query, type Query, type QueryConstraint } from "firebase/firestore";
+import { collection, onSnapshot, query, where, type Query, type QueryConstraint } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { db } from "./firebase";
 
 export type Doc = { id: string } & Record<string, any>;
 
 export const ROLES_PERSONNEL = ["operateur", "gestionnaire_stock", "admin", "super_admin"];
+
+export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal"];
+
+/** Filtre « mon pays » : le super administrateur voit tous les pays. */
+export const filtrePays = (role: string, pays: string): QueryConstraint[] =>
+  role === "super_admin" ? [] : [where("pays", "==", pays)];
 
 export const LIBELLES_ROLES: Record<string, string> = {
   fbo: "Distributeur",
@@ -23,6 +29,7 @@ export const LIBELLES_STATUTS: Record<string, string> = {
   assignee: "Livreur assigné",
   en_livraison: "En livraison",
   livree: "Livrée",
+  validee: "Validée sur l'ID",
   annulee: "Annulée",
   retournee: "Retournée",
 };
@@ -51,7 +58,8 @@ export function messageErreur(e: unknown): string {
 export function useCollection(nom: string | null, ...contraintes: QueryConstraint[]) {
   const [docs, setDocs] = useState<Doc[] | null>(null);
   const [erreur, setErreur] = useState("");
-  const cle = `${nom}|${JSON.stringify(contraintes.map((c) => (c as { type?: string }).type))}`;
+  // La clé suit aussi les valeurs filtrées (le pays), pas seulement le type des contraintes.
+  const cle = `${nom}|${JSON.stringify(contraintes)}`;
 
   useEffect(() => {
     if (!nom) return;

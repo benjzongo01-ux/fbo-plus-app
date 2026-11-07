@@ -34,6 +34,7 @@ data class Mission(
     val statut: String,
     val clientNom: String,
     val clientTelephone: String,
+    val clientTelephone2: String,
     val adresse: String,
     val lignes: List<LigneMission>,
     val montant: Int,
@@ -70,6 +71,7 @@ class Depot {
             statut = doc.getString("statut").orEmpty(),
             clientNom = client?.get("nom") as? String ?: "",
             clientTelephone = client?.get("telephone") as? String ?: "",
+            clientTelephone2 = client?.get("telephone2") as? String ?: "",
             adresse = doc.getString("adresse").orEmpty(),
             lignes = lignes.map {
                 LigneMission(it["nom"] as? String ?: "", (it["quantite"] as? Number)?.toInt() ?: 0)
