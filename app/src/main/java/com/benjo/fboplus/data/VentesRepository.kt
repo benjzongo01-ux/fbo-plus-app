@@ -178,6 +178,14 @@ object VentesRepository {
         ).await()
     }
 
+    /** Frais de livraison du pays (mêmes règles que le serveur : tarifs du pays, sinon tarifs communs). */
+    suspend fun fraisLivraison(pays: String): Int {
+        val db = FirebaseFirestore.getInstance()
+        val propres = db.document("tarifsPays/$pays").get().await()
+        val tarifs = if (propres.exists()) propres else db.document("parametres/tarifs").get().await()
+        return tarifs.getLong("fraisLivraison")?.toInt() ?: 0
+    }
+
     /** Villes où l'administration du pays accepte d'expédier, avec leurs frais. */
     suspend fun villesExpedition(pays: String): List<VilleExpedition> =
         FirebaseFirestore.getInstance().collection("villesExpedition")

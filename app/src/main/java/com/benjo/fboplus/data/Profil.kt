@@ -5,7 +5,10 @@ data class Profil(
     val prenom: String = "",
     val pays: String = "",
     val ville: String = "",
+    // Grade choisi par le distributeur : c'est une demande, validée par l'administration.
     val grade: String = "Client Privilégié (CP)",
+    // Grade attribué par l'administration : c'est lui qui fixe la remise.
+    val gradeValide: String = "",
     val idDistributeur: String = "",
     val indicatifTelephone: String = "",
     val telephone: String = "",
@@ -16,7 +19,12 @@ data class Profil(
     val profilComplet: Boolean = false,
     val rappelActif: Boolean = true,
     val heureRappel: String = "19:00"
-)
+) {
+    /** Grade qui fixe réellement la remise : celui validé, ou Client Privilégié en attendant. */
+    val gradeApplique: String get() = gradeValide.ifBlank { "Client Privilégié (CP)" }
+
+    val gradeEnAttente: Boolean get() = grade != gradeApplique
+}
 
 val listeGrades = listOf(
     "Client Privilégié (CP)",

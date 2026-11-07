@@ -53,7 +53,7 @@ fun ModifierCommandeScreen(
     }
 
     // ── Calcul du prix de validation selon le grade du profil ──
-    val reduction = reductionPourGrade(profil.grade)
+    val reduction = reductionPourGrade(profil.gradeApplique)
     val caCommande = lignes.sumOf { it.montantTotal }
     val prixValidationCommande = (caCommande * (1.0 - reduction / 100.0)).toInt()
 
@@ -227,7 +227,7 @@ fun ModifierCommandeScreen(
 
                             // Prix de validation selon le grade
                             Text(
-                                "Prix de validation (${profil.grade}, -${reduction.toInt()}%%) : %,d F".format(prixValidationCommande),
+                                "Prix de validation (${profil.gradeApplique}, -${reduction.toInt()}%%) : %,d F".format(prixValidationCommande),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = WhiteSub

@@ -4,7 +4,7 @@ import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPE
 
 export const ENTREPOT_DEFAUT = "principal";
 
-const REMISES: Record<string, number> = {
+export const REMISES: Record<string, number> = {
   "Client Privilégié (CP)": 5,
   "Animateur Adjoint (AA)": 35,
   "Animateur (A)": 38,
@@ -249,6 +249,46 @@ async function preparerReservations(tx: Transaction, entrepot: string, ecarts: M
   };
 }
 
+/**
+ * Frais de livraison et commission du livreur : chaque pays a les siens (tarifsPays/{pays}).
+ * Les anciens tarifs communs (parametres/tarifs) servent tant qu'un pays n'a pas réglé les siens.
+ */
+async function tarifsDuPays(tx: Transaction, pays: string) {
+  const [propres, communs] = await tx.getAll(
+    db.doc(`tarifsPays/${pays || PAYS_DEFAUT}`),
+    db.doc("parametres/tarifs"),
+  );
+  const t = propres.exists ? propres.data()! : communs.data() ?? {};
+  return {
+    fraisLivraison: Number(t.fraisLivraison ?? 0),
+    commissionLivreur: Number(t.commissionLivreur ?? 0),
+  };
+}
+
+/**
+ * Un pays peut avoir plusieurs entrepôts : la commande part du premier (par ordre de priorité,
+ * puis de nom) qui a tout le stock demandé. Sinon, le premier entrepôt signalera le manque.
+ */
+async function choisirEntrepot(tx: Transaction, pays: string, demandes: LigneDemandee[]) {
+  const entrepots = (
+    await tx.get(db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true))
+  ).docs.sort(
+    (a, b) =>
+      Number(a.data().priorite ?? 100) - Number(b.data().priorite ?? 100) ||
+      String(a.data().nom ?? a.id).localeCompare(String(b.data().nom ?? b.id)),
+  );
+  if (entrepots.length === 0) {
+    throw new HttpsError("failed-precondition", `Les commandes ne sont pas encore ouvertes pour : ${pays}.`);
+  }
+  if (entrepots.length === 1) return entrepots[0].id;
+
+  for (const entrepot of entrepots) {
+    const stocks = await tx.getAll(...demandes.map((l) => db.doc(`stock/${entrepot.id}_${l.produitId}`)));
+    if (stocks.every((s, i) => Number(s.data()?.disponible ?? 0) >= demandes[i].quantite)) return entrepot.id;
+  }
+  return entrepots[0].id;
+}
+
 const etapeHistorique = (statut: string, auteurId: string) => ({
   statut,
   auteurId,
@@ -273,23 +313,17 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
     if (existante.exists) return { id: ref.id, total: existante.data()!.total as number, cree: false };
 
     const profil = (await tx.get(db.doc(`users/${uid}`))).data();
-    const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
 
     if (!estPays(d.pays)) throw new HttpsError("invalid-argument", "Choisissez le pays de la commande.");
     const pays = d.pays;
-    const entrepots = await tx.get(
-      db.collection("warehouses").where("pays", "==", pays).where("actif", "==", true).limit(1),
-    );
-    if (entrepots.empty) {
-      throw new HttpsError("failed-precondition", `Les commandes ne sont pas encore ouvertes pour : ${pays}.`);
-    }
-    const entrepotId = entrepots.docs[0].id;
+    const tarifs = await tarifsDuPays(tx, pays);
+    const entrepotId = await choisirEntrepot(tx, pays, demandes);
     const mode = lireMode(d.mode);
     const beneficiaire = lireBeneficiaire(d, profil);
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
     const frais =
-      mode === "livraison" ? Number(tarifs?.fraisLivraison ?? 0) : (envoi?.expedition.frais ?? 0);
+      mode === "livraison" ? tarifs.fraisLivraison : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
@@ -489,7 +523,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
       throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
     }
 
-    const tarifs = (await tx.get(db.doc("parametres/tarifs"))).data();
+    const tarifs = await tarifsDuPays(tx, commande.pays);
     tx.update(ref, {
       statut: "assignee",
       livreurId,
@@ -505,7 +539,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
       adresse: commande.adresse,
       lignes: commande.lignes,
       montantAEncaisser: commande.total,
-      commission: Number(tarifs?.commissionLivreur ?? 0),
+      commission: tarifs.commissionLivreur,
       statut: "assignee",
       montantEncaisse: 0,
       preuvePhoto: null,

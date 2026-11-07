@@ -1,6 +1,8 @@
 export {
   creerCompteInterne,
   definirPays,
+  definirGrade,
+  corrigerIdForever,
   definirRole,
   definirStatut,
   initialiserProfil,

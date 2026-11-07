@@ -47,7 +47,14 @@ private fun Application() {
 
     if (etat == EtatConnexion.Connecte) {
         // Recréé à chaque connexion : les missions suivent toujours le compte courant.
-        key(etat) { Accueil(onDeconnexion = connexion::deconnecter) }
+        val contexte = androidx.compose.ui.platform.LocalContext.current
+        key(etat) {
+            Accueil(onDeconnexion = {
+                // Plus de partage de position une fois le livreur déconnecté.
+                SuiviPositionService.arreter(contexte)
+                connexion.deconnecter()
+            })
+        }
     } else {
         ConnexionEcran(connexion)
     }

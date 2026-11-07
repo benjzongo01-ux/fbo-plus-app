@@ -306,9 +306,17 @@ fun FBONavigation() {
                         }
                     },
                     onOublie = {
-                        authViewModel.deconnecter()
-                        navController.navigate("connexion") {
-                            popUpTo(0) { inclusive = true }
+                        if (authViewModel.smsRecent()) {
+                            // Le numéro vient d'être vérifié par SMS : choisir directement un nouveau PIN.
+                            authViewModel.resetState()
+                            navController.navigate("pin_creation") {
+                                popUpTo("pin_entry") { inclusive = true }
+                            }
+                        } else {
+                            authViewModel.deconnecter()
+                            navController.navigate("connexion") {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 )

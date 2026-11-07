@@ -334,7 +334,7 @@ fun GoldCommandeCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        commande.titre.ifBlank { "Commande" },
+                        commande.nomAffiche,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = WhitePrimary
@@ -360,7 +360,7 @@ fun GoldCommandeCard(
                                 appendLine("🆔 ID: $idDistributeur")
                             }
                             appendLine("📅 ${commande.dateStr}")
-                            appendLine("📋 *${commande.titre.ifBlank { "Commande" }}*")
+                            appendLine("📋 *${commande.nomAffiche}*")
                             appendLine("─────────────────")
                             commande.lignes.forEach { ligne ->
                                 appendLine("• ${ligne.produitNom} ×${ligne.quantite} → %,d FCFA".format(ligne.montantTotal))

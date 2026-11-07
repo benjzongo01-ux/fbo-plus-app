@@ -59,6 +59,9 @@ for (const [id, pays, ville, frais] of villes) {
   lot.set(db.doc(`villesExpedition/${id}`), { pays, ville, frais, actif: true });
 }
 lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, commissionLivreur: 500 });
+// Tarifs propres à chaque pays ; ils priment sur les tarifs communs ci-dessus.
+lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 1000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 1500, commissionLivreur: 700 });
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);

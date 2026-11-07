@@ -63,12 +63,23 @@ fun DetailsCommandeEcran(
 
     // Villes d'expédition du pays choisi : rechargées à chaque changement de pays.
     var villes by remember { mutableStateOf<List<VilleExpedition>?>(null) }
+    var fraisLivraison by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(details.pays) {
         villes = null
+        fraisLivraison = null
         if (details.pays.isNotBlank()) {
             villes = runCatching { VentesRepository.villesExpedition(details.pays) }.getOrDefault(emptyList())
+            fraisLivraison = runCatching { VentesRepository.fraisLivraison(details.pays) }.getOrNull()
         }
     }
+
+    // Total que le serveur calculera, affiché avant l'envoi.
+    val frais = when (details.mode) {
+        "livraison" -> fraisLivraison ?: 0
+        "expedition" -> details.fraisVille
+        else -> 0
+    }
+    val totalEstime = sousTotal - reduction + frais
 
     // Le pays du profil est proposé par défaut, s'il fait partie des pays ouverts.
     LaunchedEffect(Unit) {
@@ -235,7 +246,10 @@ fun DetailsCommandeEcran(
                     Champ("Adresse, repère (facultatif)", details.adresse) { v ->
                         ventesViewModel.modifierDetails { it.copy(adresse = v) }
                     }
-                    Aide("Les frais de livraison du pays s'ajoutent au total.")
+                    Aide(
+                        fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
+                            ?: "Les frais de livraison du pays s'ajoutent au total."
+                    )
                 }
             }
 
@@ -254,6 +268,17 @@ fun DetailsCommandeEcran(
         Column(Modifier.fillMaxWidth().background(BlackCard).padding(16.dp)) {
             if (tentative && erreur != null) {
                 Text(erreur, color = RedAlert, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    if (frais > 0) "Total (dont ${fcfa(frais)} de frais)" else "Total",
+                    color = WhiteSub,
+                    fontSize = 14.sp
+                )
+                Text(fcfa(totalEstime), color = GoldPrimary, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
             }
             SuiviEnvoi(ventesViewModel, onValidee)
             Button(

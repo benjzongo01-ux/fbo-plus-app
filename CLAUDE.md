@@ -26,6 +26,8 @@ Modèle de données Firestore (première version)
 • notifications/{id} et auditLogs/{id}.
 Statuts de commande : nouvelle → confirmee → en_preparation → prete → assignee → en_livraison → livree (ou annulee, retournee). Une commande en validation s'arrête à prete → validee : le centre d'appel la valide sur l'ID Forever du bénéficiaire, sans livreur ni frais de livraison. Une expédition s'arrête à prete → expediee : le colis part vers une ville de la liste villesExpedition du pays, dont les frais s'ajoutent au total ; la compagnie de transport est facultative à la commande et choisie par l'expéditeur sinon.
 
+Grade : attribué uniquement par l'administration du pays (definirGrade) ; le distributeur n'écrit que gradeDemande. Tarifs de livraison : tarifsPays/{pays}, sinon parametres/tarifs.
+
 Pays : Burkina Faso, Côte d'Ivoire, Sénégal (liste PAYS dans firebase/functions/src/commun.ts). Chaque commande part vers l'entrepôt actif de son pays. Le personnel porte un pays dans ses claims et ne voit que son pays ; le super administrateur voit tout. Les données sans pays comptent comme Burkina Faso.
 Règles de sécurité (obligatoires)
 • Écrire des Firestore Security Rules strictes, basées sur les custom claims. Tout est refusé par défaut.

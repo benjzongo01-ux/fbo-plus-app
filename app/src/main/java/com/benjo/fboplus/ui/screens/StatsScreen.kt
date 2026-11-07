@@ -624,7 +624,7 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                                                         horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
                                                         Text(
-                                                            commande.titre.ifBlank { "Commande" },
+                                                            commande.nomAffiche,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp,
                                                             color = WhitePrimary,

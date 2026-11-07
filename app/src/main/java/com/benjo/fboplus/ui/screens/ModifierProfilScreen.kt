@@ -289,14 +289,18 @@ fun ModifierProfilScreen(
                         valeur = idForever,
                         onChange = { saisie -> idForever = saisie.filter { it.isDigit() } },
                         clavier = KeyboardType.Number,
-                        aide = "Vérifiez-le bien : il ne pourra plus être modifié ensuite",
+                        aide = "Vérifiez-le bien : ensuite, seule l'administration pourra le corriger",
                         optionnel = true
                     )
                 }
                 ChampChoix(
                     libelle = "Grade",
                     valeur = grade,
-                    aide = "Remise appliquée : ${reductionPourGrade(grade).toInt()} %",
+                    aide = if (grade == profil.gradeApplique) {
+                        "Remise appliquée : ${reductionPourGrade(grade).toInt()} %"
+                    } else {
+                        "Remise de ${reductionPourGrade(grade).toInt()} % après validation par l'administration"
+                    },
                     onClick = { feuille = Feuille.GRADE }
                 )
             }

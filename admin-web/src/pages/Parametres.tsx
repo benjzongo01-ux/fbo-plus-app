@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { useEffect, useState, type FormEvent } from "react";
 import { fcfa, filtrePays, PAYS, useAction, useCollection } from "../commun";
 import { db } from "../firebase";
@@ -87,6 +87,10 @@ function VillesExpedition() {
 }
 
 export default function Parametres() {
+  const { role, pays } = useSession();
+  const superAdmin = role === "super_admin";
+  const [paysTarifs, setPaysTarifs] = useState(pays || PAYS[0]);
+  const paysVise = superAdmin ? paysTarifs : pays;
   const [frais, setFrais] = useState("");
   const [commission, setCommission] = useState("");
   const [enregistre, setEnregistre] = useState(false);
@@ -94,20 +98,21 @@ export default function Parametres() {
   const { docs: centres } = useCollection("centres");
   const [centre, setCentre] = useState("");
 
-  useEffect(
-    () =>
-      onSnapshot(doc(db, "parametres", "tarifs"), (d) => {
-        setFrais(String(d.data()?.fraisLivraison ?? 0));
-        setCommission(String(d.data()?.commissionLivreur ?? 0));
-      }),
-    [],
-  );
+  // Tarifs du pays ; à défaut, les anciens tarifs communs servent de point de départ.
+  useEffect(() => {
+    setEnregistre(false);
+    return onSnapshot(doc(db, "tarifsPays", paysVise), async (d) => {
+      const t = d.exists() ? d.data() : (await getDoc(doc(db, "parametres", "tarifs"))).data();
+      setFrais(String(t?.fraisLivraison ?? 0));
+      setCommission(String(t?.commissionLivreur ?? 0));
+    });
+  }, [paysVise]);
 
   async function enregistrer(e: FormEvent) {
     e.preventDefault();
     setEnregistre(false);
     const ok = await action.lancer(() =>
-      setDoc(doc(db, "parametres", "tarifs"), {
+      setDoc(doc(db, "tarifsPays", paysVise), {
         fraisLivraison: Number(frais),
         commissionLivreur: Number(commission),
       }),
@@ -127,7 +132,15 @@ export default function Parametres() {
     <>
       <h1>Paramètres</h1>
       <form className="carte etroit" onSubmit={enregistrer}>
-        <h2>Tarifs</h2>
+        <h2>Tarifs de livraison · {paysVise}</h2>
+        {superAdmin && (
+          <label>
+            Pays
+            <select value={paysTarifs} onChange={(e) => setPaysTarifs(e.target.value)}>
+              {PAYS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </label>
+        )}
         <label>Frais de livraison (FCFA)<input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} required /></label>
         <label>Commission par livraison (FCFA)<input type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} required /></label>
         {action.erreur && <p className="erreur">{action.erreur}</p>}

@@ -113,7 +113,7 @@ fun CarteCommande(commande: Commande, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                commande.clientNom.ifBlank { commande.beneficiaireNom.ifBlank { commande.titre.ifBlank { "Commande" } } },
+                commande.nomAffiche,
                 color = WhitePrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -167,7 +167,7 @@ fun CommandeDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        commande.titre.ifBlank { "Commande" },
+                        commande.nomAffiche,
                         color = WhitePrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,

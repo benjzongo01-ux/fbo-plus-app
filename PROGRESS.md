@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 86 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 94 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -100,6 +100,19 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
 
+## Réglages de fiabilité (2026-11-07)
+
+Branche `feature/reglages-fiabilite`, fusionnée dans `main`.
+
+- **PIN oublié** : juste après le code SMS, « Code oublié ? Choisir un nouveau code » mène directement à la création d'un nouveau PIN. Plus tard, il ramène à la connexion par SMS. Les ventes du téléphone sont conservées.
+- **Grade** : le distributeur ne fait qu'une demande (`gradeDemande`). Seule l'administration de son pays attribue le grade (`definirGrade`), dans Utilisateurs (bouton « Demandes de grade »). En attendant, la remise est celle du grade validé, ou de Client Privilégié. Le distributeur est prévenu par une notification.
+- **ID Forever** : l'administration corrige un ID erroné (`corrigerIdForever`), avec trace dans le journal et notification.
+- **Tarifs par pays** : frais de livraison et commission du livreur dans `tarifsPays/{pays}`, réglés par l'administration de chaque pays dans Paramètres. Les tarifs communs servent tant qu'un pays n'a pas les siens. FBO+ affiche les frais et le total avant l'envoi.
+- **Nom des commandes** : une commande sans titre porte le nom du client ou du bénéficiaire.
+- **Boutique publique** : photos des produits (`admin-web/public/produits`, à recopier avec `node scripts/copier-photos-boutique.mjs` après l'ajout d'un produit).
+- **Livreur** : la position est partagée pendant toute la livraison, écran éteint compris, par un service avec notification permanente. Il s'arrête seul à la fin de la livraison ou à la déconnexion.
+- **Entrepôts** : dans un pays à plusieurs entrepôts, la commande part du premier (champ `priorite`, puis nom) qui a tout le stock.
+
 ## Expédition vers une autre ville
 
 Branche `feature/expedition`, fusionnée dans `main`.
@@ -135,11 +148,6 @@ Défauts trouvés par ce test et corrigés :
 ## Limites connues
 
 - Créer une commande exige une connexion, car le prix est calculé par le serveur. La consultation et les fiches clients fonctionnent hors ligne.
-- Une seule boutique par pays : la commande part du premier entrepôt actif du pays. Le choix entre plusieurs entrepôts d'un même pays reste à faire.
-- La boutique publique n'affiche pas encore de photos : elles sont dans l'application Android, pas sur Storage.
-- Le grade reste déclaré par le distributeur, alors qu'il plafonne ses réductions.
-- Le GPS du livreur n'est partagé que pendant que l'écran de mission est ouvert.
-- L'ID Forever verrouillé n'a pas encore de correction possible depuis l'admin.
 - Les comptes de l'ancien backend Ktor ne sont pas migrés.
 - Firebase BoM reste en 34.19.0 : la version 35 exige Kotlin 2.4, le projet est en 2.2.10.
 
