@@ -201,7 +201,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         is FirebaseAuthInvalidCredentialsException -> "Code ou numéro incorrect."
         is FirebaseTooManyRequestsException -> "Trop de tentatives. Réessayez plus tard."
         is FirebaseFunctionsException -> when (e.code) {
-            FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> MESSAGE_PIN_BLOQUE
+            // Limite de requêtes : le serveur dit combien de secondes attendre. Sinon, PIN bloqué.
+            FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
+                e.message?.takeIf { it.contains("Réessayez dans") } ?: MESSAGE_PIN_BLOQUE
             FirebaseFunctionsException.Code.PERMISSION_DENIED -> "Code PIN incorrect."
             FirebaseFunctionsException.Code.UNAVAILABLE ->
                 "Erreur réseau : impossible de contacter le serveur."

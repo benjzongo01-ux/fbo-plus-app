@@ -94,6 +94,13 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("personne ne lit ni ne remet à zéro ses compteurs de requêtes", async () => {
+    const d = db("fbo1", "fbo");
+    await assertFails(getDoc(doc(d, "limitesDebit/fbo1")));
+    await assertFails(setDoc(doc(d, "limitesDebit/fbo1"), {}));
+    await assertFails(getDoc(doc(db("sa", "super_admin", ""), "limitesDebit/fbo1")));
+  });
+
   it("le distributeur demande un grade mais ne se l'attribue pas", async () => {
     const d = db("fbo1", "fbo");
     await assertFails(updateDoc(doc(d, "users/fbo1"), { grade: "Manager (M)" }));

@@ -447,6 +447,33 @@ describe("expédition vers une autre ville", () => {
   });
 });
 
+describe("limitation des requêtes par utilisateur", () => {
+  it("refuse la 11e commande en une minute sans rien réserver, sans gêner les autres", async () => {
+    const u = await fbo();
+    for (let i = 0; i < 10; i++) await nouvelle(u, { lignes: [{ produitId: produit, quantite: 1 }] });
+    const refus = await u
+      .appeler("creerCommande", { ...LIVRAISON, cleIdempotence: cle(), lignes: [{ produitId: produit2, quantite: 1 }] })
+      .catch((e) => e);
+    expect(refus.code).toBe("functions/resource-exhausted");
+    expect(refus.message).toContain("Réessayez dans");
+    expect(await stock(produit2)).toMatchObject({ disponible: 5, reserve: 0 });
+
+    // Un autre distributeur commande normalement pendant ce temps.
+    const autre = await fbo();
+    await nouvelle(autre, { lignes: [{ produitId: produit2, quantite: 1 }] });
+
+    // La fenêtre passée, le premier distributeur peut de nouveau commander.
+    await adminDb().doc(`limitesDebit/${u.uid}`).update({ "creerCommande.debut": Date.now() - 61_000 });
+    await nouvelle(u, { lignes: [{ produitId: produit2, quantite: 1 }] });
+  });
+
+  it("borne aussi les essais de PIN, en plus du blocage après 5 erreurs", async () => {
+    const u = await fbo();
+    await adminDb().doc(`limitesDebit/${u.uid}`).set({ verifierPin: { debut: Date.now(), nombre: 10 } });
+    expect(await codeErreur(u.appeler("verifierPin", { pin: "1234" }))).toBe("functions/resource-exhausted");
+  });
+});
+
 describe("plusieurs entrepôts dans un pays", () => {
   it("la commande part du premier entrepôt qui a tout le stock", async () => {
     await adminDb().doc("warehouses/bobo").set({ nom: "Bobo", pays: "Burkina Faso", actif: true, priorite: 1 });

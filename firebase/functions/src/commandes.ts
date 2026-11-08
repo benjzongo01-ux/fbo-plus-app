@@ -1,4 +1,5 @@
-import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
+import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
+import { onAppel } from "./limites.js";
 import { FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
 import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 
@@ -295,7 +296,7 @@ const etapeHistorique = (statut: string, auteurId: string) => ({
   date: Timestamp.now(),
 });
 
-export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
+export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["fbo"]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const demandes = lireLignes(d.lignes);
@@ -367,7 +368,7 @@ export const creerCommande = onCall(OPTIONS_APPEL, async (req) => {
   return { id: resultat.id, total: resultat.total };
 });
 
-export const modifierCommande = onCall(OPTIONS_APPEL, async (req) => {
+export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const role = roleDe(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
@@ -421,7 +422,7 @@ async function libererStock(tx: Transaction, commande: FirebaseFirestore.Documen
   return preparerReservations(tx, commande.entrepotId, ecarts);
 }
 
-export const annulerCommande = onCall(OPTIONS_APPEL, async (req) => {
+export const annulerCommande = onAppel("annulerCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const role = roleDe(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
@@ -472,7 +473,7 @@ const TRANSITIONS: Record<string, { vers: string; roles: string[] }> = {
 };
 
 /** Avance la commande d'une étape : confirmation, préparation, prête à livrer. */
-export const avancerCommande = onCall(OPTIONS_APPEL, async (req) => {
+export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const id = texte((req.data as Record<string, unknown> | null)?.id, 200);
   const ref = db.doc(`orders/${id}`);
@@ -498,7 +499,7 @@ export const avancerCommande = onCall(OPTIONS_APPEL, async (req) => {
   return { id, statut };
 });
 
-export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
+export const assignerLivreur = onAppel("assignerLivreur", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
@@ -554,7 +555,7 @@ export const assignerLivreur = onCall(OPTIONS_APPEL, async (req) => {
   return { id };
 });
 
-export const demarrerLivraison = onCall(OPTIONS_APPEL, async (req) => {
+export const demarrerLivraison = onAppel("demarrerLivraison", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["livreur"]);
   const id = texte((req.data as Record<string, unknown> | null)?.id, 200);
 
@@ -581,7 +582,7 @@ export const demarrerLivraison = onCall(OPTIONS_APPEL, async (req) => {
   return { id };
 });
 
-export const terminerLivraison = onCall(OPTIONS_APPEL, async (req) => {
+export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["livreur"]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
@@ -646,7 +647,7 @@ export const terminerLivraison = onCall(OPTIONS_APPEL, async (req) => {
   return { id };
 });
 
-export const signalerRetour = onCall(OPTIONS_APPEL, async (req) => {
+export const signalerRetour = onAppel("signalerRetour", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["livreur"]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
@@ -706,7 +707,7 @@ async function sortirStock(tx: Transaction, commande: FirebaseFirestore.Document
 }
 
 /** Le centre d'appel ajuste les frais d'une expédition (colis lourd, autre tarif de la compagnie). */
-export const fixerFraisExpedition = onCall(OPTIONS_APPEL, async (req) => {
+export const fixerFraisExpedition = onAppel("fixerFraisExpedition", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
@@ -739,7 +740,7 @@ export const fixerFraisExpedition = onCall(OPTIONS_APPEL, async (req) => {
  * Le colis est remis à la compagnie : le stock sort et le numéro du colis est noté.
  * Si le distributeur n'a pas indiqué de compagnie, celui qui expédie la choisit ici.
  */
-export const expedierCommande = onCall(OPTIONS_APPEL, async (req) => {
+export const expedierCommande = onAppel("expedierCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
@@ -773,7 +774,7 @@ export const expedierCommande = onCall(OPTIONS_APPEL, async (req) => {
   return { id };
 });
 
-export const validerSurId = onCall(OPTIONS_APPEL, async (req) => {
+export const validerSurId = onAppel("validerSurId", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const id = texte((req.data as Record<string, unknown> | null)?.id, 200);
   const ref = db.doc(`orders/${id}`);
@@ -802,7 +803,7 @@ export const validerSurId = onCall(OPTIONS_APPEL, async (req) => {
 });
 
 /** Entrée de marchandise ou correction après inventaire. */
-export const ajusterStock = onCall(OPTIONS_APPEL, async (req) => {
+export const ajusterStock = onAppel("ajusterStock", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["gestionnaire_stock", ...ROLES_ADMIN]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const entrepotId = texte(d.entrepotId, 80) || ENTREPOT_DEFAUT;
@@ -858,7 +859,7 @@ export const ajusterStock = onCall(OPTIONS_APPEL, async (req) => {
  * Recopie l'historique local des ventes. Ces ventes sont déjà conclues : elles ne touchent
  * pas au stock, et leurs montants d'époque sont conservés tels quels. Le relancer ne crée pas de doublon.
  */
-export const importerVentes = onCall(OPTIONS_APPEL, async (req) => {
+export const importerVentes = onAppel("importerVentes", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["fbo"]);
   const ventes = (req.data as Record<string, unknown> | null)?.ventes;
   if (!Array.isArray(ventes) || ventes.length > 2000) {
