@@ -1,6 +1,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onAppel } from "./limites.js";
 import {
   db,
   estPays,
@@ -18,7 +19,7 @@ import { REMISES } from "./commandes.js";
  * Appelée après la vérification du code SMS. Un nouveau numéro devient un compte fbo :
  * les autres rôles sont attribués uniquement par l'administration.
  */
-export const initialiserProfil = onCall(OPTIONS_APPEL, async (req) => {
+export const initialiserProfil = onAppel("initialiserProfil", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const compte = await getAuth().getUser(uid);
   let role = compte.customClaims?.role as string | undefined;
@@ -51,7 +52,7 @@ export const initialiserProfil = onCall(OPTIONS_APPEL, async (req) => {
   return { role, aPin: secret.exists };
 });
 
-export const definirRole = onCall(OPTIONS_APPEL, async (req) => {
+export const definirRole = onAppel("definirRole", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   const { uid, role } = (req.data ?? {}) as { uid?: unknown; role?: unknown };
 
@@ -83,7 +84,7 @@ export const definirRole = onCall(OPTIONS_APPEL, async (req) => {
 });
 
 /** Un compte suspendu ne peut plus se connecter et perd immédiatement ses sessions. */
-export const definirStatut = onCall(OPTIONS_APPEL, async (req) => {
+export const definirStatut = onAppel("definirStatut", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   const { uid, statut } = (req.data ?? {}) as { uid?: unknown; statut?: unknown };
 
@@ -135,7 +136,7 @@ async function prevenir(userId: string, cle: string, corps: string) {
  * Le grade fixe la remise et le plafond des réductions : seul l'administration l'attribue.
  * Le distributeur ne fait qu'une demande (gradeDemande), acceptée ou refusée ici.
  */
-export const definirGrade = onCall(OPTIONS_APPEL, async (req) => {
+export const definirGrade = onAppel("definirGrade", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   const d = (req.data ?? {}) as { uid?: unknown; grade?: unknown; refuser?: unknown };
   const { ref, compte } = await distributeurDuPays(req, d.uid);
@@ -158,7 +159,7 @@ export const definirGrade = onCall(OPTIONS_APPEL, async (req) => {
 });
 
 /** L'ID Forever est verrouillé pour le distributeur ; l'administration corrige une erreur de saisie. */
-export const corrigerIdForever = onCall(OPTIONS_APPEL, async (req) => {
+export const corrigerIdForever = onAppel("corrigerIdForever", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   const d = (req.data ?? {}) as { uid?: unknown; idDistributeur?: unknown };
   const { ref, compte } = await distributeurDuPays(req, d.uid);
@@ -174,7 +175,7 @@ export const corrigerIdForever = onCall(OPTIONS_APPEL, async (req) => {
 });
 
 /** Comptes livreur et personnel : créés uniquement par l'administration. */
-export const creerCompteInterne = onCall(OPTIONS_APPEL, async (req) => {
+export const creerCompteInterne = onAppel("creerCompteInterne", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   const { telephone, nom, role, centre, pays: paysDemande } = (req.data ?? {}) as Record<string, unknown>;
   // Un administrateur ne recrute que dans son pays ; le super administrateur choisit.
@@ -218,7 +219,7 @@ export const creerCompteInterne = onCall(OPTIONS_APPEL, async (req) => {
 });
 
 /** Change le pays d'un compte du personnel : réservé au super administrateur. */
-export const definirPays = onCall(OPTIONS_APPEL, async (req) => {
+export const definirPays = onAppel("definirPays", OPTIONS_APPEL, async (req) => {
   const appelant = exigerAdmin(req);
   if (appelant.role !== "super_admin") {
     throw new HttpsError("permission-denied", "Action réservée au super administrateur.");

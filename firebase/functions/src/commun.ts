@@ -19,8 +19,15 @@ export type Role = (typeof ROLES)[number];
 
 export const ROLES_ADMIN: readonly string[] = ["admin", "super_admin"];
 
+/**
+ * Plafond de serveurs par fonction : sous une rafale, Firebase met les appels en file d'attente
+ * au lieu de multiplier les machines. La facture reste bornée, même en cas d'attaque.
+ */
+export const MAX_INSTANCES = 10;
+
 export const OPTIONS_APPEL = {
   region: "europe-west1",
+  maxInstances: MAX_INSTANCES,
   // L'émulateur ne reçoit pas de jeton App Check.
   enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true",
 };

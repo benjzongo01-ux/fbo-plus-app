@@ -2,7 +2,8 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { Timestamp } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onAppel } from "./limites.js";
 import { db, exigerConnexion, journaliser, OPTIONS_APPEL } from "./commun.js";
 
 const PIN_PEPPER = defineSecret("PIN_PEPPER");
@@ -69,7 +70,7 @@ async function controlerPin(uid: string, pin: string) {
 }
 
 /** Créer ou remplacer le PIN exige un code SMS de moins de 5 minutes, ou le PIN actuel. */
-export const definirPin = onCall(OPTIONS_PIN, async (req) => {
+export const definirPin = onAppel("definirPin", OPTIONS_PIN, async (req) => {
   const uid = exigerConnexion(req);
   const { pin: valeur, pinActuel } = (req.data ?? {}) as { pin?: unknown; pinActuel?: unknown };
   const pin = lirePin(valeur);
@@ -97,7 +98,7 @@ export const definirPin = onCall(OPTIONS_PIN, async (req) => {
   return { ok: true };
 });
 
-export const verifierPin = onCall(OPTIONS_PIN, async (req) => {
+export const verifierPin = onAppel("verifierPin", OPTIONS_PIN, async (req) => {
   const uid = exigerConnexion(req);
   return controlerPin(uid, lirePin((req.data as { pin?: unknown } | null)?.pin));
 });

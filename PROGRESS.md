@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 94 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 97 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -99,6 +99,16 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Delivery : bouton d'appel du deuxième numéro du client.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
+## Protection contre les rafales de requêtes (2026-11-08)
+
+Branche `feature/limitation-requetes`, fusionnée dans `main`.
+
+Firebase n'a pas de serveur à nous devant lequel placer un reverse proxy : les applications parlent directement à Google, qui absorbe déjà les attaques massives. La protection porte donc sur chaque utilisateur :
+
+- **Limiteur par compte** (`firebase/functions/src/limites.ts`) : toute fonction appelable passe par `onAppel`, qui compte les appels par compte et par action (fenêtre fixe, compteurs dans `limitesDebit/{uid}`, illisibles par les clients). Exemples : 10 commandes par minute, 5 changements de PIN et 10 vérifications de PIN par 10 minutes, 120 appels par minute toutes actions confondues. Au-delà : refus immédiat « Réessayez dans N secondes », sans toucher aux données, et sans gêner les autres comptes.
+- **Plafond de serveurs** : 10 instances au plus par fonction (`MAX_INSTANCES`), pour borner la facture sous une rafale.
+- Déjà en place : PIN bloqué 15 minutes après 5 erreurs, règles Firestore strictes, App Check exigé en production.
 
 ## Réglages de fiabilité (2026-11-07)
 
@@ -162,7 +172,8 @@ Défauts trouvés par ce test et corrigés :
 
 1. Passer `fbo-plus` en formule Blaze : Functions et SMS sont payants. Mettre une alerte de budget.
 2. Activer l'authentification par téléphone, enregistrer les empreintes SHA-1 et SHA-256, vérifier la livraison des SMS au Burkina.
-3. Activer App Check (Play Integrity), puis son application sur Firestore et Storage.
+3. Activer App Check (Play Integrity pour les applications, reCAPTCHA Enterprise pour l'admin web), puis son application sur Firestore, Storage et l'authentification.
+   Dans Authentication, limiter les SMS aux pays ouverts (Burkina Faso, Côte d'Ivoire, Sénégal) pour éviter la fraude aux SMS.
 4. Ajouter FBO+ Delivery au projet et fusionner sa configuration dans son propre `google-services.json`.
 5. Choisir pour Firestore une région cohérente avec `europe-west1`.
 6. Définir le secret : `firebase functions:secrets:set PIN_PEPPER`. Il ne doit plus changer ensuite, sinon tous les PIN deviennent invalides.

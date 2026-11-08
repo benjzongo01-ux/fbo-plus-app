@@ -2,7 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
-import { db } from "./commun.js";
+import { db, MAX_INSTANCES } from "./commun.js";
 
 const MESSAGES_FBO: Record<string, string> = {
   confirmee: "Votre commande est confirmée.",
@@ -69,7 +69,7 @@ async function notifier(userId: string, titre: string, corps: string, commandeId
 }
 
 export const notifierCommande = onDocumentUpdated(
-  { document: "orders/{id}", region: "europe-west1" },
+  { document: "orders/{id}", region: "europe-west1", maxInstances: MAX_INSTANCES },
   async (evenement) => {
     const avant = evenement.data?.before.data();
     const apres = evenement.data?.after.data();
