@@ -94,6 +94,16 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("les invitations du personnel ne sont visibles que du super administrateur", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "invitations/issa@gmail.com"), { role: "admin", pays: "Burkina Faso" }),
+    );
+    await assertFails(getDoc(doc(db("a", "admin"), "invitations/issa@gmail.com")));
+    await assertFails(setDoc(doc(db("sa", "super_admin", ""), "invitations/moi@gmail.com"), { role: "super_admin" }));
+    await assertSucceeds(getDoc(doc(db("sa", "super_admin", ""), "invitations/issa@gmail.com")));
+    await assertSucceeds(deleteDoc(doc(db("sa", "super_admin", ""), "invitations/issa@gmail.com")));
+  });
+
   it("personne ne lit ni ne remet à zéro ses compteurs de requêtes", async () => {
     const d = db("fbo1", "fbo");
     await assertFails(getDoc(doc(d, "limitesDebit/fbo1")));

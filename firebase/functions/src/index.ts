@@ -1,5 +1,5 @@
 export {
-  creerCompteInterne,
+  inviterPersonnel,
   definirPays,
   definirGrade,
   supprimerCompte,

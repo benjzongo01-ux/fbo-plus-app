@@ -5,26 +5,26 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import com.google.firebase.FirebaseException
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.GoogleAuthProvider
+import org.json.JSONObject
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.math.max
 
 data class LigneMission(val nom: String, val quantite: Int)
@@ -130,63 +130,78 @@ class Depot {
     }
 }
 
+/**
+ * Connexion des livreurs : Google (recommandé) ou email. Pas d'auto-inscription : seule une adresse
+ * invitée par le super administrateur obtient un compte livreur ; toute autre est refusée par le serveur.
+ */
 class DepotAuth {
     private val auth = FirebaseAuth.getInstance()
+    private val functions = FirebaseFunctions.getInstance(REGION_FUNCTIONS)
 
     fun estConnecte() = auth.currentUser != null
 
-    suspend fun envoyerCode(activity: Activity, telephone: String): EnvoiCode =
-        suspendCancellableCoroutine { suite ->
-            val rappels = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                override fun onVerificationCompleted(identifiant: PhoneAuthCredential) {
-                    if (suite.isActive) suite.resume(EnvoiCode.Automatique(identifiant))
-                }
+    val googleConfigure: Boolean get() = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
+    val googleDeTest: Boolean get() = !googleConfigure && BuildConfig.EMULATEUR_FIREBASE
 
-                override fun onVerificationFailed(e: FirebaseException) {
-                    if (suite.isActive) suite.resumeWithException(e)
-                }
-
-                override fun onCodeSent(id: String, jeton: PhoneAuthProvider.ForceResendingToken) {
-                    if (suite.isActive) suite.resume(EnvoiCode.Envoye(id))
-                }
-            }
-            PhoneAuthProvider.verifyPhoneNumber(
-                PhoneAuthOptions.newBuilder(auth)
-                    .setPhoneNumber(telephone)
-                    .setTimeout(60L, TimeUnit.SECONDS)
-                    .setActivity(activity)
-                    .setCallbacks(rappels)
-                    .build()
-            )
+    suspend fun connecterGoogle(activity: Activity) {
+        val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID).build()
+        val demande = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        val identifiant = CredentialManager.create(activity).getCredential(activity, demande).credential
+        require(identifiant is CustomCredential && identifiant.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            "Réponse Google inattendue."
         }
+        val jeton = GoogleIdTokenCredential.createFrom(identifiant.data).idToken
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
+    }
 
-    fun identifiant(id: String, code: String) = PhoneAuthProvider.getCredential(id, code)
+    /** Émulateurs uniquement : jeton Google fictif accepté par l'émulateur d'authentification. */
+    suspend fun connecterGoogleDeTest(email: String) {
+        check(BuildConfig.EMULATEUR_FIREBASE) { "Réservé aux émulateurs." }
+        val jeton = JSONObject()
+            .put("sub", "test-" + email.lowercase())
+            .put("email", email.lowercase())
+            .put("email_verified", true)
+            .toString()
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
+    }
+
+    suspend fun connecterEmail(email: String, motDePasse: String) {
+        auth.signInWithEmailAndPassword(email.trim(), motDePasse).await()
+    }
+
+    /** Première connexion par email : crée le mot de passe et envoie le lien de confirmation. */
+    suspend fun creerMotDePasse(email: String, motDePasse: String) {
+        val compte = auth.createUserWithEmailAndPassword(email.trim(), motDePasse).await().user
+        compte?.sendEmailVerification()?.await()
+        auth.signOut()
+    }
+
+    suspend fun reinitialiserMotDePasse(email: String) {
+        auth.sendPasswordResetEmail(email.trim()).await()
+    }
 
     /**
-     * Pas d'auto-inscription : un numéro inconnu n'a aucun compte livreur, et le compte que
-     * Firebase vient de créer pour lui est supprimé aussitôt.
+     * Vérifie le compte auprès du serveur : l'invitation est appliquée, ou l'accès refusé.
+     * Retourne null si c'est bien un livreur, sinon le message à afficher.
      */
-    suspend fun connecterLivreur(identifiant: PhoneAuthCredential): Boolean {
-        val resultat = auth.signInWithCredential(identifiant).await()
-        if (resultat.additionalUserInfo?.isNewUser == true) {
-            auth.currentUser?.delete()?.await()
+    suspend fun verifierLivreur(): String? {
+        try {
+            functions.getHttpsCallable("initialiserProfil").call(mapOf("personnel" to true)).await()
+        } catch (e: FirebaseFunctionsException) {
+            // Adresse jamais invitée : le compte vide créé par cette connexion est retiré.
+            if (e.code == FirebaseFunctionsException.Code.PERMISSION_DENIED) runCatching { auth.currentUser?.delete()?.await() }
             auth.signOut()
-            return false
+            return e.message ?: "Accès refusé."
         }
         val role = auth.currentUser?.getIdToken(true)?.await()?.claims?.get("role")
         if (role != "livreur") {
             auth.signOut()
-            return false
+            return "Ce compte n'est pas un compte livreur. Contactez l'administration."
         }
-        return true
+        return null
     }
 
     fun deconnecter() = auth.signOut()
-}
-
-sealed interface EnvoiCode {
-    data class Envoye(val id: String) : EnvoiCode
-    data class Automatique(val identifiant: PhoneAuthCredential) : EnvoiCode
 }
 
 /** Réduit la photo sous la limite de 5 Mo fixée par les règles Storage. */

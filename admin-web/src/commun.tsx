@@ -46,8 +46,23 @@ export function dateCourte(valeur: { toDate?: () => Date } | undefined) {
 }
 
 /** Traduit les erreurs Firebase en un message lisible, sans détail technique. */
+const MESSAGES_CONNEXION: Record<string, string> = {
+  "auth/invalid-credential": "Email ou mot de passe incorrect.",
+  "auth/wrong-password": "Email ou mot de passe incorrect.",
+  "auth/user-not-found": "Email ou mot de passe incorrect.",
+  "auth/invalid-email": "Adresse email invalide.",
+  "auth/email-already-in-use": "Cette adresse a déjà un compte : connectez-vous, ou utilisez « Mot de passe oublié ».",
+  "auth/weak-password": "Mot de passe trop faible : 8 caractères au moins.",
+  "auth/popup-closed-by-user": "Connexion Google annulée.",
+  "auth/cancelled-popup-request": "Connexion Google annulée.",
+  "auth/popup-blocked": "Le navigateur a bloqué la fenêtre Google : autorisez les fenêtres pour ce site.",
+  "auth/too-many-requests": "Trop de tentatives. Réessayez dans quelques minutes.",
+  "auth/network-request-failed": "Pas de connexion Internet.",
+};
+
 export function messageErreur(e: unknown): string {
   const { code, message } = e as { code?: string; message?: string };
+  if (code && MESSAGES_CONNEXION[code]) return MESSAGES_CONNEXION[code];
   if (code?.startsWith("functions/") && message && code !== "functions/internal") return message;
   if (code === "permission-denied" || code === "functions/permission-denied") {
     return "Vous n'avez pas le droit d'effectuer cette action.";

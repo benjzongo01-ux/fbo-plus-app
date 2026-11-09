@@ -16,31 +16,57 @@ import {
 import { REMISES } from "./commandes.js";
 import { DUREE_MAX_MINUTES, MESSAGE_PAR_DEFAUT, oublierCacheMaintenance, REF_MAINTENANCE } from "./maintenance.js";
 
+const cleEmail = (email: string) => email.trim().toLowerCase();
+
 /**
- * Appelée après la vérification du code SMS. Un nouveau numéro devient un compte fbo :
- * les autres rôles sont attribués uniquement par l'administration.
+ * Appelée après chaque connexion (Google, email ou SMS). Un nouveau compte devient distributeur (fbo),
+ * sauf si le super administrateur a invité son adresse : il reçoit alors le rôle et le pays prévus.
+ * Une invitation ne s'applique qu'à une adresse prouvée (Google, ou email confirmé par le lien reçu).
  */
 export const initialiserProfil = onAppel("initialiserProfil", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const compte = await getAuth().getUser(uid);
   let role = compte.customClaims?.role as string | undefined;
+  let pays = (compte.customClaims?.pays as string | undefined) ?? null;
+  let nomInvite: string | null = null;
 
   if (!role) {
-    if (!compte.phoneNumber) {
-      throw new HttpsError("failed-precondition", "Numéro de téléphone vérifié requis.");
+    if (!compte.phoneNumber && !compte.email) {
+      throw new HttpsError("failed-precondition", "Connexion par Google, email ou téléphone requise.");
     }
-    role = "fbo";
-    await getAuth().setCustomUserClaims(uid, { ...compte.customClaims, role });
+    const refInvitation = compte.email ? db.doc(`invitations/${cleEmail(compte.email)}`) : null;
+    const invitation = refInvitation ? (await refInvitation.get()).data() : undefined;
+    if (invitation && !compte.emailVerified) {
+      // Sinon, n'importe qui pourrait créer un compte avec l'adresse d'un membre invité.
+      throw new HttpsError(
+        "failed-precondition",
+        "Confirmez votre adresse email avec le lien reçu, puis reconnectez-vous.",
+      );
+    }
+    if (invitation && refInvitation) {
+      role = String(invitation.role);
+      pays = String(invitation.pays);
+      nomInvite = String(invitation.nom ?? "");
+      await refInvitation.delete();
+      await journaliser("invitation_acceptee", uid, uid, { role, pays });
+    } else if ((req.data as { personnel?: unknown } | null)?.personnel === true) {
+      // Connexion à l'admin ou à Delivery : sans invitation, aucun compte n'est créé.
+      throw new HttpsError("permission-denied", "Cette adresse n'est pas autorisée. Demandez une invitation au super administrateur.");
+    } else {
+      role = "fbo";
+    }
+    await getAuth().setCustomUserClaims(uid, { ...compte.customClaims, role, ...(pays ? { pays } : {}) });
   }
 
   const ref = db.doc(`users/${uid}`);
   const cree = await db.runTransaction(async (tx) => {
     if ((await tx.get(ref)).exists) return false;
     tx.create(ref, {
-      nom: compte.displayName ?? "",
+      nom: nomInvite || compte.displayName || "",
       telephone: compte.phoneNumber ?? null,
       email: compte.email ?? null,
       role,
+      ...(pays ? { pays } : {}),
       centre: null,
       statut: "actif",
       createdAt: FieldValue.serverTimestamp(),
@@ -223,48 +249,50 @@ export const supprimerCompte = onAppel("supprimerCompte", OPTIONS_APPEL, async (
   return { uid };
 });
 
-/** Comptes livreur et personnel : créés uniquement par le super administrateur. */
-export const creerCompteInterne = onAppel("creerCompteInterne", OPTIONS_APPEL, async (req) => {
+/**
+ * Personnel et livreurs : le super administrateur invite une adresse email avec un rôle et un pays.
+ * La personne se connecte ensuite elle-même (Google, ou email confirmé) et reçoit ce rôle.
+ * Si l'adresse a déjà un compte, le rôle lui est attribué tout de suite.
+ */
+export const inviterPersonnel = onAppel("inviterPersonnel", OPTIONS_APPEL, async (req) => {
   const appelant = exigerSuperAdmin(req);
-  const { telephone, nom, role, centre, pays: paysDemande } = (req.data ?? {}) as Record<string, unknown>;
-  // Un administrateur ne recrute que dans son pays ; le super administrateur choisit.
-  const pays = appelant.role === "super_admin" ? paysDemande : appelant.pays;
+  const { email, nom, role, pays, telephone } = (req.data ?? {}) as Record<string, unknown>;
   if (!estPays(pays)) throw new HttpsError("invalid-argument", "Choisissez le pays du compte.");
-
-  if (typeof telephone !== "string" || !/^\+[1-9]\d{7,14}$/.test(telephone)) {
+  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+    throw new HttpsError("invalid-argument", "Adresse email invalide.");
+  }
+  if (typeof nom !== "string" || nom.trim().length === 0) throw new HttpsError("invalid-argument", "Nom manquant.");
+  if (!estRole(role) || role === "fbo") throw new HttpsError("invalid-argument", "Rôle interne invalide.");
+  if (telephone !== undefined && telephone !== "" && (typeof telephone !== "string" || !/^\+[1-9]\d{7,14}$/.test(telephone))) {
     throw new HttpsError("invalid-argument", "Numéro invalide (format international attendu).");
-  }
-  if (typeof nom !== "string" || nom.trim().length === 0) {
-    throw new HttpsError("invalid-argument", "Nom manquant.");
-  }
-  if (!estRole(role) || role === "fbo") {
-    throw new HttpsError("invalid-argument", "Rôle interne invalide.");
   }
   exigerDroitSurRole(appelant.role, role);
 
-  const compte = await getAuth()
-    .createUser({ phoneNumber: telephone, displayName: nom.trim() })
-    .catch((e: { code?: string }) => {
-      if (e.code === "auth/phone-number-already-exists") {
-        throw new HttpsError("already-exists", "Ce numéro possède déjà un compte.");
-      }
-      throw e;
-    });
+  const adresse = cleEmail(email);
+  const existant = await getAuth().getUserByEmail(adresse).catch(() => null);
+  if (existant) {
+    if (existant.uid === appelant.uid) throw new HttpsError("permission-denied", "Vous ne pouvez pas changer votre propre rôle.");
+    await getAuth().setCustomUserClaims(existant.uid, { ...existant.customClaims, role, pays });
+    await getAuth().revokeRefreshTokens(existant.uid);
+    await db.doc(`users/${existant.uid}`).set(
+      { nom: nom.trim(), email: adresse, role, pays, statut: "actif", ...(telephone ? { telephone } : {}) },
+      { merge: true },
+    );
+    await journaliser("role_modifie", appelant.uid, existant.uid, { role, pays });
+    return { uid: existant.uid, role, invitation: false };
+  }
 
-  await getAuth().setCustomUserClaims(compte.uid, { role, pays });
-  await db.doc(`users/${compte.uid}`).create({
+  await db.doc(`invitations/${adresse}`).set({
+    email: adresse,
     nom: nom.trim(),
-    telephone,
-    email: null,
     role,
     pays,
-    centre: typeof centre === "string" ? centre : null,
-    statut: "actif",
+    telephone: typeof telephone === "string" && telephone ? telephone : null,
+    invitePar: appelant.uid,
     createdAt: FieldValue.serverTimestamp(),
   });
-  await journaliser("compte_interne_cree", appelant.uid, compte.uid, { role, pays });
-
-  return { uid: compte.uid, role };
+  await journaliser("personnel_invite", appelant.uid, adresse, { role, pays });
+  return { role, invitation: true };
 });
 
 /** Change le pays d'un compte du personnel : réservé au super administrateur. */

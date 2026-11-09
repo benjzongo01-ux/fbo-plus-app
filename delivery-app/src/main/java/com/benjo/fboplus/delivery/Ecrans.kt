@@ -47,6 +47,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -145,45 +146,63 @@ fun ConnexionEcran(vm: ConnexionViewModel) {
     val activity = LocalContext.current as Activity
     val etat by vm.etat.collectAsState()
     val erreur by vm.erreur.collectAsState()
-    var telephone by remember { mutableStateOf("+226") }
-    var code by remember { mutableStateOf("") }
+    val info by vm.info.collectAsState()
+    var email by remember { mutableStateOf("") }
+    var motDePasse by remember { mutableStateOf("") }
+    var mode by remember { mutableStateOf("connexion") } // connexion, premiere, oubli
+    var dialogueTest by remember { mutableStateOf(false) }
     val chargement = etat == EtatConnexion.Chargement
-    val etape = etat as? EtatConnexion.Code
-
-    // Chaque code ne vaut que pour un envoi : l'ancien ne doit pas occuper le champ.
-    LaunchedEffect(etape?.id) { code = "" }
+    val emailValide = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$").matches(email.trim())
 
     Column(
         Modifier
             .fillMaxSize()
             .background(Fond)
+            .verticalScroll(rememberScrollState())
             .imePadding()
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(Modifier.height(40.dp))
         Text("FBO+", color = Or, fontSize = 34.sp, fontWeight = FontWeight.Bold)
         Text("Delivery", color = TexteDoux, fontSize = 16.sp)
         Spacer(Modifier.height(32.dp))
 
-        if (etape == null) {
-            OutlinedTextField(
-                value = telephone,
-                onValueChange = { telephone = it.filter { c -> c.isDigit() || c == '+' } },
-                label = { Text("Numéro de téléphone") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        if (mode != "oubli") {
+            OutlinedButton(
+                onClick = { if (vm.googleConfigure) vm.connecterGoogle(activity) else dialogueTest = true },
+                enabled = !chargement && (vm.googleConfigure || vm.googleDeTest),
                 shape = RoundedCornerShape(12.dp),
-                colors = couleursChamp(),
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = Color(0xFF1F1F1F)),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Spacer(Modifier.width(12.dp))
+                Text("Continuer avec Google", fontWeight = FontWeight.SemiBold)
+            }
+            Text("ou avec votre email", color = TexteDiscret, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp))
+        }
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Adresse email") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            shape = RoundedCornerShape(12.dp),
+            colors = couleursChamp(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (mode != "oubli") {
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(
-                value = code,
-                onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) code = it },
-                label = { Text("Code reçu par SMS") },
+                value = motDePasse,
+                onValueChange = { motDePasse = it },
+                label = { Text(if (mode == "premiere") "Choisissez un mot de passe (8 caractères au moins)" else "Mot de passe") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 shape = RoundedCornerShape(12.dp),
                 colors = couleursChamp(),
                 modifier = Modifier.fillMaxWidth()
@@ -194,24 +213,58 @@ fun ConnexionEcran(vm: ConnexionViewModel) {
             Spacer(Modifier.height(10.dp))
             Text(it, color = Rouge, fontSize = 14.sp, textAlign = TextAlign.Center)
         }
+        info?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, color = Vert, fontSize = 14.sp, textAlign = TextAlign.Center)
+        }
         Spacer(Modifier.height(20.dp))
 
         if (chargement) {
             CircularProgressIndicator(color = Or)
-        } else if (etape == null) {
-            BoutonPrincipal("Recevoir le code", telephone.length >= 8) {
-                vm.envoyerCode(activity, telephone)
-            }
         } else {
-            BoutonPrincipal("Se connecter", code.length == 6) { vm.verifier(etape.id, code) }
-            TextButton(onClick = vm::changerNumero) { Text("Changer de numéro", color = Or) }
+            when (mode) {
+                "connexion" -> BoutonPrincipal("Se connecter", emailValide && motDePasse.isNotEmpty()) {
+                    vm.connecterEmail(email, motDePasse)
+                }
+                "premiere" -> BoutonPrincipal("Créer mon mot de passe", emailValide && motDePasse.length >= 8) {
+                    vm.creerMotDePasse(email, motDePasse)
+                }
+                else -> BoutonPrincipal("Recevoir le lien", emailValide) { vm.motDePasseOublie(email) }
+            }
         }
-        Spacer(Modifier.height(16.dp))
+        if (mode != "connexion") TextButton(onClick = { mode = "connexion" }) { Text("J'ai déjà un mot de passe", color = Or) }
+        if (mode != "premiere") TextButton(onClick = { mode = "premiere" }) { Text("Première connexion par email", color = Or) }
+        if (mode != "oubli") TextButton(onClick = { mode = "oubli" }) { Text("Mot de passe oublié", color = Or) }
+        Spacer(Modifier.height(12.dp))
         Text(
-            "Les comptes livreurs sont créés par l'administration.",
+            "Seules les adresses invitées par l'administration ont accès à FBO+ Delivery.",
             color = TexteDiscret,
             fontSize = 13.sp,
             textAlign = TextAlign.Center
+        )
+    }
+
+    if (dialogueTest) {
+        var adresse by remember { mutableStateOf("livreur.test@gmail.com") }
+        AlertDialog(
+            onDismissRequest = { dialogueTest = false },
+            containerColor = Carte,
+            title = { Text("Compte Google de test", color = Texte) },
+            text = {
+                OutlinedTextField(
+                    value = adresse,
+                    onValueChange = { adresse = it },
+                    label = { Text("Adresse Gmail fictive (émulateurs)") },
+                    singleLine = true,
+                    colors = couleursChamp()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { dialogueTest = false; vm.connecterGoogleDeTest(adresse.trim()) }) {
+                    Text("Continuer", color = Or)
+                }
+            },
+            dismissButton = { TextButton(onClick = { dialogueTest = false }) { Text("Annuler", color = TexteDoux) } }
         )
     }
 }

@@ -158,6 +158,11 @@ service cloud.firestore {
       allow delete: if connecte() && resource.data.userId == request.auth.uid;
     }
 
+    // Invitations du personnel : lues et annulées par le super administrateur, créées par le serveur.
+    match /invitations/{email} {
+      allow read, delete: if estSuperAdmin();
+    }
+
     match /auditLogs/{id} {
       allow read: if estSuperAdmin();
     }

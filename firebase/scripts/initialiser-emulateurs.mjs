@@ -24,17 +24,20 @@ const produits = JSON.parse(readFileSync(resolve(ici, "../seed/products.json"), 
 const BF = "Burkina Faso";
 const CI = "Côte d'Ivoire";
 
+// Comptes fictifs du personnel : connexion par email (ou « Google de test » avec la même adresse).
+// Mot de passe commun, valable uniquement sur les émulateurs : FboTest2026!
+const MOT_DE_PASSE_TEST = "FboTest2026!";
 const comptes = [
-  { telephone: "+22670000010", nom: "Super Admin Test", role: "super_admin", pays: BF },
-  { telephone: "+22670000011", nom: "Admin Burkina Test", role: "admin", pays: BF },
-  { telephone: "+22670000012", nom: "Opérateur Burkina Test", role: "operateur", pays: BF },
-  { telephone: "+22670000013", nom: "Gestionnaire Burkina Test", role: "gestionnaire_stock", pays: BF },
-  { telephone: "+22670000014", nom: "Livreur Burkina Test", role: "livreur", pays: BF },
-  { telephone: "+2250700000011", nom: "Admin Côte d'Ivoire Test", role: "admin", pays: CI },
-  { telephone: "+2250700000014", nom: "Livreur Côte d'Ivoire Test", role: "livreur", pays: CI },
+  { email: "superadmin@fboplus.test", telephone: "+22670000010", nom: "Super Admin Test", role: "super_admin", pays: BF },
+  { email: "admin.bf@fboplus.test", telephone: "+22670000011", nom: "Admin Burkina Test", role: "admin", pays: BF },
+  { email: "operateur.bf@fboplus.test", telephone: "+22670000012", nom: "Opérateur Burkina Test", role: "operateur", pays: BF },
+  { email: "stock.bf@fboplus.test", telephone: "+22670000013", nom: "Gestionnaire Burkina Test", role: "gestionnaire_stock", pays: BF },
+  { email: "livreur.bf@fboplus.test", telephone: "+22670000014", nom: "Livreur Burkina Test", role: "livreur", pays: BF },
+  { email: "admin.ci@fboplus.test", telephone: "+2250700000011", nom: "Admin Côte d'Ivoire Test", role: "admin", pays: CI },
+  { email: "livreur.ci@fboplus.test", telephone: "+2250700000014", nom: "Livreur Côte d'Ivoire Test", role: "livreur", pays: CI },
 ];
 
-// Distributeur de test créé depuis le téléphone : +22670000020, PIN 2468 (émulateurs uniquement).
+// Distributeur de test : se crée depuis FBO+ (Google de test ou email). PIN de test conseillé : 2468.
 
 // Un entrepôt par pays ouvert. Le Sénégal reste fermé tant qu'il n'a pas d'entrepôt.
 const entrepots = [
@@ -58,10 +61,10 @@ const villes = [
 for (const [id, pays, ville, frais] of villes) {
   lot.set(db.doc(`villesExpedition/${id}`), { pays, ville, frais, actif: true });
 }
-lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, commissionLivreur: 500 });
-// Tarifs propres à chaque pays ; ils priment sur les tarifs communs ci-dessus.
-lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 1000, commissionLivreur: 500 });
-lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 1500, commissionLivreur: 700 });
+// Livraison : 2 000 FCFA minimum (tout Ouagadougou) ; Abidjan dès 3 000, selon la zone.
+lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 3000, commissionLivreur: 700 });
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);
@@ -76,14 +79,17 @@ for (const { id, ...produit } of produits) {
 await lot.close();
 
 for (const c of comptes) {
-  const compte = await auth
-    .getUserByPhoneNumber(c.telephone)
-    .catch(() => auth.createUser({ phoneNumber: c.telephone, displayName: c.nom }));
+  const compte =
+    (await auth.getUserByEmail(c.email).catch(() => null)) ??
+    (await auth.getUserByPhoneNumber(c.telephone).catch(() => null)) ??
+    (await auth.createUser({ email: c.email, phoneNumber: c.telephone, displayName: c.nom }));
+  await auth.updateUser(compte.uid, { email: c.email, emailVerified: true, password: MOT_DE_PASSE_TEST });
   await auth.setCustomUserClaims(compte.uid, { role: c.role, pays: c.pays });
   await db.doc(`users/${compte.uid}`).set(
     {
       nom: c.nom,
       telephone: c.telephone,
+      email: c.email,
       role: c.role,
       pays: c.pays,
       statut: "actif",

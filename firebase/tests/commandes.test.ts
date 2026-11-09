@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { getAuth } from "firebase-admin/auth";
 import { adminDb, cle, codeErreur, compte, fermerApplis, preparerAdmin } from "./outils.js";
 
 let produit: string;
@@ -605,12 +606,15 @@ describe("administration par pays", () => {
     expect((await adminDb().doc(`deliveries/${id}`).get()).data()?.pays).toBe("Burkina Faso");
   });
 
-  it("seul le super admin crée des comptes et choisit leur pays", async () => {
+  it("seul le super admin attribue un rôle de personnel et choisit le pays", async () => {
     const adminCi = await compte("admin", { pays: "Côte d'Ivoire" });
     const superAdmin = await compte("super_admin");
-    const livreur = { telephone: "+2250700001234", nom: "Koffi", role: "livreur", pays: "Côte d'Ivoire" };
-    expect(await codeErreur(adminCi.appeler("creerCompteInterne", livreur))).toBe("functions/permission-denied");
-    const { uid } = await superAdmin.appeler("creerCompteInterne", livreur);
+    const futur = await compte("fbo");
+    const email = `koffi.${futur.uid}@gmail.com`;
+    await getAuth().updateUser(futur.uid, { email, emailVerified: true });
+    const livreur = { email, nom: "Koffi", role: "livreur", pays: "Côte d'Ivoire" };
+    expect(await codeErreur(adminCi.appeler("inviterPersonnel", livreur))).toBe("functions/permission-denied");
+    const { uid } = await superAdmin.appeler("inviterPersonnel", livreur);
     expect((await adminDb().doc(`users/${uid}`).get()).data()?.pays).toBe("Côte d'Ivoire");
 
     expect(await codeErreur(adminCi.appeler("definirPays", { uid, pays: "Sénégal" }))).toBe(

@@ -32,7 +32,7 @@ export const LIMITES: Record<string, Limite> = {
   // Administration : un centre d'appel enchaîne beaucoup d'actions, on reste large.
   avancerCommande: { max: 60, fenetreS: 60 },
   ajusterStock: { max: 60, fenetreS: 60 },
-  creerCompteInterne: { max: 20, fenetreS: 600 },
+  inviterPersonnel: { max: 20, fenetreS: 600 },
 };
 
 interface Compteur {

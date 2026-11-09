@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Etat, filtrePays, LIBELLES_ROLES, PAYS, useAction, useCollection, type Doc } from "../commun";
-import { appeler } from "../firebase";
+import { deleteDoc, doc } from "firebase/firestore";
+import { appeler, db } from "../firebase";
 import { useSession } from "../session";
 
 const ROLES_INTERNES = ["livreur", "operateur", "gestionnaire_stock", "admin", "super_admin"];
@@ -38,6 +39,7 @@ export default function Utilisateurs() {
     <>
       <h1>Utilisateurs</h1>
       <NouveauCompte roleAppelant={role} />
+      <Invitations />
       <div className="filtres">
         <input placeholder="Nom, téléphone ou ID Forever" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
         {ROLES_ADMIN.includes(role) && (
@@ -239,8 +241,33 @@ function Distributeur({
   );
 }
 
+/** Invitations en attente : la personne n'a pas encore fait sa première connexion. */
+function Invitations() {
+  const { docs } = useCollection("invitations");
+  const { enCours, erreur, lancer } = useAction();
+  if (!docs?.length) return null;
+  return (
+    <section className="carte marge">
+      <h2>Invitations en attente</h2>
+      <ul className="liste">
+        {docs.map((i) => (
+          <li key={i.id}>
+            <span>{i.nom} · {i.email} · {LIBELLES_ROLES[i.role]} · {i.pays}</span>
+            <button className="lien" disabled={enCours} onClick={() => lancer(() => deleteDoc(doc(db, "invitations", i.id)))}>
+              Annuler
+            </button>
+          </li>
+        ))}
+      </ul>
+      {erreur && <p className="erreur">{erreur}</p>}
+    </section>
+  );
+}
+
 function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
-  const [telephone, setTelephone] = useState("+226");
+  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [info, setInfo] = useState("");
   const [nom, setNom] = useState("");
   const [role, setRole] = useState("livreur");
   const [pays, setPays] = useState(PAYS[0]);
@@ -249,9 +276,19 @@ function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
 
   async function creer(e: FormEvent) {
     e.preventDefault();
-    const ok = await lancer(() => appeler("creerCompteInterne", { telephone, nom, role, pays }));
+    setInfo("");
+    let resultat: { invitation?: boolean } = {};
+    const ok = await lancer(async () => {
+      resultat = await appeler("inviterPersonnel", { email, nom, role, pays, telephone });
+    });
     if (ok) {
-      setTelephone("+226");
+      setInfo(
+        resultat.invitation
+          ? `Invitation enregistrée : ${email} recevra son rôle à sa première connexion (Google ou email).`
+          : `Ce compte existait déjà : son rôle est appliqué.`,
+      );
+      setEmail("");
+      setTelephone("");
       setNom("");
     }
   }
@@ -259,7 +296,8 @@ function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
   return (
     <form className="filtres" onSubmit={creer}>
       <input placeholder="Nom complet" value={nom} onChange={(e) => setNom(e.target.value)} required />
-      <input aria-label="Téléphone" value={telephone} onChange={(e) => setTelephone(e.target.value)} required />
+      <input type="email" placeholder="Adresse email (Google de préférence)" aria-label="Adresse email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input placeholder="Téléphone (facultatif)" aria-label="Téléphone" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
       <select aria-label="Rôle" value={role} onChange={(e) => setRole(e.target.value)}>
         {roles.map((r) => <option key={r} value={r}>{LIBELLES_ROLES[r]}</option>)}
       </select>
@@ -268,8 +306,9 @@ function NouveauCompte({ roleAppelant }: { roleAppelant: string }) {
           {PAYS.map((p) => <option key={p}>{p}</option>)}
         </select>
       )}
-      <button className="principal" disabled={enCours}>Créer le compte</button>
+      <button className="principal" disabled={enCours}>Inviter</button>
       {erreur && <span className="erreur">{erreur}</span>}
+      {info && <span className="succes">{info}</span>}
     </form>
   );
 }
