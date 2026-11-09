@@ -136,6 +136,20 @@ async function lireClientLivraison(tx: Transaction, d: Record<string, unknown>, 
 
 type Mode = "livraison" | "validation" | "expedition";
 
+/**
+ * Zone de livraison facultative (commune, quartier) : son tarif remplace celui du pays.
+ * Ex. Ouagadougou 2 000 FCFA partout ; Abidjan de 3 000 à 5 000 selon la commune.
+ */
+async function lireZone(tx: Transaction, d: Record<string, unknown>, pays: string) {
+  const zoneId = texte(d.zoneId, 128);
+  if (!zoneId) return null;
+  const zone = (await tx.get(db.doc(`zonesLivraison/${zoneId}`))).data();
+  if (!zone || zone.actif !== true || zone.pays !== pays) {
+    throw new HttpsError("invalid-argument", "Zone de livraison inconnue pour ce pays.");
+  }
+  return { id: zoneId, nom: String(zone.nom), frais: Number(zone.frais ?? 0) };
+}
+
 function lireMode(valeur: unknown): Mode {
   if (valeur === "livraison" || valeur === "validation" || valeur === "expedition") return valeur;
   throw new HttpsError("invalid-argument", "Choisissez livraison, validation ou expédition.");
@@ -322,9 +336,10 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     const mode = lireMode(d.mode);
     const beneficiaire = lireBeneficiaire(d, profil);
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
+    const zone = mode === "livraison" ? await lireZone(tx, d, pays) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
     const frais =
-      mode === "livraison" ? tarifs.fraisLivraison : (envoi?.expedition.frais ?? 0);
+      mode === "livraison" ? (zone?.frais ?? tarifs.fraisLivraison) : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
@@ -346,6 +361,7 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       beneficiaire,
       // En expédition, « client » désigne le destinataire du colis.
       client: client ?? envoi?.destinataire ?? null,
+      zone: zone ? { id: zone.id, nom: zone.nom } : null,
       expedition: envoi?.expedition ?? null,
       adresse: client
         ? [client.quartier, client.adresse].filter(Boolean).join(", ")

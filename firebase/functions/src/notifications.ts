@@ -42,7 +42,7 @@ async function envoyerPush(userId: string, titre: string, corps: string, command
   );
 }
 
-async function notifier(userId: string, titre: string, corps: string, commandeId: string, cle: string) {
+export async function notifier(userId: string, titre: string, corps: string, commandeId: string, cle: string) {
   // Un déclencheur peut s'exécuter deux fois : l'identifiant fixe évite le doublon.
   const creee = await db
     .doc(`notifications/${commandeId}_${cle}_${userId}`)

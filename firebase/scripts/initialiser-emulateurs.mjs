@@ -49,6 +49,24 @@ const lot = db.bulkWriter();
 for (const { id, ...entrepot } of entrepots) lot.set(db.doc(`warehouses/${id}`), { ...entrepot, actif: true });
 lot.set(db.doc("centres/ouagadougou"), { nom: "Ouagadougou", actif: true });
 
+// Zones de livraison d'Abidjan (position approximative du centre, pour l'affectation des livreurs).
+const zones = [
+  ["plateau", CI, "Plateau", 3000, 5.3237, -4.0223],
+  ["cocody", CI, "Cocody", 3000, 5.36, -3.99],
+  ["adjame", CI, "Adjamé", 3000, 5.36, -4.03],
+  ["treichville", CI, "Treichville", 3000, 5.295, -4.008],
+  ["marcory", CI, "Marcory", 3000, 5.3, -3.98],
+  ["koumassi", CI, "Koumassi", 3500, 5.29, -3.95],
+  ["yopougon", CI, "Yopougon", 4000, 5.345, -4.08],
+  ["abobo", CI, "Abobo", 4000, 5.42, -4.02],
+  ["port-bouet", CI, "Port-Bouët", 4000, 5.256, -3.926],
+  ["bingerville", CI, "Bingerville", 5000, 5.355, -3.89],
+  ["anyama", CI, "Anyama", 5000, 5.495, -4.052],
+];
+for (const [id, pays, nom, frais, lat, lng] of zones) {
+  lot.set(db.doc(`zonesLivraison/${id}`), { pays, nom, frais, position: { lat, lng }, actif: true });
+}
+
 // Villes d'expédition fictives et leurs frais, une liste par pays.
 const villes = [
   ["bobo", BF, "Bobo-Dioulasso", 2500],

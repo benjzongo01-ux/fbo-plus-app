@@ -169,6 +169,7 @@ object VentesRepository {
                 "clientQuartier" to details.quartier.trim(),
                 "adresse" to details.adresse.trim(),
                 "villeExpeditionId" to details.villeId,
+                "zoneId" to if (details.mode == "livraison") details.zoneId else "",
                 "destinataireNom" to details.clientNom.trim(),
                 "destinataireTelephone" to details.clientTelephone.trim(),
                 "destinataireTelephone2" to details.clientTelephone2.trim(),
@@ -185,6 +186,16 @@ object VentesRepository {
         val tarifs = if (propres.exists()) propres else db.document("parametres/tarifs").get().await()
         return tarifs.getLong("fraisLivraison")?.toInt() ?: 0
     }
+
+    /** Zones de livraison du pays (communes, quartiers) avec leur tarif. */
+    suspend fun zonesLivraison(pays: String): List<VilleExpedition> =
+        FirebaseFirestore.getInstance().collection("zonesLivraison")
+            .whereEqualTo("pays", pays)
+            .whereEqualTo("actif", true)
+            .get().await()
+            .documents
+            .map { VilleExpedition(it.id, it.getString("nom").orEmpty(), it.getLong("frais")?.toInt() ?: 0) }
+            .sortedBy { it.frais * 1000 + it.nom.length }
 
     /** Villes où l'administration du pays accepte d'expédier, avec leurs frais. */
     suspend fun villesExpedition(pays: String): List<VilleExpedition> =

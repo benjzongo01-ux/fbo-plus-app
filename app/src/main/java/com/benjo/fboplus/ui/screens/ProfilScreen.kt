@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ContentCopy
@@ -100,7 +101,8 @@ fun ProfilScreen(
     onCommandes: () -> Unit,
     onClients: () -> Unit,
     onBoutique: () -> Unit,
-    onNotifications: () -> Unit
+    onNotifications: () -> Unit,
+    onValidations: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -185,6 +187,10 @@ fun ProfilScreen(
                     }
                     Separateur()
                     LigneOption(Icons.AutoMirrored.Filled.ReceiptLong, "Mes commandes", sousTitre = "Suivi en temps réel", onClick = onCommandes) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Verified, "Validations au siège", sousTitre = "Achat minimum et CC", onClick = onValidations) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
                     }
                     Separateur()

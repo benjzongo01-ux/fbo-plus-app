@@ -31,7 +31,11 @@ data class DetailsCommande(
     val villeId: String = "",
     val villeNom: String = "",
     val fraisVille: Int = 0,
-    val compagnie: String = ""
+    val compagnie: String = "",
+    // Livraison : zone facultative (commune, quartier) dont le tarif remplace celui du pays.
+    val zoneId: String = "",
+    val zoneNom: String = "",
+    val fraisZone: Int = 0
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {

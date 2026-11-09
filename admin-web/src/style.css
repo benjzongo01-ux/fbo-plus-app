@@ -162,3 +162,13 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .separateur { display: flex; align-items: center; gap: 10px; color: var(--discret); font-size: 13px; margin: 14px 0; }
 .separateur::before, .separateur::after { content: ""; flex: 1; border-top: 1px solid var(--bordure); }
 .connexion .liens { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; margin-top: 10px; }
+
+/* Validations au siège */
+.lots { display: grid; gap: 12px; }
+.entete-lot { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.entete-lot h2 { margin: 0 0 4px; }
+@media print {
+  .menu, .onglets, .actions, .bandeau, .non-imprime, h1 + p { display: none !important; }
+  body, .contenu, .carte { background: #fff !important; color: #000 !important; }
+  .carte { border: 1px solid #999; break-inside: avoid; }
+}

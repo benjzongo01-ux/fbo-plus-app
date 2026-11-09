@@ -69,6 +69,7 @@ import com.benjo.fboplus.ui.screens.CompleteProfileScreen
 import com.benjo.fboplus.ui.screens.PinCreationScreen
 import com.benjo.fboplus.ui.screens.BiometricSuggestionScreen
 import com.benjo.fboplus.ui.screens.PinVerificationScreen
+import com.benjo.fboplus.ui.screens.ValidationsScreen
 import com.benjo.fboplus.viewmodel.AuthViewModel
 
 @Composable
@@ -128,7 +129,7 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations"
     )
 
     // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
@@ -377,6 +378,7 @@ fun FBONavigation() {
                     onClients = { navController.navigate("clients") },
                     onBoutique = { navController.navigate("boutique") },
                     onNotifications = { navController.navigate("notifications") },
+                    onValidations = { navController.navigate("validations") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -384,6 +386,9 @@ fun FBONavigation() {
                         }
                     }
                 )
+            }
+            composable("validations") {
+                ValidationsScreen(onRetour = { navController.popBackStack() })
             }
             composable("commandes") {
                 MesCommandesScreen(

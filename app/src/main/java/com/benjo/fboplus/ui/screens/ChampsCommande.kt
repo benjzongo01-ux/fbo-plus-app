@@ -64,18 +64,20 @@ fun DetailsCommandeEcran(
     // Villes d'expédition du pays choisi : rechargées à chaque changement de pays.
     var villes by remember { mutableStateOf<List<VilleExpedition>?>(null) }
     var fraisLivraison by remember { mutableStateOf<Int?>(null) }
+    var zones by remember { mutableStateOf<List<VilleExpedition>>(emptyList()) }
     LaunchedEffect(details.pays) {
         villes = null
         fraisLivraison = null
         if (details.pays.isNotBlank()) {
             villes = runCatching { VentesRepository.villesExpedition(details.pays) }.getOrDefault(emptyList())
             fraisLivraison = runCatching { VentesRepository.fraisLivraison(details.pays) }.getOrNull()
+            zones = runCatching { VentesRepository.zonesLivraison(details.pays) }.getOrDefault(emptyList())
         }
     }
 
     // Total que le serveur calculera, affiché avant l'envoi.
     val frais = when (details.mode) {
-        "livraison" -> fraisLivraison ?: 0
+        "livraison" -> if (details.zoneId.isNotBlank()) details.fraisZone else fraisLivraison ?: 0
         "expedition" -> details.fraisVille
         else -> 0
     }
@@ -132,7 +134,8 @@ fun DetailsCommandeEcran(
                             modifier = Modifier.weight(1f)
                         ) {
                             ventesViewModel.modifierDetails {
-                                if (it.pays == p.nom) it else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0)
+                                if (it.pays == p.nom) it
+                                else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0, zoneId = "", zoneNom = "", fraisZone = 0)
                             }
                         }
                     }
@@ -246,10 +249,24 @@ fun DetailsCommandeEcran(
                     Champ("Adresse, repère (facultatif)", details.adresse) { v ->
                         ventesViewModel.modifierDetails { it.copy(adresse = v) }
                     }
-                    Aide(
-                        fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
-                            ?: "Les frais de livraison du pays s'ajoutent au total."
-                    )
+                    if (zones.isNotEmpty()) {
+                        Aide("Zone de livraison : le tarif dépend de la commune.")
+                        Pastille(
+                            "Autre zone · ${fcfa(fraisLivraison ?: 0)}",
+                            details.zoneId.isBlank(),
+                            Modifier.fillMaxWidth()
+                        ) { ventesViewModel.modifierDetails { it.copy(zoneId = "", zoneNom = "", fraisZone = 0) } }
+                        zones.forEach { z ->
+                            Pastille("${z.nom} · ${fcfa(z.frais)}", details.zoneId == z.id, Modifier.fillMaxWidth()) {
+                                ventesViewModel.modifierDetails { it.copy(zoneId = z.id, zoneNom = z.nom, fraisZone = z.frais) }
+                            }
+                        }
+                    } else {
+                        Aide(
+                            fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
+                                ?: "Les frais de livraison du pays s'ajoutent au total."
+                        )
+                    }
                 }
             }
 

@@ -87,6 +87,88 @@ function VillesExpedition() {
   );
 }
 
+/** Zones de livraison et leur tarif (remplace le tarif du pays pour cette zone). */
+function ZonesLivraison() {
+  const { role, pays } = useSession();
+  const superAdmin = role === "super_admin";
+  const action = useAction();
+  const { docs: villes } = useCollection("zonesLivraison", ...filtrePays(role, pays));
+  const [ville, setVille] = useState("");
+  const [frais, setFrais] = useState("");
+  const [paysVille, setPaysVille] = useState(pays || PAYS[0]);
+
+  function ajouter(e: FormEvent) {
+    e.preventDefault();
+    action.lancer(async () => {
+      await addDoc(collection(db, "zonesLivraison"), {
+        pays: superAdmin ? paysVille : pays,
+        nom: ville.trim(),
+        frais: Number(frais),
+        actif: true,
+      });
+      setVille("");
+      setFrais("");
+    });
+  }
+
+  const triees = [...(villes ?? [])].sort((a, b) => `${a.pays}${a.nom}`.localeCompare(`${b.pays}${b.nom}`));
+
+  return (
+    <section className="carte etroit">
+      <h2>Zones de livraison</h2>
+      <p className="discret">Communes ou quartiers dont le tarif diffère du tarif du pays (ex. Abidjan : 3 000 à 5 000 FCFA). Le distributeur choisit la zone à la commande.</p>
+      <ul className="liste">
+        {triees.map((v) => (
+          <li key={v.id}>
+            <span>
+              {v.nom}{superAdmin ? ` (${v.pays})` : ""} · {fcfa(v.frais)}
+              {!v.actif && <span className="discret"> · fermée</span>}
+            </span>
+            <span>
+              <button
+                className="lien"
+                onClick={() => {
+                  const saisi = window.prompt(`Nouveaux frais pour ${v.nom} (FCFA)`, String(v.frais));
+                  if (saisi !== null && /^\d+$/.test(saisi.trim())) {
+                    action.lancer(() => setDoc(doc(db, "zonesLivraison", v.id), { frais: Number(saisi) }, { merge: true }));
+                  }
+                }}
+              >
+                Frais
+              </button>{" "}
+              <button
+                className="lien"
+                onClick={() => action.lancer(() => setDoc(doc(db, "zonesLivraison", v.id), { actif: !v.actif }, { merge: true }))}
+              >
+                {v.actif ? "Fermer" : "Rouvrir"}
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {action.erreur && <p className="erreur">{action.erreur}</p>}
+      <form className="actions" onSubmit={ajouter}>
+        <input placeholder="Zone (commune, quartier)" aria-label="Zone" value={ville} onChange={(e) => setVille(e.target.value)} required />
+        <input
+          type="number"
+          min={0}
+          placeholder="Frais (FCFA)"
+          aria-label="Frais de livraison de la zone"
+          value={frais}
+          onChange={(e) => setFrais(e.target.value)}
+          required
+        />
+        {superAdmin && (
+          <select aria-label="Pays" value={paysVille} onChange={(e) => setPaysVille(e.target.value)}>
+            {PAYS.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        )}
+        <button className="secondaire" disabled={action.enCours}>Ajouter</button>
+      </form>
+    </section>
+  );
+}
+
 export default function Parametres() {
   const { role, pays } = useSession();
   const superAdmin = role === "super_admin";
@@ -94,6 +176,7 @@ export default function Parametres() {
   const paysVise = superAdmin ? paysTarifs : pays;
   const [frais, setFrais] = useState("");
   const [commission, setCommission] = useState("");
+  const [minimum, setMinimum] = useState("");
   const [enregistre, setEnregistre] = useState(false);
   const action = useAction();
   const { docs: centres } = useCollection("centres");
@@ -106,6 +189,7 @@ export default function Parametres() {
       const t = d.exists() ? d.data() : (await getDoc(doc(db, "parametres", "tarifs"))).data();
       setFrais(String(t?.fraisLivraison ?? 0));
       setCommission(String(t?.commissionLivreur ?? 0));
+      setMinimum(String(t?.minimumValidation ?? 36000));
     });
   }, [paysVise]);
 
@@ -116,6 +200,7 @@ export default function Parametres() {
       setDoc(doc(db, "tarifsPays", paysVise), {
         fraisLivraison: Number(frais),
         commissionLivreur: Number(commission),
+        minimumValidation: Number(minimum),
       }),
     );
     setEnregistre(ok);
@@ -144,12 +229,15 @@ export default function Parametres() {
         )}
         <label>Frais de livraison (FCFA)<input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} required /></label>
         <label>Commission par livraison (FCFA)<input type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} required /></label>
+        <label>Achat minimum pour la validation au siège (FCFA)<input type="number" min={0} value={minimum} onChange={(e) => setMinimum(e.target.value)} required /></label>
         {action.erreur && <p className="erreur">{action.erreur}</p>}
         {enregistre && <p className="succes">Tarifs enregistrés.</p>}
         <button className="principal" disabled={action.enCours}>Enregistrer</button>
       </form>
 
       <PanneauMaintenance />
+
+      <ZonesLivraison />
 
       <VillesExpedition />
 

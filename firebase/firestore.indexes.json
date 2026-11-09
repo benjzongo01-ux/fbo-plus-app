@@ -25,6 +25,22 @@
       ]
     },
     {
+      "collectionGroup": "lotsValidation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pays", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lotsValidation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fboId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "customers",
       "queryScope": "COLLECTION",
       "fields": [
