@@ -37,6 +37,15 @@ export function exigerConnexion(req: CallableRequest<unknown>): string {
   return req.auth.uid;
 }
 
+/** Comptes, rôles, catalogue, tarifs et maintenance : réservés au super administrateur. */
+export function exigerSuperAdmin(req: CallableRequest<unknown>): { uid: string; role: string; pays: string } {
+  const uid = exigerConnexion(req);
+  if (req.auth?.token.role !== "super_admin") {
+    throw new HttpsError("permission-denied", "Action réservée au super administrateur.");
+  }
+  return { uid, role: "super_admin", pays: paysDe(req) };
+}
+
 export function exigerAdmin(req: CallableRequest<unknown>): { uid: string; role: string; pays: string } {
   const uid = exigerConnexion(req);
   const role = String(req.auth?.token.role ?? "");

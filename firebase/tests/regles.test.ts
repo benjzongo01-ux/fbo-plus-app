@@ -136,27 +136,45 @@ describe("administration par pays", () => {
     await assertSucceeds(getDoc(doc(sa, "orders/o1")));
   });
 
-  it("un administrateur ne crée d'entrepôt que dans son pays", async () => {
-    await assertSucceeds(setDoc(doc(db("a", "admin"), "warehouses/w2"), { nom: "Bobo", pays: "Burkina Faso" }));
-    await assertFails(setDoc(doc(db("a", "admin"), "warehouses/w3"), { nom: "Dakar", pays: "Sénégal" }));
-  });
-
-  it("chaque administration règle les tarifs de son pays seulement", async () => {
-    const tarifs = { fraisLivraison: 1000, commissionLivreur: 500 };
-    await assertSucceeds(setDoc(doc(db("a", "admin"), "tarifsPays/Burkina Faso"), tarifs));
-    await assertFails(setDoc(doc(db("a", "admin"), "tarifsPays/Côte d'Ivoire"), tarifs));
-    await assertFails(setDoc(doc(db("op", "operateur"), "tarifsPays/Burkina Faso"), tarifs));
-    await assertSucceeds(setDoc(doc(db("sa", "super_admin", ""), "tarifsPays/Sénégal"), tarifs));
+  it("seul le super administrateur règle entrepôts, tarifs, villes, centres et paramètres", async () => {
+    const sa = db("sa", "super_admin", "");
+    const reglages: [string, Record<string, unknown>][] = [
+      ["warehouses/w2", { nom: "Bobo", pays: "Burkina Faso" }],
+      ["tarifsPays/Burkina Faso", { fraisLivraison: 1000, commissionLivreur: 500 }],
+      ["villesExpedition/v1", { pays: "Burkina Faso", ville: "Bobo-Dioulasso", frais: 2500, actif: true }],
+      ["centres/c1", { nom: "Ouagadougou", actif: true }],
+      ["parametres/tarifs", { fraisLivraison: 1000 }],
+    ];
+    for (const [chemin, donnees] of reglages) {
+      await assertFails(setDoc(doc(db("a", "admin"), chemin), donnees));
+      await assertFails(setDoc(doc(db("op", "operateur"), chemin), donnees));
+      await assertSucceeds(setDoc(doc(sa, chemin), donnees));
+    }
     await assertSucceeds(getDoc(doc(db("f", "fbo"), "tarifsPays/Burkina Faso")));
+    await assertSucceeds(getDoc(doc(db("f", "fbo"), "villesExpedition/v1")));
+  });
+});
+
+describe("mode maintenance", () => {
+  it("l'état de maintenance est lisible par tous, même sans compte, et modifiable par personne", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "parametres/maintenance"), { actif: false }),
+    );
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "parametres/maintenance")));
+    await assertFails(setDoc(doc(db("sa", "super_admin", ""), "parametres/maintenance"), { actif: true }));
+    await assertFails(setDoc(doc(db("fbo1", "fbo"), "parametres/maintenance"), { actif: false }));
   });
 
-  it("chaque administration tient les villes d'expédition de son pays", async () => {
-    const ville = { pays: "Burkina Faso", ville: "Bobo-Dioulasso", frais: 2500, actif: true };
-    await assertSucceeds(setDoc(doc(db("a", "admin"), "villesExpedition/v1"), ville));
-    await assertFails(setDoc(doc(db("ci", "admin", "Côte d'Ivoire"), "villesExpedition/v1"), { ...ville, frais: 0 }));
-    await assertFails(setDoc(doc(db("ci", "admin", "Côte d'Ivoire"), "villesExpedition/v2"), ville));
-    await assertFails(setDoc(doc(db("op", "operateur"), "villesExpedition/v3"), ville));
-    await assertSucceeds(getDoc(doc(db("f", "fbo"), "villesExpedition/v1")));
+  it("pendant la maintenance, plus aucune écriture sauf celles du super administrateur", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "parametres/maintenance"), { actif: true }),
+    );
+    const d = db("fbo1", "fbo");
+    await assertFails(setDoc(doc(d, "customers/c9"), { ownerId: "fbo1", nom: "Client" }));
+    await assertFails(updateDoc(doc(d, "users/fbo1"), { nom: "Awa T." }));
+    await assertFails(updateDoc(doc(db("liv1", "livreur"), "deliveries/d1"), { position: { lat: 1, lng: 1 } }));
+    await assertSucceeds(getDoc(doc(d, "customers/c1")));
+    await assertSucceeds(updateDoc(doc(db("sa", "super_admin", ""), "products/p1"), { prix: 15500 }));
   });
 });
 
@@ -167,8 +185,15 @@ describe("catalogue et stock", () => {
     await assertFails(updateDoc(doc(d, "products/p1"), { prix: 1 }));
   });
 
-  it("un admin modifie le catalogue", async () => {
-    await assertSucceeds(updateDoc(doc(db("a", "admin"), "products/p1"), { prix: 16000 }));
+  it("seul le super administrateur modifie le catalogue", async () => {
+    await assertFails(updateDoc(doc(db("a", "admin"), "products/p1"), { prix: 16000 }));
+    await assertSucceeds(updateDoc(doc(db("sa", "super_admin", ""), "products/p1"), { prix: 16000 }));
+  });
+
+  it("le personnel ne lit pas le carnet de clients des distributeurs", async () => {
+    await assertFails(getDoc(doc(db("op", "operateur"), "customers/c1")));
+    await assertFails(getDoc(doc(db("a", "admin"), "customers/c1")));
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "customers/c1")));
   });
 
   it("le stock n'est modifiable par aucun client", async () => {
@@ -262,7 +287,8 @@ describe("notifications et journal", () => {
 
   it("le journal est lisible par les admins et n'est jamais modifiable", async () => {
     await assertFails(getDoc(doc(db("o", "operateur"), "auditLogs/a1")));
-    await assertSucceeds(getDoc(doc(db("a", "admin"), "auditLogs/a1")));
+    await assertFails(getDoc(doc(db("a", "admin"), "auditLogs/a1")));
+    await assertSucceeds(getDoc(doc(db("sa", "super_admin", ""), "auditLogs/a1")));
     await assertFails(updateDoc(doc(db("sa", "super_admin"), "auditLogs/a1"), { action: "efface" }));
     await assertFails(deleteDoc(doc(db("sa", "super_admin"), "auditLogs/a1")));
   });
@@ -277,7 +303,8 @@ describe("Cloud Storage", () => {
   });
 
   it("seul un admin dépose une image produit", async () => {
-    await assertSucceeds(uploadBytes(ref(stockage("a", "admin"), "products/a.png"), image, meta));
+    await assertFails(uploadBytes(ref(stockage("a", "admin"), "products/a.png"), image, meta));
+    await assertSucceeds(uploadBytes(ref(stockage("sa", "super_admin"), "products/a.png"), image, meta));
     await assertFails(uploadBytes(ref(stockage("fbo1", "fbo"), "products/b.png"), image, meta));
   });
 
@@ -291,7 +318,7 @@ describe("Cloud Storage", () => {
 
   it("un fichier qui n'est pas une image est refusé", async () => {
     await assertFails(
-      uploadBytes(ref(stockage("a", "admin"), "products/a.txt"), image, { contentType: "text/plain" }),
+      uploadBytes(ref(stockage("sa", "super_admin"), "products/a.txt"), image, { contentType: "text/plain" }),
     );
   });
 });

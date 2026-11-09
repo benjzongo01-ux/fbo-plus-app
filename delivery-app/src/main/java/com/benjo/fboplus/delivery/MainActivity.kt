@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MaterialTheme(colorScheme = Couleurs) {
-                Application()
+                AvecMaintenance { Application() }
             }
         }
     }

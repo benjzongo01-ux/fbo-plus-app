@@ -26,6 +26,8 @@ Modèle de données Firestore (première version)
 • notifications/{id} et auditLogs/{id}.
 Statuts de commande : nouvelle → confirmee → en_preparation → prete → assignee → en_livraison → livree (ou annulee, retournee). Une commande en validation s'arrête à prete → validee : le centre d'appel la valide sur l'ID Forever du bénéficiaire, sans livreur ni frais de livraison. Une expédition s'arrête à prete → expediee : le colis part vers une ville de la liste villesExpedition du pays, dont les frais s'ajoutent au total ; la compagnie de transport est facultative à la commande et choisie par l'expéditeur sinon.
 
+Pouvoirs : seul super_admin règle l'application (comptes, rôles, grades, catalogue, tarifs, paramètres, maintenance) via exigerSuperAdmin ; les admins de pays ne traitent que les commandes et le stock de leur pays. Mode maintenance : parametres/maintenance, vérifié par onAppel et par bloqueParMaintenance() dans les règles.
+
 Toute nouvelle fonction appelable s'écrit avec onAppel(nom, OPTIONS_APPEL, …) (firebase/functions/src/limites.ts), jamais onCall directement : c'est ce qui limite les rafales par utilisateur. Ajuster sa limite dans LIMITES si besoin.
 
 Grade : attribué uniquement par l'administration du pays (definirGrade) ; le distributeur n'écrit que gradeDemande. Tarifs de livraison : tarifsPays/{pays}, sinon parametres/tarifs.
