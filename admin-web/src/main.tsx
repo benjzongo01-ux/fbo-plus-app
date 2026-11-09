@@ -9,6 +9,7 @@ import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
 import Connexion from "./pages/Connexion";
 import Livreurs from "./pages/Livreurs";
+import ValidationsSiege from "./pages/ValidationsSiege";
 import Parametres from "./pages/Parametres";
 import Produits from "./pages/Produits";
 import Stocks from "./pages/Stocks";
@@ -25,6 +26,7 @@ const PAGES = [
   { chemin: "/stocks", titre: "Stocks", roles: ["gestionnaire_stock", ...ADMIN], page: <Stocks /> },
   { chemin: "/produits", titre: "Produits", roles: SUPER, page: <Produits /> },
   { chemin: "/livreurs", titre: "Livreurs", roles: ["operateur", ...ADMIN], page: <Livreurs /> },
+  { chemin: "/validations", titre: "Validations siège", roles: ["operateur", ...ADMIN], page: <ValidationsSiege /> },
   { chemin: "/utilisateurs", titre: "Utilisateurs", roles: SUPER, page: <Utilisateurs /> },
   { chemin: "/parametres", titre: "Paramètres", roles: SUPER, page: <Parametres /> },
 ];

@@ -101,6 +101,11 @@ fun libelleMode(mode: String) = when (mode) {
 
 data class VilleExpedition(val id: String, val nom: String, val frais: Int)
 
+/** Fourchette de livraison du pays : Burkina 1 000 à 2 000, Côte d'Ivoire 2 000 à 5 000 (paliers de 500). */
+data class TarifsLivraison(val base: Int, val min: Int, val max: Int) {
+    val paliers: List<Int> get() = if (max > min) (min..max step 500).toList() else listOf(base)
+}
+
 fun libelleStatut(statut: String): String = when (statut) {
     "nouvelle" -> "Nouvelle"
     "confirmee" -> "Confirmée"

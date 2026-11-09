@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Client
 import com.benjo.fboplus.data.ClientsRepository
 import com.benjo.fboplus.data.Profil
+import com.benjo.fboplus.data.TarifsLivraison
 import com.benjo.fboplus.data.VilleExpedition
 import com.benjo.fboplus.data.VentesRepository
 import com.benjo.fboplus.data.paysAutorises
@@ -63,19 +64,26 @@ fun DetailsCommandeEcran(
 
     // Villes d'expédition du pays choisi : rechargées à chaque changement de pays.
     var villes by remember { mutableStateOf<List<VilleExpedition>?>(null) }
-    var fraisLivraison by remember { mutableStateOf<Int?>(null) }
+    var tarifs by remember { mutableStateOf<TarifsLivraison?>(null) }
+    val fraisLivraison = tarifs?.base
+    var zones by remember { mutableStateOf<List<VilleExpedition>>(emptyList()) }
     LaunchedEffect(details.pays) {
         villes = null
-        fraisLivraison = null
+        tarifs = null
         if (details.pays.isNotBlank()) {
             villes = runCatching { VentesRepository.villesExpedition(details.pays) }.getOrDefault(emptyList())
-            fraisLivraison = runCatching { VentesRepository.fraisLivraison(details.pays) }.getOrNull()
+            tarifs = runCatching { VentesRepository.fraisLivraison(details.pays) }.getOrNull()
+            zones = runCatching { VentesRepository.zonesLivraison(details.pays) }.getOrDefault(emptyList())
         }
     }
 
     // Total que le serveur calculera, affiché avant l'envoi.
     val frais = when (details.mode) {
-        "livraison" -> fraisLivraison ?: 0
+        "livraison" -> when {
+            details.zoneId.isNotBlank() -> details.fraisZone
+            details.fraisChoisis > 0 -> details.fraisChoisis
+            else -> fraisLivraison ?: 0
+        }
         "expedition" -> details.fraisVille
         else -> 0
     }
@@ -132,7 +140,8 @@ fun DetailsCommandeEcran(
                             modifier = Modifier.weight(1f)
                         ) {
                             ventesViewModel.modifierDetails {
-                                if (it.pays == p.nom) it else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0)
+                                if (it.pays == p.nom) it
+                                else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0, zoneId = "", zoneNom = "", fraisZone = 0, fraisChoisis = 0)
                             }
                         }
                     }
@@ -246,10 +255,40 @@ fun DetailsCommandeEcran(
                     Champ("Adresse, repère (facultatif)", details.adresse) { v ->
                         ventesViewModel.modifierDetails { it.copy(adresse = v) }
                     }
-                    Aide(
-                        fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
-                            ?: "Les frais de livraison du pays s'ajoutent au total."
-                    )
+                    if (zones.isNotEmpty()) {
+                        Aide("Zone de livraison : le tarif dépend de la commune.")
+                        Pastille(
+                            "Autre zone · ${fcfa(fraisLivraison ?: 0)}",
+                            details.zoneId.isBlank(),
+                            Modifier.fillMaxWidth()
+                        ) { ventesViewModel.modifierDetails { it.copy(zoneId = "", zoneNom = "", fraisZone = 0) } }
+                        zones.forEach { z ->
+                            Pastille("${z.nom} · ${fcfa(z.frais)}", details.zoneId == z.id, Modifier.fillMaxWidth()) {
+                                ventesViewModel.modifierDetails { it.copy(zoneId = z.id, zoneNom = z.nom, fraisZone = z.frais) }
+                            }
+                        }
+                    } else {
+                        val paliers = tarifs?.paliers.orEmpty()
+                        if (paliers.size > 1) {
+                            Aide("Frais de livraison : moins cher pour un coin proche, plus pour un coin reculé.")
+                            val choisi = details.fraisChoisis.takeIf { it in paliers } ?: tarifs!!.base
+                            paliers.chunked(4).forEach { rangee ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    rangee.forEach { montant ->
+                                        Pastille("%,d".format(Locale.FRANCE, montant), choisi == montant, Modifier.weight(1f)) {
+                                            ventesViewModel.modifierDetails { it.copy(fraisChoisis = montant) }
+                                        }
+                                    }
+                                    repeat(4 - rangee.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        } else {
+                            Aide(
+                                fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
+                                    ?: "Les frais de livraison du pays s'ajoutent au total."
+                            )
+                        }
+                    }
                 }
             }
 

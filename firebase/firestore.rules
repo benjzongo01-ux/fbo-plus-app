@@ -82,6 +82,12 @@ service cloud.firestore {
       allow write: if estSuperAdmin();
     }
 
+    // Zones de livraison (communes, quartiers) et leur tarif : réglées par le super administrateur.
+    match /zonesLivraison/{id} {
+      allow read: if aUnRole();
+      allow write: if estSuperAdmin();
+    }
+
     // Villes d'expédition et leurs frais, tenues par l'administration de chaque pays.
     match /villesExpedition/{id} {
       allow read: if aUnRole();
@@ -156,6 +162,26 @@ service cloud.firestore {
     match /fcmTokens/{token} {
       allow create, update: if connecte() && request.resource.data.userId == request.auth.uid;
       allow delete: if connecte() && resource.data.userId == request.auth.uid;
+    }
+
+    // Commandes reçues par la boutique publique : le distributeur les lit et les classe (traitée, refusée).
+    match /commandesBoutique/{id} {
+      allow read: if role() == 'fbo' && resource.data.fboId == request.auth.uid;
+      allow update: if role() == 'fbo'
+        && resource.data.fboId == request.auth.uid
+        && !bloqueParMaintenance()
+        && champsModifies().hasOnly(['statut', 'traiteeLe'])
+        && request.resource.data.statut in ['traitee', 'refusee'];
+    }
+
+    // Validation au siège : réserves (sous l'achat minimum) et lots à valider. Écriture serveur seulement.
+    match /reservesValidation/{id} {
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
+        || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
+    }
+    match /lotsValidation/{id} {
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
+        || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
     }
 
     // Invitations du personnel : lues et annulées par le super administrateur, créées par le serveur.

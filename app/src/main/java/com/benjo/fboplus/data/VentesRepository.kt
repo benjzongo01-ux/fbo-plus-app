@@ -169,6 +169,8 @@ object VentesRepository {
                 "clientQuartier" to details.quartier.trim(),
                 "adresse" to details.adresse.trim(),
                 "villeExpeditionId" to details.villeId,
+                "zoneId" to if (details.mode == "livraison") details.zoneId else "",
+                "fraisLivraison" to if (details.mode == "livraison" && details.fraisChoisis > 0) details.fraisChoisis else "",
                 "destinataireNom" to details.clientNom.trim(),
                 "destinataireTelephone" to details.clientTelephone.trim(),
                 "destinataireTelephone2" to details.clientTelephone2.trim(),
@@ -179,12 +181,27 @@ object VentesRepository {
     }
 
     /** Frais de livraison du pays (mêmes règles que le serveur : tarifs du pays, sinon tarifs communs). */
-    suspend fun fraisLivraison(pays: String): Int {
+    suspend fun fraisLivraison(pays: String): TarifsLivraison {
         val db = FirebaseFirestore.getInstance()
         val propres = db.document("tarifsPays/$pays").get().await()
         val tarifs = if (propres.exists()) propres else db.document("parametres/tarifs").get().await()
-        return tarifs.getLong("fraisLivraison")?.toInt() ?: 0
+        val base = tarifs.getLong("fraisLivraison")?.toInt() ?: 0
+        return TarifsLivraison(
+            base = base,
+            min = tarifs.getLong("fraisMin")?.toInt() ?: base,
+            max = tarifs.getLong("fraisMax")?.toInt() ?: base
+        )
     }
+
+    /** Zones de livraison du pays (communes, quartiers) avec leur tarif. */
+    suspend fun zonesLivraison(pays: String): List<VilleExpedition> =
+        FirebaseFirestore.getInstance().collection("zonesLivraison")
+            .whereEqualTo("pays", pays)
+            .whereEqualTo("actif", true)
+            .get().await()
+            .documents
+            .map { VilleExpedition(it.id, it.getString("nom").orEmpty(), it.getLong("frais")?.toInt() ?: 0) }
+            .sortedBy { it.frais * 1000 + it.nom.length }
 
     /** Villes où l'administration du pays accepte d'expédier, avec leurs frais. */
     suspend fun villesExpedition(pays: String): List<VilleExpedition> =

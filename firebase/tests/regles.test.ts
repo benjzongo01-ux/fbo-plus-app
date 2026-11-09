@@ -94,6 +94,29 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("seul le distributeur lit et classe les commandes de sa boutique", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "commandesBoutique/b1"), { fboId: "fbo1", statut: "nouvelle", total: 22000 }),
+    );
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "commandesBoutique/b1")));
+    await assertFails(updateDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1"), { total: 1 }));
+    await assertSucceeds(updateDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1"), { statut: "traitee" }));
+  });
+
+  it("un distributeur voit sa réserve et ses lots de validation, pas ceux d'un autre", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "reservesValidation/fbo1_226"), { fboId: "fbo1", pays: "Burkina Faso" });
+      await setDoc(doc(ctx.firestore(), "lotsValidation/l1"), { fboId: "fbo1", pays: "Burkina Faso" });
+    });
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "reservesValidation/fbo1_226")));
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "lotsValidation/l1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "lotsValidation/l1")));
+    await assertFails(getDoc(doc(db("op-ci", "operateur", "Côte d'Ivoire"), "lotsValidation/l1")));
+    await assertSucceeds(getDoc(doc(db("op-bf", "operateur"), "lotsValidation/l1")));
+    await assertFails(setDoc(doc(db("fbo1", "fbo"), "lotsValidation/l2"), { fboId: "fbo1", statut: "valide" }));
+  });
+
   it("les invitations du personnel ne sont visibles que du super administrateur", async () => {
     await env.withSecurityRulesDisabled((ctx) =>
       setDoc(doc(ctx.firestore(), "invitations/issa@gmail.com"), { role: "admin", pays: "Burkina Faso" }),

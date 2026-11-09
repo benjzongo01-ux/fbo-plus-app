@@ -61,10 +61,10 @@ const villes = [
 for (const [id, pays, ville, frais] of villes) {
   lot.set(db.doc(`villesExpedition/${id}`), { pays, ville, frais, actif: true });
 }
-// Livraison : 2 000 FCFA minimum (tout Ouagadougou) ; Abidjan dès 3 000, selon la zone.
-lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 2000, commissionLivreur: 500 });
-lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 2000, commissionLivreur: 500 });
-lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 3000, commissionLivreur: 700 });
+// Livraison : Burkina de 1 000 (proche) à 2 000 FCFA (plus reculé) ; Côte d'Ivoire de 2 000 à 5 000.
+lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 2000, fraisMin: 2000, fraisMax: 5000, commissionLivreur: 700 });
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);

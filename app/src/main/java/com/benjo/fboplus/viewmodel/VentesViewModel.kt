@@ -31,7 +31,13 @@ data class DetailsCommande(
     val villeId: String = "",
     val villeNom: String = "",
     val fraisVille: Int = 0,
-    val compagnie: String = ""
+    val compagnie: String = "",
+    // Livraison : zone facultative (commune, quartier) dont le tarif remplace celui du pays.
+    val zoneId: String = "",
+    val zoneNom: String = "",
+    val fraisZone: Int = 0,
+    // Frais de livraison choisis dans la fourchette du pays (0 = tarif de base).
+    val fraisChoisis: Int = 0
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {
@@ -109,6 +115,28 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
 
     fun modifierDetails(modification: (DetailsCommande) -> DetailsCommande) {
         _details.value = modification(_details.value)
+    }
+
+    /**
+     * Prépare une commande reçue par la boutique en ligne : produits du catalogue (prix et CC à jour)
+     * et coordonnées du client. Le distributeur choisit ensuite le pays et le mode.
+     */
+    fun preremplirDepuisBoutique(commande: com.benjo.fboplus.ui.screens.CommandeBoutique) {
+        val catalogue = com.benjo.fboplus.data.ProductRepository.allProducts.associateBy { it.ref }
+        _commandeEnCours.value = commande.lignes.map { l ->
+            val p = catalogue[l.produitRef]
+            if (p != null) LigneCommande(p.ref, p.nameFr, l.quantite, p.prixPublic, p.cc) else l
+        }
+        _titreCommande.value = commande.clientNom
+        _details.value = _details.value.copy(
+            mode = "livraison",
+            clientId = null,
+            clientNom = commande.clientNom,
+            clientTelephone = commande.telephone,
+            clientTelephone2 = commande.telephone2,
+            quartier = commande.quartier,
+            adresse = listOf(commande.adresse, commande.note).filter { it.isNotBlank() }.joinToString(" · ")
+        )
     }
 
     /** Remplit la livraison depuis une fiche du carnet de clients. */
