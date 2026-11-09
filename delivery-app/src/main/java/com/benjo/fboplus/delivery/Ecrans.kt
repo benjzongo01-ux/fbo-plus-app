@@ -297,6 +297,9 @@ private fun CarteMission(mission: Mission, onClick: (() -> Unit)? = null) {
         if (mission.adresse.isNotBlank()) {
             Text(mission.adresse, color = TexteDoux, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
         }
+        if (mission.note.isNotBlank()) {
+            Text("Note : ${mission.note}", color = Or, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+        }
         Text(
             "À encaisser : ${fcfa(mission.montant)}",
             color = Or,

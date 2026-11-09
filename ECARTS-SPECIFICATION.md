@@ -11,13 +11,13 @@ Légende : ✅ fait · 🟡 partiel · ❌ à faire · 💳 demande un compte ou
 | 2 | Wallet | ❌ 💳 | — | Wallet, dépôts, retraits, historique, abonnements, répartition automatique, Wave, Orange Money, MTN, Moov, Ecobank |
 | 3 | Logistics | ✅ | Commandes, validation sur ID, stock, préparation, expédition, livraison, retour, multi-pays | Demande de réapprovisionnement entre entrepôts |
 | 4 | Operations | 🟡 | Centre d'appel, confirmation, modification, attribution, suivi | Contrôle qualité (vérification avant « prête », appel de satisfaction) |
-| 5 | Delivery Management | 🟡 | GPS en continu, itinéraire, historique, confirmation, signature, photo, encaissement | Affectation automatique des livreurs |
+| 5 | Delivery Management | ✅ | GPS en continu, itinéraire, historique, confirmation, signature, photo, encaissement, affectation intelligente et automatique | — |
 | 6 | Warehouse | 🟡 | Entrées, sorties, inventaire, seuil d'alerte, multi-entrepôts | Réapprovisionnement (demande et suivi) |
-| 7 | Order Finance | 🟡 | Prix officiel serveur, réductions plafonnées, frais de livraison et d'expédition, encaissement | « Qui paie quoi » (parts FBO / livreur / plateforme), historique financier détaillé |
+| 7 | Order Finance | 🟡 | Prix officiel serveur, réductions plafonnées, frais de livraison (fourchettes par pays) et d'expédition, encaissement, validation au siège avec achat minimum | « Qui paie quoi » (parts FBO / livreur / plateforme), à faire avec le Wallet |
 | 8 | FBO+ AI | ❌ 💳 | — | Assistant marketing, scripts, visuels, vidéos, publicités Facebook, objections, conseils produits |
 | 9 | CRM | 🟡 | Fiches clients, notes, historique des commandes | Prospects, relances programmées, fidélisation |
 | 10 | Business Manager | 🟡 | Statistiques, revenus, CC, objectifs, performances | Équipes (filleuls), rapports exportables (PDF, Excel) |
-| 11 | Marketplace | 🟡 | Boutique personnelle, catalogue avec photos, QR code, commande par WhatsApp | Commande en ligne directe depuis la boutique |
+| 11 | Marketplace | ✅ | Boutique personnelle, catalogue avec photos, QR code, commande en ligne directe et WhatsApp | — |
 | 12 | Learning Center | ❌ | — | Formations, documents, quiz, certifications |
 | 13 | Communication | 🟡 | Notifications dans l'application, push (prêt pour la mise en ligne) | Messagerie, chat avec le centre d'appel |
 | 14 | Administration | 🟡 | Utilisateurs, centres, livreurs, stocks, tarifs, paramètres, maintenance, journal | Paiements et commissions (versement), dépend du Wallet |

@@ -180,6 +180,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </p>
       )}
       <p><span className={`statut ${commande.statut}`}>{LIBELLES_STATUTS[commande.statut]}</span></p>
+      {commande.note && <p className="encadre">Note du distributeur : {commande.note}</p>}
       {commande.motifAnnulation && <p className="discret">Motif : {commande.motifAnnulation}</p>}
       {commande.motifRetour && <p className="discret">Motif : {commande.motifRetour}</p>}
 

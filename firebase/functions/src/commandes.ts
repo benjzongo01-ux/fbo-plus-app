@@ -381,6 +381,8 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       pays,
       fboId: uid,
       titre: texte(d.titre, 120) || "Commande",
+      // Note du distributeur pour le centre d'appel et le livreur (horaires, consignes…).
+      note: texte(d.note, 500),
       mode,
       beneficiaire,
       // En expédition, « client » désigne le destinataire du colis.
@@ -579,6 +581,7 @@ export async function affecterLivreur(
     pays: commande.pays || PAYS_DEFAUT,
     client: commande.client,
     adresse: commande.adresse,
+    note: commande.note ?? "",
     lignes: commande.lignes,
     montantAEncaisser: commande.total,
     commission: tarifs.commissionLivreur,

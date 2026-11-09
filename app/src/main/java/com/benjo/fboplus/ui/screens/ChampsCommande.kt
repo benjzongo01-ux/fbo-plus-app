@@ -292,13 +292,22 @@ fun DetailsCommandeEcran(
                 }
             }
 
-            Section("4. Réduction et titre") {
+            Section("4. Réduction, titre et note") {
                 Champ(
                     "Réduction client en FCFA (max ${"%,d".format(Locale.FRANCE, reductionMax)})",
                     if (reduction == 0) "" else reduction.toString(),
                     clavier = KeyboardType.Number
                 ) { v -> ventesViewModel.setReduction(v.filter(Char::isDigit).take(9).toIntOrNull() ?: 0) }
                 Champ("Titre de la commande (facultatif)", titre) { ventesViewModel.setTitreCommande(it) }
+                OutlinedTextField(
+                    value = details.note,
+                    onValueChange = { v -> ventesViewModel.modifierDetails { it.copy(note = v.take(500)) } },
+                    label = { Text("Note pour le centre d'appel (facultatif)") },
+                    placeholder = { Text("Ex. : livrer après 17 h, appeler avant de passer") },
+                    minLines = 2,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(Modifier.height(4.dp))

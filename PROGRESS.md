@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 101 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 115 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -99,6 +99,19 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Delivery : bouton d'appel du deuxième numéro du client.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
+## Connexion Google, validation au siège, boutique en ligne (2026-11-10)
+
+- **Connexion** : Google (bouton principal) ou email et mot de passe, puis directement le PIN. Plus aucun SMS (coût zéro). Personnel et livreurs : le super administrateur **invite une adresse** (Utilisateurs) ; le rôle s'applique à la première connexion Google ou email confirmé ; une adresse non invitée est refusée sans compte créé.
+  - Pour la vraie connexion Google : console Firebase (compte FBO+) → Authentication → Google → Activer, retélécharger `google-services.json`, puis compiler avec `-Pfbo.googleWebClientId=<identifiant client Web>`. Sans cela, sur émulateurs, le bouton Google ouvre un « compte Google de test ».
+  - Comptes de test du personnel : `superadmin@fboplus.test`, `admin.bf@`, `operateur.bf@`, `stock.bf@`, `livreur.bf@`, `admin.ci@`, `livreur.ci@fboplus.test` ; mot de passe dans `firebase/scripts/initialiser-emulateurs.mjs`.
+- **Frais de livraison** : fourchette par pays (Burkina 1 000 à 2 000, Côte d'Ivoire 2 000 à 5 000, paliers de 500), choisis à la commande, ajustables par le centre d'appel. Zones de livraison facultatives (Paramètres).
+- **Validation au siège Forever** : chaque commande terminée verse ses produits dans la réserve de l'ID bénéficiaire ; à l'achat minimum (36 000 FCFA, réglable) un lot part au siège. Admin « Validations siège » : export Excel, impression PDF, « Marquer validé » avec le reçu. FBO+ « Validations au siège » : réserve, montant manquant, CC.
+- **Boutique en ligne** : le client commande depuis la boutique (QR code ou lien) ; la commande arrive dans FBO+ « Commandes de ma boutique » ; « Préparer » ouvre la commande déjà remplie.
+- **Affectation intelligente** : livreurs classés (charge, même quartier, distance à l'entrepôt, fiabilité), bouton « Affecter le meilleur », affectation automatique activable par pays.
+- **Note de commande** pour le centre d'appel, visible dans l'admin et par le livreur.
+
+Reste de la spécification (dans l'ordre) : messagerie avec le centre d'appel, CRM (catégories, relances, fidélisation), équipes et rapports PDF ou Excel, KYC des livreurs, formations et plan vers le grade suivant, contrôle qualité et réapprovisionnement. Voir `ECARTS-SPECIFICATION.md`.
 
 ## Sécurité des rôles et mode maintenance (2026-11-09)
 
