@@ -7,7 +7,11 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.PhoneAuthCredential
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,8 +20,14 @@ import kotlinx.coroutines.launch
 
 private fun messagePour(e: Exception): String = when {
     e is FirebaseNetworkException -> "Connexion impossible. Réessayez."
-    e is FirebaseAuthInvalidCredentialsException -> "Code ou numéro incorrect."
+    e is FirebaseAuthUserCollisionException -> "Cette adresse a déjà un mot de passe : connectez-vous, ou utilisez « Mot de passe oublié »."
+    e is FirebaseAuthInvalidCredentialsException && e.errorCode == "ERROR_WEAK_PASSWORD" ->
+        "Mot de passe trop faible : 8 caractères au moins."
+    e is FirebaseAuthInvalidCredentialsException || e is FirebaseAuthInvalidUserException -> "Email ou mot de passe incorrect."
     e is FirebaseTooManyRequestsException -> "Trop de tentatives. Réessayez plus tard."
+    e is GetCredentialCancellationException -> "Connexion Google annulée."
+    e is NoCredentialException -> "Aucun compte Google sur ce téléphone. Utilisez votre email."
+    e is GetCredentialException -> "Connexion Google impossible pour le moment. Utilisez votre email."
     e is FirebaseFunctionsException && e.code == FirebaseFunctionsException.Code.UNAVAILABLE ->
         "Connexion impossible. Réessayez."
     e is FirebaseFunctionsException && e.message != null -> e.message!!
@@ -27,7 +37,6 @@ private fun messagePour(e: Exception): String = when {
 sealed interface EtatConnexion {
     data object Saisie : EtatConnexion
     data object Chargement : EtatConnexion
-    data class Code(val id: String) : EtatConnexion
     data object Connecte : EtatConnexion
 }
 
@@ -42,8 +51,15 @@ class ConnexionViewModel : ViewModel() {
     private val _erreur = MutableStateFlow<String?>(null)
     val erreur: StateFlow<String?> = _erreur
 
-    private fun executer(retour: EtatConnexion, action: suspend () -> Unit) {
+    private val _info = MutableStateFlow<String?>(null)
+    val info: StateFlow<String?> = _info
+
+    val googleConfigure get() = depot.googleConfigure
+    val googleDeTest get() = depot.googleDeTest
+
+    private fun executer(action: suspend () -> Unit) {
         _erreur.value = null
+        _info.value = null
         _etat.value = EtatConnexion.Chargement
         viewModelScope.launch {
             try {
@@ -52,34 +68,36 @@ class ConnexionViewModel : ViewModel() {
                 throw e
             } catch (e: Exception) {
                 Log.w("Connexion", "Échec", e)
+                depot.deconnecter()
                 _erreur.value = messagePour(e)
-                _etat.value = retour
+                _etat.value = EtatConnexion.Saisie
             }
         }
     }
 
-    private suspend fun terminer(identifiant: PhoneAuthCredential) {
-        if (depot.connecterLivreur(identifiant)) {
+    private suspend fun terminer() {
+        val refus = depot.verifierLivreur()
+        if (refus == null) {
             _etat.value = EtatConnexion.Connecte
         } else {
-            _erreur.value = "Ce numéro n'a pas de compte livreur. Contactez l'administration."
+            _erreur.value = refus
             _etat.value = EtatConnexion.Saisie
         }
     }
 
-    fun envoyerCode(activity: Activity, telephone: String) = executer(EtatConnexion.Saisie) {
-        when (val envoi = depot.envoyerCode(activity, telephone)) {
-            is EnvoiCode.Envoye -> _etat.value = EtatConnexion.Code(envoi.id)
-            is EnvoiCode.Automatique -> terminer(envoi.identifiant)
-        }
+    fun connecterGoogle(activity: Activity) = executer { depot.connecterGoogle(activity); terminer() }
+    fun connecterGoogleDeTest(email: String) = executer { depot.connecterGoogleDeTest(email); terminer() }
+    fun connecterEmail(email: String, motDePasse: String) = executer { depot.connecterEmail(email, motDePasse); terminer() }
+
+    fun creerMotDePasse(email: String, motDePasse: String) = executer {
+        depot.creerMotDePasse(email, motDePasse)
+        _info.value = "Un lien de confirmation a été envoyé à votre adresse. Cliquez dessus, puis connectez-vous."
+        _etat.value = EtatConnexion.Saisie
     }
 
-    fun verifier(id: String, code: String) = executer(EtatConnexion.Code(id)) {
-        terminer(depot.identifiant(id, code))
-    }
-
-    fun changerNumero() {
-        _erreur.value = null
+    fun motDePasseOublie(email: String) = executer {
+        depot.reinitialiserMotDePasse(email)
+        _info.value = "Si cette adresse a un compte, un lien pour choisir un nouveau mot de passe vient d'être envoyé."
         _etat.value = EtatConnexion.Saisie
     }
 

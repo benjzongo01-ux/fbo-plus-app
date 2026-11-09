@@ -7,6 +7,8 @@ plugins {
 // Le vrai projet ne s'utilise qu'au lancement, de façon explicite : -Pfbo.firebaseReel=true
 val firebaseReel = providers.gradleProperty("fbo.firebaseReel").orNull == "true"
 if (firebaseReel) apply(plugin = "com.google.gms.google-services")
+// Identifiant « client Web » OAuth du projet Firebase (console : Authentication > Google). Vide = Google de test sur émulateurs.
+val googleWebClientId = providers.gradleProperty("fbo.googleWebClientId").orNull ?: ""
 
 android {
     namespace = "com.benjo.fboplus"
@@ -29,9 +31,11 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!firebaseReel}")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId}\"")
         }
         release {
             buildConfigField("boolean", "EMULATEUR_FIREBASE", "${!firebaseReel}")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId}\"")
             optimization {
                 enable = false
             }
@@ -83,4 +87,8 @@ dependencies {
     implementation(libs.firebase.appcheck.playintegrity)
     debugImplementation(libs.firebase.appcheck.debug)
     implementation(libs.kotlinx.coroutines.play.services)
+    // Connexion Google (sélecteur de comptes d'Android).
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }

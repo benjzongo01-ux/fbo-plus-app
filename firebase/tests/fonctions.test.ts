@@ -22,9 +22,14 @@ afterAll(async () => {
 
 const telephone = () => `+2267${++numero}`;
 
-async function compte(role?: string, avecTelephone = true) {
+/** Compte de test : téléphone par défaut, ou adresse email (Google ou email confirmé si emailVerifie). */
+async function compte(role?: string, avecTelephone = true, email?: string, emailVerifie = true) {
   const uid = randomUUID();
-  await getAuth().createUser({ uid, ...(avecTelephone ? { phoneNumber: telephone() } : {}) });
+  await getAuth().createUser({
+    uid,
+    ...(avecTelephone ? { phoneNumber: telephone() } : {}),
+    ...(email ? { email, emailVerified: emailVerifie } : {}),
+  });
   if (role) await getAuth().setCustomUserClaims(uid, role === "fbo" ? { role } : { role, pays: "Burkina Faso" });
   if (role && role !== "fbo") await getFirestore().doc(`users/${uid}`).set({ pays: "Burkina Faso" }, { merge: true });
 
@@ -60,9 +65,14 @@ describe("initialiserProfil", () => {
     expect((await getAuth().getUser(u.uid)).customClaims?.role).toBe("fbo");
   });
 
-  it("refuse un compte sans téléphone vérifié", async () => {
+  it("refuse un compte sans Google, email ni téléphone", async () => {
     const u = await compte(undefined, false);
     expect(await codeErreur(u.appeler("initialiserProfil"))).toBe("functions/failed-precondition");
+  });
+
+  it("un nouveau compte Google ou email devient distributeur", async () => {
+    const u = await compte(undefined, false, `awa.${randomUUID()}@gmail.com`);
+    expect(await u.appeler("initialiserProfil")).toEqual({ role: "fbo", aPin: false });
   });
 
   it("conserve le rôle d'un compte interne", async () => {
@@ -133,25 +143,57 @@ describe("definirRole", () => {
   });
 });
 
-describe("creerCompteInterne", () => {
-  it("seul le super admin crée un compte, ni un admin de pays ni un FBO", async () => {
+describe("inviterPersonnel", () => {
+  const adresse = () => `issa.${randomUUID()}@gmail.com`;
+
+  it("seul le super admin invite ; l'invité reçoit son rôle à sa première connexion Google", async () => {
     const sa = await compte("super_admin");
     const admin = await compte("admin");
     const fbo = await compte("fbo");
-    const data = { telephone: telephone(), nom: "Issa", role: "livreur", pays: "Burkina Faso" };
+    const email = adresse();
+    const data = { email: email.toUpperCase(), nom: "Issa", role: "livreur", pays: "Côte d'Ivoire" };
 
-    expect(await codeErreur(fbo.appeler("creerCompteInterne", data))).toBe("functions/permission-denied");
-    expect(await codeErreur(admin.appeler("creerCompteInterne", data))).toBe("functions/permission-denied");
-    const { uid } = await sa.appeler("creerCompteInterne", data);
-    expect((await getAuth().getUser(uid)).customClaims?.role).toBe("livreur");
-    expect(await codeErreur(sa.appeler("creerCompteInterne", data))).toBe("functions/already-exists");
+    expect(await codeErreur(fbo.appeler("inviterPersonnel", data))).toBe("functions/permission-denied");
+    expect(await codeErreur(admin.appeler("inviterPersonnel", data))).toBe("functions/permission-denied");
+    expect(await sa.appeler("inviterPersonnel", data)).toMatchObject({ invitation: true });
+
+    const invite = await compte(undefined, false, email);
+    expect((await invite.appeler("initialiserProfil")).role).toBe("livreur");
+    const claims = (await getAuth().getUser(invite.uid)).customClaims;
+    expect(claims).toMatchObject({ role: "livreur", pays: "Côte d'Ivoire" });
+    expect((await getFirestore().doc(`users/${invite.uid}`).get()).data()).toMatchObject({ nom: "Issa", pays: "Côte d'Ivoire" });
+    expect((await getFirestore().doc(`invitations/${email}`).get()).exists).toBe(false);
   });
 
-  it("un admin ne crée pas d'admin", async () => {
-    const admin = await compte("admin");
-    const data = { telephone: telephone(), nom: "X", role: "admin" };
-    expect(await codeErreur(admin.appeler("creerCompteInterne", data))).toBe(
-      "functions/permission-denied",
+  it("l'admin et Delivery refusent une adresse non invitée sans créer de compte", async () => {
+    const u = await compte(undefined, false, `inconnu.${randomUUID()}@gmail.com`);
+    expect(await codeErreur(u.appeler("initialiserProfil", { personnel: true }))).toBe("functions/permission-denied");
+    expect((await getAuth().getUser(u.uid)).customClaims?.role).toBeUndefined();
+    expect((await getFirestore().doc(`users/${u.uid}`).get()).exists).toBe(false);
+  });
+
+  it("une adresse invitée mais non confirmée n'obtient rien, l'invitation reste", async () => {
+    const sa = await compte("super_admin");
+    const email = adresse();
+    await sa.appeler("inviterPersonnel", { email, nom: "Usurpateur ?", role: "admin", pays: "Burkina Faso" });
+    const faux = await compte(undefined, false, email, false);
+    expect(await codeErreur(faux.appeler("initialiserProfil"))).toBe("functions/failed-precondition");
+    expect((await getAuth().getUser(faux.uid)).customClaims?.role).toBeUndefined();
+    expect((await getFirestore().doc(`invitations/${email}`).get()).exists).toBe(true);
+  });
+
+  it("une adresse qui a déjà un compte reçoit le rôle aussitôt ; adresse et rôle sont vérifiés", async () => {
+    const sa = await compte("super_admin");
+    const email = adresse();
+    const existant = await compte("fbo", false, email);
+    const r = await sa.appeler("inviterPersonnel", { email, nom: "Awa", role: "operateur", pays: "Burkina Faso" });
+    expect(r).toMatchObject({ uid: existant.uid, invitation: false });
+    expect((await getAuth().getUser(existant.uid)).customClaims?.role).toBe("operateur");
+    expect(await codeErreur(sa.appeler("inviterPersonnel", { email: "pas-une-adresse", nom: "X", role: "livreur", pays: "Burkina Faso" }))).toBe(
+      "functions/invalid-argument",
+    );
+    expect(await codeErreur(sa.appeler("inviterPersonnel", { email: adresse(), nom: "X", role: "fbo", pays: "Burkina Faso" }))).toBe(
+      "functions/invalid-argument",
     );
   });
 });

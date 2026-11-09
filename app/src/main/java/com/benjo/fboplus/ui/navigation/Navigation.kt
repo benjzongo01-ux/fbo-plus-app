@@ -18,7 +18,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.benjo.fboplus.ui.screens.VerificationScreen
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -66,7 +65,6 @@ import com.benjo.fboplus.viewmodel.VentesViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.benjo.fboplus.auth.SecureTokenStorage
 import com.benjo.fboplus.ui.screens.ConnexionScreen
-import com.benjo.fboplus.ui.screens.InscriptionScreen
 import com.benjo.fboplus.ui.screens.CompleteProfileScreen
 import com.benjo.fboplus.ui.screens.PinCreationScreen
 import com.benjo.fboplus.ui.screens.BiometricSuggestionScreen
@@ -126,7 +124,7 @@ fun FBONavigation() {
     }
 
     val routesSansBarre = setOf(
-        "connexion", "inscription", "verification/{telephone}", "pin_entry", "complete_profile",
+        "connexion", "pin_entry", "complete_profile",
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
@@ -251,28 +249,6 @@ fun FBONavigation() {
             composable("connexion") {
                 ConnexionScreen(
                     authViewModel = authViewModel,
-                    onCodeEnvoye = { telephone -> allerVers("verification/${Uri.encode(telephone)}") },
-                    onNeedsPinCreation = { allerVers("pin_creation") },
-                    onNeedsPinEntry = { allerVers("pin_entry") },
-                    onAllerVersInscription = { navController.navigate("inscription") }
-                )
-            }
-            composable("inscription") {
-                InscriptionScreen(
-                    authViewModel = authViewModel,
-                    onCodeEnvoye = { telephone -> allerVers("verification/${Uri.encode(telephone)}") },
-                    onNeedsPinCreation = { allerVers("pin_creation") },
-                    onNeedsPinEntry = { allerVers("pin_entry") },
-                    onAllerVersConnexion = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = "verification/{telephone}",
-                arguments = listOf(navArgument("telephone") { type = NavType.StringType })
-            ) { backStackEntry ->
-                VerificationScreen(
-                    authViewModel = authViewModel,
-                    telephone = backStackEntry.arguments?.getString("telephone") ?: "",
                     onNeedsPinCreation = { allerVers("pin_creation") },
                     onNeedsPinEntry = { allerVers("pin_entry") }
                 )
@@ -306,8 +282,8 @@ fun FBONavigation() {
                         }
                     },
                     onOublie = {
-                        if (authViewModel.smsRecent()) {
-                            // Le numéro vient d'être vérifié par SMS : choisir directement un nouveau PIN.
+                        if (authViewModel.connexionRecente()) {
+                            // La connexion est toute récente : choisir directement un nouveau PIN.
                             authViewModel.resetState()
                             navController.navigate("pin_creation") {
                                 popUpTo("pin_entry") { inclusive = true }

@@ -7,12 +7,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.benjo.fboplus.auth.SecureTokenStorage
 import com.benjo.fboplus.data.AuthRepository
-import com.benjo.fboplus.data.EnvoiCode
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +29,7 @@ sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
     object Success : AuthUiState()
-    data class CodeSent(val telephone: String) : AuthUiState()
+    data class Info(val message: String) : AuthUiState()
     object NeedsPinCreation : AuthUiState()
     object NeedsPinEntry : AuthUiState()
     data class Error(val message: String) : AuthUiState()
@@ -38,58 +40,47 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AuthRepository()
     private val tokenStorage = SecureTokenStorage(application)
 
-    private var verificationId: String? = null
-    private var jetonRenvoi: PhoneAuthProvider.ForceResendingToken? = null
-    private var inscription = false
-    private var numeroVerifie = false
-
-    // Le serveur accepte un nouveau PIN sans l'ancien pendant 5 minutes après un code SMS.
-    private var smsVerifieA = 0L
+    // Le serveur accepte un nouveau PIN sans l'ancien pendant 5 minutes après une connexion.
+    private var connexionA = 0L
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     fun isLoggedIn(): Boolean = repository.estConnecte() && tokenStorage.sessionOuverte()
 
-    /** Inscription et connexion partagent le même envoi de code SMS. */
-    fun envoyerCode(activity: Activity, telephone: String, inscription: Boolean) {
-        this.inscription = inscription
-        numeroVerifie = false
-        executer {
-            traiterEnvoi(repository.envoyerCode(activity, telephone), telephone)
-        }
+    val googleConfigure: Boolean get() = repository.googleConfigure
+    val googleDeTest: Boolean get() = repository.googleDeTest
+
+    fun connecterGoogle(activity: Activity) = executer {
+        repository.connecterGoogle(activity)
+        apresConnexion()
     }
 
-    fun renvoyerCode(activity: Activity, telephone: String) {
-        viewModelScope.launch {
-            try {
-                when (val envoi = repository.envoyerCode(activity, telephone, jetonRenvoi)) {
-                    is EnvoiCode.CodeEnvoye -> memoriser(envoi)
-                    is EnvoiCode.VerifieAutomatiquement -> terminerConnexion(envoi.identifiant)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(messagePour(e))
-            }
-        }
+    /** Émulateurs : compte Google fictif, pour les essais sans configuration Google. */
+    fun connecterGoogleDeTest(email: String) = executer {
+        repository.connecterGoogleDeTest(email)
+        apresConnexion()
     }
 
-    fun verifierCode(code: String) {
-        val id = verificationId
-        if (id == null) {
-            _uiState.value = AuthUiState.Error("Code expiré. Demandez un nouveau code.")
-            return
-        }
-        executer {
-            // Un code SMS ne sert qu'une fois : après un échec du profil, on ne reprend que le profil.
-            if (numeroVerifie) chargerProfil()
-            else terminerConnexion(repository.identifiantDepuisCode(id, code))
-        }
+    fun connecterEmail(email: String, motDePasse: String) = executer {
+        repository.connecterEmail(email, motDePasse)
+        apresConnexion()
     }
 
-    /** Vrai si le code SMS vient d'être vérifié : on peut alors choisir un nouveau PIN. */
-    fun smsRecent(): Boolean = System.currentTimeMillis() - smsVerifieA < 4 * 60 * 1000L
+    fun creerCompte(email: String, motDePasse: String) = executer {
+        repository.creerCompteEmail(email, motDePasse)
+        apresConnexion()
+    }
+
+    fun motDePasseOublie(email: String) = executer {
+        repository.reinitialiserMotDePasse(email)
+        _uiState.value = AuthUiState.Info(
+            "Si cette adresse a un compte, un lien pour choisir un nouveau mot de passe vient d'être envoyé."
+        )
+    }
+
+    /** Vrai juste après une connexion : on peut alors choisir un nouveau PIN sans l'ancien. */
+    fun connexionRecente(): Boolean = System.currentTimeMillis() - connexionA < 4 * 60 * 1000L
 
     fun creerPin(pin: String) {
         executer {
@@ -137,31 +128,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = AuthUiState.Idle
     }
 
-    private fun traiterEnvoi(envoi: EnvoiCode, telephone: String) {
-        when (envoi) {
-            is EnvoiCode.CodeEnvoye -> {
-                memoriser(envoi)
-                _uiState.value = AuthUiState.CodeSent(telephone)
-            }
-            is EnvoiCode.VerifieAutomatiquement -> executer { terminerConnexion(envoi.identifiant) }
-        }
-    }
-
-    private fun memoriser(envoi: EnvoiCode.CodeEnvoye) {
-        verificationId = envoi.verificationId
-        jetonRenvoi = envoi.jetonRenvoi
-    }
-
-    private suspend fun terminerConnexion(identifiant: PhoneAuthCredential) {
-        val nouveauCompte = repository.connecter(identifiant)
-        // L'écran Connexion ne recueille pas l'accord aux conditions d'utilisation.
-        if (nouveauCompte && !inscription) {
-            repository.supprimerCompteCourant()
-            _uiState.value = AuthUiState.Error("Aucun compte trouvé avec ce numéro.")
-            return
-        }
-        numeroVerifie = true
-        smsVerifieA = System.currentTimeMillis()
+    private suspend fun apresConnexion() {
+        connexionA = System.currentTimeMillis()
         chargerProfil()
     }
 
@@ -198,13 +166,24 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         Log.w("AuthViewModel", "Échec de l'authentification", e)
         return when (e) {
         is FirebaseNetworkException -> "Erreur réseau : impossible de contacter le serveur."
-        is FirebaseAuthInvalidCredentialsException -> "Code ou numéro incorrect."
+        is FirebaseAuthInvalidCredentialsException -> when (e.errorCode) {
+            "ERROR_INVALID_EMAIL" -> "Adresse email invalide."
+            "ERROR_WEAK_PASSWORD" -> "Mot de passe trop faible : 8 caractères au moins."
+            else -> "Email ou mot de passe incorrect."
+        }
+        is FirebaseAuthInvalidUserException -> "Email ou mot de passe incorrect."
+        is FirebaseAuthUserCollisionException -> "Cette adresse a déjà un compte : connectez-vous, ou utilisez « Mot de passe oublié »."
+        is GetCredentialCancellationException -> "Connexion Google annulée."
+        is NoCredentialException -> "Aucun compte Google sur ce téléphone. Ajoutez-en un dans les réglages, ou utilisez votre email."
+        is GetCredentialException -> "Connexion Google impossible pour le moment. Réessayez ou utilisez votre email."
         is FirebaseTooManyRequestsException -> "Trop de tentatives. Réessayez plus tard."
         is FirebaseFunctionsException -> when (e.code) {
             // Limite de requêtes : le serveur dit combien de secondes attendre. Sinon, PIN bloqué.
             FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
                 e.message?.takeIf { it.contains("Réessayez dans") } ?: MESSAGE_PIN_BLOQUE
             FirebaseFunctionsException.Code.PERMISSION_DENIED -> "Code PIN incorrect."
+            // Maintenance, compte à confirmer… : le serveur explique lui-même.
+            FirebaseFunctionsException.Code.FAILED_PRECONDITION -> e.message ?: "Action impossible pour le moment."
             FirebaseFunctionsException.Code.UNAVAILABLE ->
                 "Erreur réseau : impossible de contacter le serveur."
             else -> "Une erreur est survenue. Réessayez."

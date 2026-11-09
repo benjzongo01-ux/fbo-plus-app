@@ -1,33 +1,27 @@
 package com.benjo.fboplus.data
 
 import android.app.Activity
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import com.benjo.fboplus.BuildConfig
 import com.benjo.fboplus.REGION_FUNCTIONS
-import com.google.firebase.FirebaseException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.functions.FirebaseFunctions
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-
-sealed interface EnvoiCode {
-    data class CodeEnvoye(
-        val verificationId: String,
-        val jetonRenvoi: PhoneAuthProvider.ForceResendingToken
-    ) : EnvoiCode
-
-    /** Android a lu le SMS lui-même : aucun code à saisir. */
-    data class VerifieAutomatiquement(val identifiant: PhoneAuthCredential) : EnvoiCode
-}
+import org.json.JSONObject
 
 data class ProfilSession(val role: String, val aPin: Boolean)
 
 data class ResultatPin(val valide: Boolean, val essaisRestants: Int)
 
+/**
+ * Connexion par Google (recommandée : gratuite, en un toucher) ou par email et mot de passe.
+ * Plus de SMS : chaque SMS est payant, une connexion Google ou email ne coûte rien.
+ */
 class AuthRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance(REGION_FUNCTIONS)
@@ -35,46 +29,49 @@ class AuthRepository(
 
     fun estConnecte(): Boolean = auth.currentUser != null
 
-    suspend fun envoyerCode(
-        activity: Activity,
-        telephone: String,
-        jetonRenvoi: PhoneAuthProvider.ForceResendingToken? = null
-    ): EnvoiCode = suspendCancellableCoroutine { suite ->
-        val rappels = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-            override fun onVerificationCompleted(identifiant: PhoneAuthCredential) {
-                if (suite.isActive) suite.resume(EnvoiCode.VerifieAutomatiquement(identifiant))
-            }
+    /** Vrai quand la connexion Google réelle est configurée (identifiant web du projet Firebase). */
+    val googleConfigure: Boolean get() = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
 
-            override fun onVerificationFailed(e: FirebaseException) {
-                if (suite.isActive) suite.resumeWithException(e)
-            }
+    /** Sur les émulateurs, sans configuration Google, un compte Google fictif sert aux essais. */
+    val googleDeTest: Boolean get() = !googleConfigure && BuildConfig.EMULATEUR_FIREBASE
 
-            override fun onCodeSent(
-                verificationId: String,
-                jeton: PhoneAuthProvider.ForceResendingToken
-            ) {
-                if (suite.isActive) suite.resume(EnvoiCode.CodeEnvoye(verificationId, jeton))
-            }
+    /** Ouvre le sélecteur de comptes Google d'Android, puis connecte à Firebase. */
+    suspend fun connecterGoogle(activity: Activity) {
+        val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID).build()
+        val demande = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        val reponse = CredentialManager.create(activity).getCredential(activity, demande)
+        val identifiant = reponse.credential
+        require(identifiant is CustomCredential && identifiant.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            "Réponse Google inattendue."
         }
-
-        val options = PhoneAuthOptions.newBuilder(auth)
-            .setPhoneNumber(telephone)
-            .setTimeout(60L, TimeUnit.SECONDS)
-            .setActivity(activity)
-            .setCallbacks(rappels)
-        jetonRenvoi?.let(options::setForceResendingToken)
-        PhoneAuthProvider.verifyPhoneNumber(options.build())
+        val jeton = GoogleIdTokenCredential.createFrom(identifiant.data).idToken
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
     }
 
-    fun identifiantDepuisCode(verificationId: String, code: String): PhoneAuthCredential =
-        PhoneAuthProvider.getCredential(verificationId, code)
+    /** Émulateurs uniquement : l'émulateur d'authentification accepte un jeton Google non signé. */
+    suspend fun connecterGoogleDeTest(email: String) {
+        check(BuildConfig.EMULATEUR_FIREBASE) { "Réservé aux émulateurs." }
+        val jeton = JSONObject()
+            .put("sub", "test-" + email.lowercase())
+            .put("email", email.lowercase())
+            .put("email_verified", true)
+            .put("name", email.substringBefore('@'))
+            .toString()
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
+    }
 
-    /** Retourne true si ce numéro vient de créer un compte. */
-    suspend fun connecter(identifiant: PhoneAuthCredential): Boolean =
-        auth.signInWithCredential(identifiant).await().additionalUserInfo?.isNewUser == true
+    suspend fun connecterEmail(email: String, motDePasse: String) {
+        auth.signInWithEmailAndPassword(email.trim(), motDePasse).await()
+    }
 
-    suspend fun supprimerCompteCourant() {
-        auth.currentUser?.delete()?.await()
+    /** Crée le compte et envoie le lien de confirmation de l'adresse. */
+    suspend fun creerCompteEmail(email: String, motDePasse: String) {
+        val compte = auth.createUserWithEmailAndPassword(email.trim(), motDePasse).await().user
+        runCatching { compte?.sendEmailVerification()?.await() }
+    }
+
+    suspend fun reinitialiserMotDePasse(email: String) {
+        auth.sendPasswordResetEmail(email.trim()).await()
     }
 
     fun deconnecter() = auth.signOut()
