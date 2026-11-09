@@ -172,3 +172,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   body, .contenu, .carte { background: #fff !important; color: #000 !important; }
   .carte { border: 1px solid #999; break-inside: avoid; }
 }
+
+/* Boutique : panier et commande en ligne */
+.quantites { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.quantites button { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--or); background: transparent; color: var(--or); font-size: 20px; cursor: pointer; }
+.barre-panier { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--carte); border: 1px solid var(--or); border-radius: 12px; padding: 12px 16px; margin-top: 16px; }
+.fond-modal { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: grid; place-items: center; padding: 16px; z-index: 10; overflow-y: auto; }
+.modal { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 10px; }
+.merci { max-width: 520px; margin: 10vh auto; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; }

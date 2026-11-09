@@ -117,6 +117,28 @@ class VentesViewModel(application: Application) : AndroidViewModel(application) 
         _details.value = modification(_details.value)
     }
 
+    /**
+     * Prépare une commande reçue par la boutique en ligne : produits du catalogue (prix et CC à jour)
+     * et coordonnées du client. Le distributeur choisit ensuite le pays et le mode.
+     */
+    fun preremplirDepuisBoutique(commande: com.benjo.fboplus.ui.screens.CommandeBoutique) {
+        val catalogue = com.benjo.fboplus.data.ProductRepository.allProducts.associateBy { it.ref }
+        _commandeEnCours.value = commande.lignes.map { l ->
+            val p = catalogue[l.produitRef]
+            if (p != null) LigneCommande(p.ref, p.nameFr, l.quantite, p.prixPublic, p.cc) else l
+        }
+        _titreCommande.value = commande.clientNom
+        _details.value = _details.value.copy(
+            mode = "livraison",
+            clientId = null,
+            clientNom = commande.clientNom,
+            clientTelephone = commande.telephone,
+            clientTelephone2 = commande.telephone2,
+            quartier = commande.quartier,
+            adresse = listOf(commande.adresse, commande.note).filter { it.isNotBlank() }.joinToString(" · ")
+        )
+    }
+
     /** Remplit la livraison depuis une fiche du carnet de clients. */
     fun setClient(client: Client) {
         _details.value = _details.value.copy(

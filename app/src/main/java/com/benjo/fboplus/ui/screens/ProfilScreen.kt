@@ -102,7 +102,8 @@ fun ProfilScreen(
     onClients: () -> Unit,
     onBoutique: () -> Unit,
     onNotifications: () -> Unit,
-    onValidations: () -> Unit
+    onValidations: () -> Unit,
+    onCommandesBoutique: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -195,6 +196,10 @@ fun ProfilScreen(
                     }
                     Separateur()
                     LigneOption(Icons.Filled.Groups, "Mes clients", sousTitre = "Fiches et historique", onClick = onClients) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Storefront, "Commandes de ma boutique", sousTitre = "Reçues en ligne", onClick = onCommandesBoutique) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
                     }
                     Separateur()
