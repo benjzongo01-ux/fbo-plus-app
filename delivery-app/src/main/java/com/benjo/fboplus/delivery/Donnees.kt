@@ -36,6 +36,7 @@ data class Mission(
     val clientTelephone: String,
     val clientTelephone2: String,
     val adresse: String,
+    val note: String = "",
     val lignes: List<LigneMission>,
     val montant: Int,
     val commission: Int,
@@ -73,6 +74,7 @@ class Depot {
             clientTelephone = client?.get("telephone") as? String ?: "",
             clientTelephone2 = client?.get("telephone2") as? String ?: "",
             adresse = doc.getString("adresse").orEmpty(),
+            note = doc.getString("note").orEmpty(),
             lignes = lignes.map {
                 LigneMission(it["nom"] as? String ?: "", (it["quantite"] as? Number)?.toInt() ?: 0)
             },
@@ -117,6 +119,11 @@ class Depot {
     }
 
     fun enregistrerPosition(id: String, lat: Double, lng: Double) {
+        uid?.let {
+            db.document("users/$it").update(
+                mapOf("position" to mapOf("lat" to lat, "lng" to lng), "positionMaj" to FieldValue.serverTimestamp())
+            )
+        }
         db.document("deliveries/$id").update(
             mapOf(
                 "position" to mapOf("lat" to lat, "lng" to lng),

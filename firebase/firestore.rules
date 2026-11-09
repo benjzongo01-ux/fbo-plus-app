@@ -53,6 +53,13 @@ service cloud.firestore {
           || resource.data.get('idDistributeur', '') == '');
     }
 
+    // Le livreur partage sa dernière position (affectation au plus proche), rien d'autre.
+    match /users/{uid} {
+      allow update: if moi(uid) && role() == 'livreur'
+        && !bloqueParMaintenance()
+        && champsModifies().hasOnly(['position', 'positionMaj']);
+    }
+
     // Vitrine publique du FBO : uniquement ce qu'il choisit d'y montrer.
     match /boutiques/{uid} {
       allow read: if true;

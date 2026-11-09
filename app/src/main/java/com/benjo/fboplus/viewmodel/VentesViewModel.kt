@@ -37,7 +37,9 @@ data class DetailsCommande(
     val zoneNom: String = "",
     val fraisZone: Int = 0,
     // Frais de livraison choisis dans la fourchette du pays (0 = tarif de base).
-    val fraisChoisis: Int = 0
+    val fraisChoisis: Int = 0,
+    // Note pour le centre d'appel et le livreur.
+    val note: String = ""
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {

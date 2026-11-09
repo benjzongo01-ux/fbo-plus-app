@@ -41,8 +41,8 @@ const comptes = [
 
 // Un entrepôt par pays ouvert. Le Sénégal reste fermé tant qu'il n'a pas d'entrepôt.
 const entrepots = [
-  { id: "principal", nom: "Entrepôt de Ouagadougou", ville: "Ouagadougou", pays: BF },
-  { id: "abidjan", nom: "Entrepôt d'Abidjan", ville: "Abidjan", pays: CI },
+  { id: "principal", nom: "Entrepôt de Ouagadougou", ville: "Ouagadougou", pays: BF, position: { lat: 12.3714, lng: -1.5197 } },
+  { id: "abidjan", nom: "Entrepôt d'Abidjan", ville: "Abidjan", pays: CI, position: { lat: 5.3237, lng: -4.0223 } },
 ];
 
 const lot = db.bulkWriter();

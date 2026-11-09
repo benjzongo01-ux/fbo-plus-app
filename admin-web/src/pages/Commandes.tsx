@@ -1,5 +1,5 @@
 import { orderBy, where } from "firebase/firestore";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { dateCourte, Etat, fcfa, filtrePays, LIBELLES_STATUTS, useAction, useCollection, type Doc } from "../commun";
 import { appeler } from "../firebase";
 import { useSession } from "../session";
@@ -60,6 +60,48 @@ export default function Commandes() {
         {ouverte && <DetailCommande key={ouverte.id} commande={ouverte} />}
       </div>
     </>
+  );
+}
+
+interface Proposition {
+  livreurId: string;
+  nom: string;
+  score: number;
+  raisons: string[];
+}
+
+/** Livreurs classés par l'affectation intelligente (charge, quartier, distance, fiabilité). */
+function Propositions({ commandeId, statut }: { commandeId: string; statut: string }) {
+  const [propositions, setPropositions] = useState<Proposition[] | null>(null);
+  const { enCours, erreur, lancer } = useAction();
+  useEffect(() => {
+    let actif = true;
+    appeler<{ propositions: Proposition[] }>("proposerLivreurs", { id: commandeId })
+      .then((r) => actif && setPropositions(r.propositions))
+      .catch(() => actif && setPropositions([]));
+    return () => { actif = false; };
+  }, [commandeId, statut]);
+
+  if (!propositions?.length) return null;
+  return (
+    <div className="encadre marge">
+      <div className="discret">Livreurs conseillés</div>
+      <ol className="propositions">
+        {propositions.slice(0, 3).map((p) => (
+          <li key={p.livreurId}><strong>{p.nom}</strong> <span className="discret">· {p.raisons.join(" · ")}</span></li>
+        ))}
+      </ol>
+      {statut === "prete" && (
+        <button
+          className="principal"
+          disabled={enCours}
+          onClick={() => lancer(() => appeler("affecterMeilleurLivreur", { id: commandeId }))}
+        >
+          Affecter le meilleur : {propositions[0].nom}
+        </button>
+      )}
+      {erreur && <p className="erreur">{erreur}</p>}
+    </div>
   );
 }
 
@@ -138,6 +180,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </p>
       )}
       <p><span className={`statut ${commande.statut}`}>{LIBELLES_STATUTS[commande.statut]}</span></p>
+      {commande.note && <p className="encadre">Note du distributeur : {commande.note}</p>}
       {commande.motifAnnulation && <p className="discret">Motif : {commande.motifAnnulation}</p>}
       {commande.motifRetour && <p className="discret">Motif : {commande.motifRetour}</p>}
 
@@ -254,6 +297,10 @@ function DetailCommande({ commande }: { commande: Doc }) {
             Marquer expédiée
           </button>
         </div>
+      )}
+
+      {centreAppel && !validation && !expedition && ["prete", "assignee"].includes(commande.statut) && (
+        <Propositions commandeId={commande.id} statut={commande.statut} />
       )}
 
       {centreAppel && !validation && !expedition && ["prete", "assignee"].includes(commande.statut) && (
