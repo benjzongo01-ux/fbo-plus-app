@@ -7,6 +7,14 @@ service cloud.firestore {
     function role() { return connecte() ? request.auth.token.get('role', '') : ''; }
     function aRole(roles) { return role() in roles; }
     function estAdmin() { return aRole(['admin', 'super_admin']); }
+    // Seul le super administrateur règle l'application (catalogue, tarifs, paramètres, comptes).
+    function estSuperAdmin() { return role() == 'super_admin'; }
+    // Pendant la maintenance, plus aucune écriture, sauf celles du super administrateur.
+    function bloqueParMaintenance() {
+      return !estSuperAdmin()
+        && exists(/databases/$(database)/documents/parametres/maintenance)
+        && get(/databases/$(database)/documents/parametres/maintenance).data.get('actif', false) == true;
+    }
     function estPersonnel() {
       return aRole(['operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
     }
@@ -33,6 +41,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if moi(uid) || voitPays(resource.data.get('pays', ''));
       allow update: if moi(uid)
+        && !bloqueParMaintenance()
         && champsModifies().hasOnly([
           // Le grade est attribué par l'administration : le distributeur ne fait qu'une demande.
           'nom', 'prenom', 'email', 'pays', 'ville', 'gradeDemande',
@@ -47,48 +56,46 @@ service cloud.firestore {
     // Vitrine publique du FBO : uniquement ce qu'il choisit d'y montrer.
     match /boutiques/{uid} {
       allow read: if true;
-      allow write: if moi(uid) && role() == 'fbo';
+      allow write: if moi(uid) && role() == 'fbo' && !bloqueParMaintenance();
     }
 
     // Le catalogue actif est public pour les boutiques en ligne.
     match /products/{id} {
       allow read: if resource.data.actif == true || aUnRole();
-      allow write: if estAdmin();
+      allow write: if estSuperAdmin();
     }
 
     match /parametres/{id} {
       allow read: if aUnRole();
-      allow write: if estAdmin();
+      allow write: if estSuperAdmin() && id != 'maintenance';
+    }
+
+    // L'état de maintenance est public : les applications l'affichent même avant la connexion.
+    // Il ne change que par la fonction definirMaintenance (journalisée).
+    match /parametres/maintenance {
+      allow read: if true;
     }
 
     // Frais de livraison et commission du livreur : un document par pays, nommé d'après le pays.
     match /tarifsPays/{pays} {
       allow read: if aUnRole();
-      allow write: if role() == 'super_admin'
-        || (estAdmin() && pays == request.auth.token.get('pays', ''));
+      allow write: if estSuperAdmin();
     }
 
     // Villes d'expédition et leurs frais, tenues par l'administration de chaque pays.
     match /villesExpedition/{id} {
       allow read: if aUnRole();
-      allow create: if role() == 'super_admin'
-        || (estAdmin() && request.resource.data.pays == request.auth.token.get('pays', ''));
-      allow update: if role() == 'super_admin'
-        || (estAdmin() && resource.data.pays == request.auth.token.get('pays', '')
-          && request.resource.data.pays == resource.data.pays);
-      allow delete: if role() == 'super_admin'
-        || (estAdmin() && resource.data.pays == request.auth.token.get('pays', ''));
+      allow write: if estSuperAdmin();
     }
 
     match /centres/{id} {
       allow read: if aUnRole();
-      allow write: if estAdmin();
+      allow write: if estSuperAdmin();
     }
 
     match /warehouses/{id} {
       allow read: if estPersonnel();
-      allow write: if role() == 'super_admin'
-        || (estAdmin() && request.resource.data.pays == request.auth.token.get('pays', ''));
+      allow write: if estSuperAdmin();
     }
 
     // Stock et mouvements : écriture réservée aux Cloud Functions.
@@ -96,7 +103,7 @@ service cloud.firestore {
       allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'));
     }
     match /stockMovements/{id} {
-      allow read: if estPersonnel();
+      allow read: if estSuperAdmin();
     }
 
     match /customers/{id} {
@@ -105,16 +112,19 @@ service cloud.firestore {
           && request.resource.data.nom.size() > 0
           && request.resource.data.nom.size() <= 120;
       }
-      allow read: if estPersonnel()
-        || (role() == 'fbo' && resource.data.ownerId == request.auth.uid);
+      // Le carnet de clients appartient au distributeur : le personnel n'y a pas accès
+      // (chaque commande garde sa propre copie des coordonnées utiles).
+      allow read: if role() == 'fbo' && resource.data.ownerId == request.auth.uid;
       allow create: if role() == 'fbo'
+        && !bloqueParMaintenance()
         && request.resource.data.ownerId == request.auth.uid
         && clientValide();
       allow update: if role() == 'fbo'
+        && !bloqueParMaintenance()
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId
         && clientValide();
-      allow delete: if role() == 'fbo' && resource.data.ownerId == request.auth.uid;
+      allow delete: if role() == 'fbo' && !bloqueParMaintenance() && resource.data.ownerId == request.auth.uid;
     }
 
     // Commandes : prix et statuts sont gérés côté serveur, aucune écriture cliente.
@@ -130,6 +140,7 @@ service cloud.firestore {
         || (role() == 'livreur' && resource.data.livreurId == request.auth.uid)
         || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
       allow update: if role() == 'livreur'
+        && !bloqueParMaintenance()
         && resource.data.livreurId == request.auth.uid
         && champsModifies().hasOnly(['position', 'positionUpdatedAt']);
     }
@@ -148,7 +159,7 @@ service cloud.firestore {
     }
 
     match /auditLogs/{id} {
-      allow read: if estAdmin();
+      allow read: if estSuperAdmin();
     }
 
     // userSecrets (empreintes de PIN) : aucune règle, donc jamais lisible par un client.

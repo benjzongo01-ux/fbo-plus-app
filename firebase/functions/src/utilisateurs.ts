@@ -1,12 +1,12 @@
 import { getAuth } from "firebase-admin/auth";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { onAppel } from "./limites.js";
 import {
   db,
   estPays,
   estRole,
-  exigerAdmin,
+  exigerSuperAdmin,
   exigerConnexion,
   exigerDroitSurRole,
   exigerMemePays,
@@ -14,6 +14,7 @@ import {
   OPTIONS_APPEL,
 } from "./commun.js";
 import { REMISES } from "./commandes.js";
+import { DUREE_MAX_MINUTES, MESSAGE_PAR_DEFAUT, oublierCacheMaintenance, REF_MAINTENANCE } from "./maintenance.js";
 
 /**
  * Appelée après la vérification du code SMS. Un nouveau numéro devient un compte fbo :
@@ -53,7 +54,7 @@ export const initialiserProfil = onAppel("initialiserProfil", OPTIONS_APPEL, asy
 });
 
 export const definirRole = onAppel("definirRole", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   const { uid, role } = (req.data ?? {}) as { uid?: unknown; role?: unknown };
 
   if (typeof uid !== "string" || uid.length === 0) {
@@ -85,7 +86,7 @@ export const definirRole = onAppel("definirRole", OPTIONS_APPEL, async (req) => 
 
 /** Un compte suspendu ne peut plus se connecter et perd immédiatement ses sessions. */
 export const definirStatut = onAppel("definirStatut", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   const { uid, statut } = (req.data ?? {}) as { uid?: unknown; statut?: unknown };
 
   if (typeof uid !== "string" || (statut !== "actif" && statut !== "suspendu")) {
@@ -137,7 +138,7 @@ async function prevenir(userId: string, cle: string, corps: string) {
  * Le distributeur ne fait qu'une demande (gradeDemande), acceptée ou refusée ici.
  */
 export const definirGrade = onAppel("definirGrade", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   const d = (req.data ?? {}) as { uid?: unknown; grade?: unknown; refuser?: unknown };
   const { ref, compte } = await distributeurDuPays(req, d.uid);
 
@@ -160,7 +161,7 @@ export const definirGrade = onAppel("definirGrade", OPTIONS_APPEL, async (req) =
 
 /** L'ID Forever est verrouillé pour le distributeur ; l'administration corrige une erreur de saisie. */
 export const corrigerIdForever = onAppel("corrigerIdForever", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   const d = (req.data ?? {}) as { uid?: unknown; idDistributeur?: unknown };
   const { ref, compte } = await distributeurDuPays(req, d.uid);
 
@@ -174,9 +175,57 @@ export const corrigerIdForever = onAppel("corrigerIdForever", OPTIONS_APPEL, asy
   return { idDistributeur: id };
 });
 
-/** Comptes livreur et personnel : créés uniquement par l'administration. */
+/**
+ * Supprime un compte : il ne peut plus se connecter et ses données privées sont effacées
+ * (PIN, fiches clients, vitrine, appareils). Les commandes restent, pour l'historique et la comptabilité.
+ */
+export const supprimerCompte = onAppel("supprimerCompte", OPTIONS_APPEL, async (req) => {
+  const appelant = exigerSuperAdmin(req);
+  const { uid } = (req.data ?? {}) as { uid?: unknown };
+  if (typeof uid !== "string" || uid.length === 0) throw new HttpsError("invalid-argument", "Compte manquant.");
+  if (uid === appelant.uid) {
+    throw new HttpsError("permission-denied", "Vous ne pouvez pas supprimer votre propre compte.");
+  }
+
+  const ref = db.doc(`users/${uid}`);
+  const profil = (await ref.get()).data();
+  if (!profil) throw new HttpsError("not-found", "Utilisateur introuvable.");
+
+  await getAuth()
+    .deleteUser(uid)
+    .catch((e: { code?: string }) => {
+      if (e.code !== "auth/user-not-found") throw e;
+    });
+
+  const lot = db.bulkWriter();
+  for (const nom of ["customers", "fcmTokens"]) {
+    const champ = nom === "customers" ? "ownerId" : "userId";
+    for (const d of (await db.collection(nom).where(champ, "==", uid).get()).docs) lot.delete(d.ref);
+  }
+  lot.delete(db.doc(`userSecrets/${uid}`));
+  lot.delete(db.doc(`boutiques/${uid}`));
+  lot.delete(db.doc(`limitesDebit/${uid}`));
+  // Le profil garde nom et rôle pour que l'historique des commandes reste lisible.
+  lot.set(
+    ref,
+    {
+      statut: "supprime",
+      supprimeLe: FieldValue.serverTimestamp(),
+      telephone: FieldValue.delete(),
+      email: FieldValue.delete(),
+      whatsapp: FieldValue.delete(),
+    },
+    { merge: true },
+  );
+  await lot.close();
+
+  await journaliser("compte_supprime", appelant.uid, uid, { role: profil.role ?? null });
+  return { uid };
+});
+
+/** Comptes livreur et personnel : créés uniquement par le super administrateur. */
 export const creerCompteInterne = onAppel("creerCompteInterne", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   const { telephone, nom, role, centre, pays: paysDemande } = (req.data ?? {}) as Record<string, unknown>;
   // Un administrateur ne recrute que dans son pays ; le super administrateur choisit.
   const pays = appelant.role === "super_admin" ? paysDemande : appelant.pays;
@@ -220,7 +269,7 @@ export const creerCompteInterne = onAppel("creerCompteInterne", OPTIONS_APPEL, a
 
 /** Change le pays d'un compte du personnel : réservé au super administrateur. */
 export const definirPays = onAppel("definirPays", OPTIONS_APPEL, async (req) => {
-  const appelant = exigerAdmin(req);
+  const appelant = exigerSuperAdmin(req);
   if (appelant.role !== "super_admin") {
     throw new HttpsError("permission-denied", "Action réservée au super administrateur.");
   }
@@ -239,4 +288,41 @@ export const definirPays = onAppel("definirPays", OPTIONS_APPEL, async (req) => 
   await journaliser("pays_modifie", appelant.uid, uid, { pays });
 
   return { uid, pays };
+});
+
+/** Active ou arrête le mode maintenance (message et durée prévue) : réservé au super administrateur. */
+export const definirMaintenance = onAppel("definirMaintenance", OPTIONS_APPEL, async (req) => {
+  const appelant = exigerSuperAdmin(req);
+  const d = (req.data ?? {}) as { actif?: unknown; message?: unknown; dureeMinutes?: unknown };
+  if (typeof d.actif !== "boolean") throw new HttpsError("invalid-argument", "Indiquez si la maintenance est active.");
+
+  if (!d.actif) {
+    await REF_MAINTENANCE.set({
+      actif: false,
+      message: "",
+      finPrevue: null,
+      termineeLe: FieldValue.serverTimestamp(),
+      auteurId: appelant.uid,
+    });
+    oublierCacheMaintenance();
+    await journaliser("maintenance_terminee", appelant.uid, "maintenance");
+    return { actif: false };
+  }
+
+  const duree = d.dureeMinutes ?? 0;
+  if (!Number.isInteger(duree) || (duree as number) < 0 || (duree as number) > DUREE_MAX_MINUTES) {
+    throw new HttpsError("invalid-argument", "Durée invalide (en minutes, 7 jours au plus).");
+  }
+  const message = typeof d.message === "string" && d.message.trim() ? d.message.trim().slice(0, 500) : MESSAGE_PAR_DEFAUT;
+
+  await REF_MAINTENANCE.set({
+    actif: true,
+    message,
+    debut: FieldValue.serverTimestamp(),
+    finPrevue: duree ? Timestamp.fromMillis(Date.now() + (duree as number) * 60_000) : null,
+    auteurId: appelant.uid,
+  });
+  oublierCacheMaintenance();
+  await journaliser("maintenance_activee", appelant.uid, "maintenance", { dureeMinutes: duree });
+  return { actif: true };
 });

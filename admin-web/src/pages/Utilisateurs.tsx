@@ -21,10 +21,12 @@ export default function Utilisateurs() {
   const { docs, erreur } = useCollection("users", ...filtrePays(role, pays));
   const [recherche, setRecherche] = useState("");
   const [seulementDemandes, setSeulementDemandes] = useState(false);
+  const [voirSupprimes, setVoirSupprimes] = useState(false);
   const demandes = docs?.filter(demandeEnAttente).length ?? 0;
 
   const visibles = docs
-    ?.filter((u) => !seulementDemandes || demandeEnAttente(u))
+    ?.filter((u) => voirSupprimes || u.statut !== "supprime")
+    .filter((u) => !seulementDemandes || demandeEnAttente(u))
     .filter((u) =>
       `${u.prenom ?? ""} ${u.nom ?? ""} ${u.telephone ?? ""} ${u.idDistributeur ?? ""}`
         .toLowerCase()
@@ -46,6 +48,10 @@ export default function Utilisateurs() {
             Demandes de grade{demandes > 0 && <span className="pastille">{demandes}</span>}
           </button>
         )}
+        <label className="case">
+          <input type="checkbox" checked={voirSupprimes} onChange={(e) => setVoirSupprimes(e.target.checked)} />
+          Comptes supprimés
+        </label>
       </div>
       <Etat docs={visibles} erreur={erreur} vide="Aucun utilisateur." />
       {visibles && visibles.length > 0 && (
@@ -102,9 +108,12 @@ function LigneUtilisateur({ compte, roleAppelant, moi }: { compte: Doc; roleAppe
           <Distributeur compte={compte} gerer={ROLES_ADMIN.includes(roleAppelant)} lancer={lancer} enCours={enCours} />
         ) : "—"}
       </td>
-      <td>{compte.statut === "suspendu" ? <span className="alerte">Suspendu</span> : "Actif"}</td>
       <td>
-        {!verrouille && (
+        {compte.statut === "supprime" ? <span className="discret">Supprimé</span>
+          : compte.statut === "suspendu" ? <span className="alerte">Suspendu</span> : "Actif"}
+      </td>
+      <td>
+        {!verrouille && compte.statut !== "supprime" && (
           <button
             className={compte.statut === "suspendu" ? "secondaire" : "danger"}
             disabled={enCours}
@@ -119,6 +128,23 @@ function LigneUtilisateur({ compte, roleAppelant, moi }: { compte: Doc; roleAppe
           >
             {compte.statut === "suspendu" ? "Réactiver" : "Suspendre"}
           </button>
+        )}
+        {superAdmin && !moi && compte.statut !== "supprime" && (
+          <>
+            {" "}
+            <button
+              className="lien"
+              disabled={enCours}
+              onClick={() => {
+                const nom = [compte.prenom, compte.nom].filter(Boolean).join(" ") || compte.telephone;
+                if (window.confirm(`Supprimer définitivement le compte de ${nom} ? Il ne pourra plus se connecter et ses données privées seront effacées. Ses commandes restent dans l'historique.`)) {
+                  lancer(() => appeler("supprimerCompte", { uid: compte.id }));
+                }
+              }}
+            >
+              Supprimer
+            </button>
+          </>
         )}
         {erreur && <span className="erreur">{erreur}</span>}
       </td>

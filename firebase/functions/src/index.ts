@@ -2,6 +2,8 @@ export {
   creerCompteInterne,
   definirPays,
   definirGrade,
+  supprimerCompte,
+  definirMaintenance,
   corrigerIdForever,
   definirRole,
   definirStatut,

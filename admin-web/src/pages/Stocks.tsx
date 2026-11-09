@@ -61,7 +61,7 @@ export default function Stocks() {
         </table>
       )}
 
-      {["admin", "super_admin"].includes(role) && (
+      {superAdmin && (
         <form className="filtres marge" onSubmit={ajouterEntrepot}>
           <input placeholder="Nom du nouvel entrepôt" value={nouvelEntrepot} onChange={(e) => setNouvelEntrepot(e.target.value)} required />
           {superAdmin && (

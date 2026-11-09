@@ -490,7 +490,7 @@ describe("plusieurs entrepôts dans un pays", () => {
 describe("grade et ID Forever tenus par l'administration", () => {
   it("la remise suit le grade validé, pas le grade demandé", async () => {
     const u = await compte("fbo", { gradeDemande: "Manager (M)", idDistributeur: "226000111222", prenom: "Ali", nom: "Test" });
-    const admin = await compte("admin");
+    const admin = await compte("super_admin");
     const { id: avant } = await nouvelle(u);
     expect((await commande(avant)).beneficeFbo).toBe(2200); // Client Privilégié : 5 %
 
@@ -507,7 +507,7 @@ describe("grade et ID Forever tenus par l'administration", () => {
 
   it("une demande refusée est effacée sans changer le grade", async () => {
     const u = await compte("fbo", { grade: "Animateur (A)", gradeDemande: "Manager (M)" });
-    const admin = await compte("admin");
+    const admin = await compte("super_admin");
     await admin.appeler("definirGrade", { uid: u.uid, refuser: true });
     const profil = (await adminDb().doc(`users/${u.uid}`).get()).data()!;
     expect(profil.grade).toBe("Animateur (A)");
@@ -517,11 +517,15 @@ describe("grade et ID Forever tenus par l'administration", () => {
     );
   });
 
-  it("seule l'administration du pays du distributeur décide", async () => {
+  it("seul le super administrateur décide, ni l'opérateur ni les admins de pays", async () => {
     const u = await compte("fbo", { gradeDemande: "Manager (M)" });
     const operateur = await compte("operateur");
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
-    const admin = await compte("admin");
+    const adminBF = await compte("admin");
+    const admin = await compte("super_admin");
+    expect(await codeErreur(adminBF.appeler("definirGrade", { uid: u.uid, grade: "Manager (M)" }))).toBe(
+      "functions/permission-denied",
+    );
     expect(await codeErreur(operateur.appeler("definirGrade", { uid: u.uid, grade: "Manager (M)" }))).toBe(
       "functions/permission-denied",
     );
@@ -536,9 +540,12 @@ describe("grade et ID Forever tenus par l'administration", () => {
     );
   });
 
-  it("l'administration corrige un ID Forever erroné", async () => {
+  it("le super administrateur corrige un ID Forever erroné", async () => {
     const u = await compte("fbo", { idDistributeur: "226000111222" });
-    const admin = await compte("admin");
+    expect(
+      await codeErreur((await compte("admin")).appeler("corrigerIdForever", { uid: u.uid, idDistributeur: "226000999888" })),
+    ).toBe("functions/permission-denied");
+    const admin = await compte("super_admin");
     expect(await codeErreur(admin.appeler("corrigerIdForever", { uid: u.uid, idDistributeur: "12" }))).toBe(
       "functions/invalid-argument",
     );
@@ -598,15 +605,12 @@ describe("administration par pays", () => {
     expect((await adminDb().doc(`deliveries/${id}`).get()).data()?.pays).toBe("Burkina Faso");
   });
 
-  it("un admin crée des comptes dans son pays ; seul le super admin choisit le pays", async () => {
+  it("seul le super admin crée des comptes et choisit leur pays", async () => {
     const adminCi = await compte("admin", { pays: "Côte d'Ivoire" });
     const superAdmin = await compte("super_admin");
-    const { uid } = await adminCi.appeler("creerCompteInterne", {
-      telephone: "+2250700001234",
-      nom: "Koffi",
-      role: "livreur",
-      pays: "Burkina Faso",
-    });
+    const livreur = { telephone: "+2250700001234", nom: "Koffi", role: "livreur", pays: "Côte d'Ivoire" };
+    expect(await codeErreur(adminCi.appeler("creerCompteInterne", livreur))).toBe("functions/permission-denied");
+    const { uid } = await superAdmin.appeler("creerCompteInterne", livreur);
     expect((await adminDb().doc(`users/${uid}`).get()).data()?.pays).toBe("Côte d'Ivoire");
 
     expect(await codeErreur(adminCi.appeler("definirPays", { uid, pays: "Sénégal" }))).toBe(
@@ -622,6 +626,60 @@ describe("administration par pays", () => {
     expect(await codeErreur(adminBf.appeler("definirStatut", { uid: livreurCi.uid, statut: "suspendu" }))).toBe(
       "functions/permission-denied",
     );
+  });
+});
+
+describe("suppression de compte", () => {
+  it("le super admin supprime un compte et ses données privées, pas l'historique", async () => {
+    const sa = await compte("super_admin");
+    const u = await fbo();
+    const { id } = await nouvelle(u);
+    await adminDb().doc("customers/a-effacer").set({ ownerId: u.uid, nom: "Client" });
+    await adminDb().doc(`userSecrets/${u.uid}`).set({ hash: "x" });
+    await adminDb().doc(`boutiques/${u.uid}`).set({ nom: "Vitrine" });
+
+    expect(await codeErreur((await compte("admin")).appeler("supprimerCompte", { uid: u.uid }))).toBe(
+      "functions/permission-denied",
+    );
+    expect(await codeErreur(sa.appeler("supprimerCompte", { uid: sa.uid }))).toBe("functions/permission-denied");
+    await sa.appeler("supprimerCompte", { uid: u.uid });
+
+    expect((await adminDb().doc("customers/a-effacer").get()).exists).toBe(false);
+    expect((await adminDb().doc(`userSecrets/${u.uid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`boutiques/${u.uid}`).get()).exists).toBe(false);
+    expect((await adminDb().doc(`users/${u.uid}`).get()).data()).toMatchObject({ statut: "supprime" });
+    expect((await adminDb().doc(`orders/${id}`).get()).exists).toBe(true);
+  });
+});
+
+describe("mode maintenance", () => {
+  it("seul le super admin l'active ; tout est refusé aux autres, puis tout reprend", async () => {
+    const sa = await compte("super_admin");
+    const admin = await compte("admin");
+    const u = await fbo();
+    expect(await codeErreur(admin.appeler("definirMaintenance", { actif: true }))).toBe("functions/permission-denied");
+
+    await sa.appeler("definirMaintenance", { actif: true, dureeMinutes: 30, message: "Mise à jour du catalogue." });
+    const etat = (await adminDb().doc("parametres/maintenance").get()).data()!;
+    expect(etat).toMatchObject({ actif: true, message: "Mise à jour du catalogue." });
+    expect(etat.finPrevue.toMillis()).toBeGreaterThan(Date.now() + 29 * 60_000);
+
+    const refus = await nouvelle(u).catch((e) => e);
+    expect(refus.code).toBe("functions/failed-precondition");
+    expect(refus.message).toContain("maintenance");
+    expect(await codeErreur(admin.appeler("avancerCommande", { id: "x" }))).toBe("functions/failed-precondition");
+    expect(await stock()).toMatchObject({ disponible: 10, reserve: 0 });
+
+    await sa.appeler("definirMaintenance", { actif: false });
+    await nouvelle(u);
+  });
+
+  it("refuse une durée invalide", async () => {
+    const sa = await compte("super_admin");
+    expect(await codeErreur(sa.appeler("definirMaintenance", { actif: true, dureeMinutes: -5 }))).toBe(
+      "functions/invalid-argument",
+    );
+    expect(await codeErreur(sa.appeler("definirMaintenance", { actif: "oui" }))).toBe("functions/invalid-argument");
   });
 });
 
@@ -665,15 +723,15 @@ describe("notifications", () => {
 });
 
 describe("definirStatut", () => {
-  it("un admin suspend un FBO, pas un autre admin ni lui-même", async () => {
-    const admin = await compte("admin");
+  it("seul le super admin suspend un compte, jamais le sien", async () => {
+    const admin = await compte("super_admin");
     const f = await fbo();
     const autreAdmin = await compte("admin");
-    await admin.appeler("definirStatut", { uid: f.uid, statut: "suspendu" });
-    expect((await adminDb().doc(`users/${f.uid}`).get()).data()?.statut).toBe("suspendu");
-    expect(await codeErreur(admin.appeler("definirStatut", { uid: autreAdmin.uid, statut: "suspendu" }))).toBe(
+    expect(await codeErreur(autreAdmin.appeler("definirStatut", { uid: f.uid, statut: "suspendu" }))).toBe(
       "functions/permission-denied",
     );
+    await admin.appeler("definirStatut", { uid: f.uid, statut: "suspendu" });
+    expect((await adminDb().doc(`users/${f.uid}`).get()).data()?.statut).toBe("suspendu");
     expect(await codeErreur(admin.appeler("definirStatut", { uid: admin.uid, statut: "suspendu" }))).toBe(
       "functions/permission-denied",
     );

@@ -1,6 +1,6 @@
 import { signOut } from "firebase/auth";
 import { where } from "firebase/firestore";
-import { StrictMode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { filtrePays, LIBELLES_ROLES, useCollection } from "./commun";
@@ -13,17 +13,20 @@ import Parametres from "./pages/Parametres";
 import Produits from "./pages/Produits";
 import Stocks from "./pages/Stocks";
 import Utilisateurs from "./pages/Utilisateurs";
+import { EcranMaintenance, useMaintenance } from "./maintenance";
 import { FournisseurSession, useSession } from "./session";
 import "./style.css";
 
 const ADMIN = ["admin", "super_admin"];
+// Réglages, catalogue et comptes : le super administrateur seul. Les admins de pays traitent les commandes.
+const SUPER = ["super_admin"];
 const PAGES = [
   { chemin: "/commandes", titre: "Centre d'appel", roles: ["operateur", "gestionnaire_stock", ...ADMIN], page: <Commandes /> },
   { chemin: "/stocks", titre: "Stocks", roles: ["gestionnaire_stock", ...ADMIN], page: <Stocks /> },
-  { chemin: "/produits", titre: "Produits", roles: ADMIN, page: <Produits /> },
+  { chemin: "/produits", titre: "Produits", roles: SUPER, page: <Produits /> },
   { chemin: "/livreurs", titre: "Livreurs", roles: ["operateur", ...ADMIN], page: <Livreurs /> },
-  { chemin: "/utilisateurs", titre: "Utilisateurs", roles: ADMIN, page: <Utilisateurs /> },
-  { chemin: "/parametres", titre: "Paramètres", roles: ADMIN, page: <Parametres /> },
+  { chemin: "/utilisateurs", titre: "Utilisateurs", roles: SUPER, page: <Utilisateurs /> },
+  { chemin: "/parametres", titre: "Paramètres", roles: SUPER, page: <Parametres /> },
 ];
 
 function Application() {
@@ -32,6 +35,23 @@ function Application() {
   if (!utilisateur) return <Connexion />;
 
   return <Cadre />;
+}
+
+/** Pendant la maintenance, seul le super administrateur garde l'accès (pour la faire). */
+function AvecMaintenance({ children }: { children: ReactNode }) {
+  const maintenance = useMaintenance();
+  const { role } = useSession();
+  if (maintenance?.actif && role !== "super_admin") return <EcranMaintenance etat={maintenance} />;
+  return (
+    <>
+      {maintenance?.actif && (
+        <div className="bandeau alerte-maintenance">
+          Maintenance en cours : les utilisateurs voient l'écran d'attente. Terminez-la dans Paramètres.
+        </div>
+      )}
+      {children}
+    </>
+  );
 }
 
 function Cadre() {
@@ -79,7 +99,9 @@ createRoot(document.getElementById("racine")!).render(
           path="*"
           element={
             <FournisseurSession>
-              <Application />
+              <AvecMaintenance>
+                <Application />
+              </AvecMaintenance>
             </FournisseurSession>
           }
         />

@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 97 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 101 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -99,6 +99,32 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Delivery : bouton d'appel du deuxième numéro du client.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
+## Sécurité des rôles et mode maintenance (2026-11-09)
+
+Branche `feature/securite-maintenance`, fusionnée dans `main`.
+
+Répartition des pouvoirs :
+
+| Rôle | Peut |
+|---|---|
+| Super administrateur | Tout : comptes (créer, rôle, pays, suspendre, supprimer), grades, ID Forever, catalogue, entrepôts, tarifs, villes, centres, paramètres, journal, maintenance. Voit tous les pays. |
+| Administrateur de pays | Recevoir et faire suivre les commandes de son pays (confirmer, préparer, assigner, valider, expédier, annuler), gérer le stock de son pays, voir ses livreurs. |
+| Opérateur | Confirmer, assigner, valider et expédier les commandes de son pays. |
+| Gestionnaire de stock | Préparer les commandes et gérer le stock de son pays. |
+| Distributeur | Ses commandes, ses clients, son profil, sa vitrine. |
+| Livreur | Ses missions et sa position. |
+
+Corrections de l'audit :
+- le carnet de clients d'un distributeur n'est plus lisible par le personnel (il l'était, tous pays confondus) ;
+- le journal et les mouvements de stock ne sont lisibles que par le super administrateur ;
+- un administrateur de pays ne peut plus créer de comptes, changer un rôle, suspendre, attribuer un grade ni modifier catalogue, tarifs, villes, entrepôts ou paramètres ;
+- suppression de compte (`supprimerCompte`) : connexion impossible, PIN, carnet de clients, vitrine et appareils effacés ; les commandes restent pour l'historique.
+
+Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
+- le super administrateur l'active dans Paramètres, avec un message et une durée prévue ;
+- FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
+- le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
 
 ## Protection contre les rafales de requêtes (2026-11-08)
 

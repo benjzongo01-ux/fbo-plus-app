@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { fcfa, type Doc } from "../commun";
 import { db } from "../firebase";
+import { EcranMaintenance, useMaintenance } from "../maintenance";
 
 /** Page publique du QR code : catalogue du distributeur, sans compte ni données privées. */
 export default function Boutique() {
@@ -10,6 +11,7 @@ export default function Boutique() {
   const [boutique, setBoutique] = useState<Doc | null | undefined>(undefined);
   const [produits, setProduits] = useState<Doc[]>([]);
   const [categorie, setCategorie] = useState("Tous");
+  const maintenance = useMaintenance();
 
   useEffect(() => {
     getDoc(doc(db, "boutiques", uid!))
@@ -19,6 +21,7 @@ export default function Boutique() {
       .then((r) => setProduits(r.docs.map((d) => ({ id: d.id, ...d.data() }))));
   }, [uid]);
 
+  if (maintenance?.actif) return <EcranMaintenance etat={maintenance} />;
   if (boutique === undefined) return <p className="discret centre">Chargement…</p>;
   if (boutique === null) return <p className="discret centre">Cette boutique n'existe pas.</p>;
 

@@ -2,6 +2,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from "
 import { useEffect, useState, type FormEvent } from "react";
 import { fcfa, filtrePays, PAYS, useAction, useCollection } from "../commun";
 import { db } from "../firebase";
+import { PanneauMaintenance } from "../maintenance";
 import { useSession } from "../session";
 
 /** Villes où chaque pays expédie, et leurs frais : proposées au distributeur lors de la commande. */
@@ -147,6 +148,8 @@ export default function Parametres() {
         {enregistre && <p className="succes">Tarifs enregistrés.</p>}
         <button className="principal" disabled={action.enCours}>Enregistrer</button>
       </form>
+
+      <PanneauMaintenance />
 
       <VillesExpedition />
 

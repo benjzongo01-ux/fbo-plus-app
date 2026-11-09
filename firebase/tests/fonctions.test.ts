@@ -83,10 +83,14 @@ describe("definirRole", () => {
     );
   });
 
-  it("un admin attribue un rôle ordinaire, avec journalisation", async () => {
+  it("seul le super admin attribue un rôle, avec journalisation", async () => {
     const admin = await compte("admin");
+    const sa = await compte("super_admin");
     const cible = await compte("fbo");
-    await admin.appeler("definirRole", { uid: cible.uid, role: "operateur" });
+    expect(await codeErreur(admin.appeler("definirRole", { uid: cible.uid, role: "operateur" }))).toBe(
+      "functions/permission-denied",
+    );
+    await sa.appeler("definirRole", { uid: cible.uid, role: "operateur" });
 
     expect((await getAuth().getUser(cible.uid)).customClaims?.role).toBe("operateur");
     const journal = await getFirestore()
@@ -95,7 +99,7 @@ describe("definirRole", () => {
       .where("action", "==", "role_modifie")
       .get();
     expect(journal.size).toBe(1);
-    expect(journal.docs[0].data().auteurId).toBe(admin.uid);
+    expect(journal.docs[0].data().auteurId).toBe(sa.uid);
   });
 
   it("un admin ne promeut pas en admin et ne rétrograde pas un admin", async () => {
@@ -130,19 +134,17 @@ describe("definirRole", () => {
 });
 
 describe("creerCompteInterne", () => {
-  it("un admin crée un livreur, un FBO non", async () => {
+  it("seul le super admin crée un compte, ni un admin de pays ni un FBO", async () => {
+    const sa = await compte("super_admin");
     const admin = await compte("admin");
     const fbo = await compte("fbo");
     const data = { telephone: telephone(), nom: "Issa", role: "livreur", pays: "Burkina Faso" };
 
-    expect(await codeErreur(fbo.appeler("creerCompteInterne", data))).toBe(
-      "functions/permission-denied",
-    );
-    const { uid } = await admin.appeler("creerCompteInterne", data);
+    expect(await codeErreur(fbo.appeler("creerCompteInterne", data))).toBe("functions/permission-denied");
+    expect(await codeErreur(admin.appeler("creerCompteInterne", data))).toBe("functions/permission-denied");
+    const { uid } = await sa.appeler("creerCompteInterne", data);
     expect((await getAuth().getUser(uid)).customClaims?.role).toBe("livreur");
-    expect(await codeErreur(admin.appeler("creerCompteInterne", data))).toBe(
-      "functions/already-exists",
-    );
+    expect(await codeErreur(sa.appeler("creerCompteInterne", data))).toBe("functions/already-exists");
   });
 
   it("un admin ne crée pas d'admin", async () => {

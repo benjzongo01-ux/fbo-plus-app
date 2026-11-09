@@ -52,6 +52,12 @@ a { color: var(--or); }
 .menu nav a.active { background: rgba(212, 175, 55, .14); color: var(--or); font-weight: 600; }
 .pied-menu { font-size: 13px; }
 .contenu { flex: 1; min-width: 0; padding: 20px 24px; }
+.maintenance { max-width: 560px; margin: 12vh auto; padding: 32px 24px; text-align: center; line-height: 1.6; }
+.maintenance h1 { margin: 16px 0 12px; }
+.maintenance .retour { color: var(--or); font-weight: 600; font-size: 17px; }
+.alerte-maintenance { border-color: var(--rouge); color: var(--rouge); background: rgba(255, 84, 112, .08); }
+.case { display: inline-flex; align-items: center; gap: 6px; }
+.case input { width: auto; }
 .bandeau {
   background: rgba(212, 175, 55, .1);
   border: 1px solid rgba(212, 175, 55, .3);

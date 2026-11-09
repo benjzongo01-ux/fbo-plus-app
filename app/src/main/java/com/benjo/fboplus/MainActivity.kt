@@ -7,6 +7,7 @@ import androidx.fragment.app.FragmentActivity
 import com.benjo.fboplus.data.ProfilRepository
 import com.benjo.fboplus.ui.theme.FBOPlusTheme
 import com.benjo.fboplus.ui.navigation.FBONavigation
+import com.benjo.fboplus.ui.screens.AvecMaintenance
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -17,7 +18,7 @@ class MainActivity : FragmentActivity() {
         RappelScheduler.appliquer(this, profil.rappelActif, profil.heureRappel)
         setContent {
             FBOPlusTheme {
-                FBONavigation()
+                AvecMaintenance { FBONavigation() }
             }
         }
     }

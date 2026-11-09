@@ -1,6 +1,7 @@
 import { logger } from "firebase-functions";
 import { CallableRequest, CallableOptions, HttpsError, onCall } from "firebase-functions/v2/https";
 import { db } from "./commun.js";
+import { exigerHorsMaintenance } from "./maintenance.js";
 
 /**
  * Limitation du débit par utilisateur : l'équivalent, pour Firebase, d'un reverse proxy qui filtre
@@ -78,7 +79,10 @@ export function onAppel<T>(
 ) {
   return onCall(options, async (req) => {
     // Sans connexion, la fonction refuse elle-même l'appel aussitôt : rien à compter.
-    if (req.auth) await limiterDebit(req.auth.uid, nom);
+    if (req.auth) {
+      await limiterDebit(req.auth.uid, nom);
+      await exigerHorsMaintenance(String(req.auth.token.role ?? ""));
+    }
     return traiter(req);
   });
 }
