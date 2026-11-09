@@ -117,6 +117,11 @@ class Depot {
     }
 
     fun enregistrerPosition(id: String, lat: Double, lng: Double) {
+        uid?.let {
+            db.document("users/$it").update(
+                mapOf("position" to mapOf("lat" to lat, "lng" to lng), "positionMaj" to FieldValue.serverTimestamp())
+            )
+        }
         db.document("deliveries/$id").update(
             mapOf(
                 "position" to mapOf("lat" to lat, "lng" to lng),

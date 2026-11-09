@@ -179,6 +179,7 @@ export default function Parametres() {
   const [minimum, setMinimum] = useState("");
   const [fraisMin, setFraisMin] = useState("");
   const [fraisMax, setFraisMax] = useState("");
+  const [affectationAuto, setAffectationAuto] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
   const action = useAction();
   const { docs: centres } = useCollection("centres");
@@ -194,6 +195,7 @@ export default function Parametres() {
       setMinimum(String(t?.minimumValidation ?? 36000));
       setFraisMin(String(t?.fraisMin ?? t?.fraisLivraison ?? 0));
       setFraisMax(String(t?.fraisMax ?? t?.fraisLivraison ?? 0));
+      setAffectationAuto(t?.affectationAuto === true);
     });
   }, [paysVise]);
 
@@ -207,6 +209,7 @@ export default function Parametres() {
         minimumValidation: Number(minimum),
         fraisMin: Number(fraisMin),
         fraisMax: Math.max(Number(fraisMax), Number(fraisMin)),
+        affectationAuto,
       }),
     );
     setEnregistre(ok);
@@ -235,6 +238,10 @@ export default function Parametres() {
         )}
         <label>Frais de livraison minimum (FCFA)<input type="number" min={0} step={500} value={fraisMin} onChange={(e) => setFraisMin(e.target.value)} required /></label>
         <label>Frais de livraison maximum (FCFA)<input type="number" min={0} step={500} value={fraisMax} onChange={(e) => setFraisMax(e.target.value)} required /></label>
+        <label className="case">
+          <input type="checkbox" checked={affectationAuto} onChange={(e) => setAffectationAuto(e.target.checked)} />
+          Affectation automatique : chaque commande prête part au meilleur livreur
+        </label>
         <label>Frais proposés par défaut (FCFA)<input type="number" min={0} step={500} value={frais} onChange={(e) => setFrais(e.target.value)} required /></label>
         <label>Commission par livraison (FCFA)<input type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} required /></label>
         <label>Achat minimum pour la validation au siège (FCFA)<input type="number" min={0} value={minimum} onChange={(e) => setMinimum(e.target.value)} required /></label>

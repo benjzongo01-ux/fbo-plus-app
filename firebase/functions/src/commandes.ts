@@ -539,6 +539,59 @@ export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (
   return { id, statut };
 });
 
+/**
+ * Assigne un livreur à une commande prête (écritures dans la transaction fournie) : mission créée,
+ * commission du pays. Utilisé par le centre d'appel et par l'affectation automatique.
+ */
+export async function affecterLivreur(
+  tx: Transaction,
+  ref: FirebaseFirestore.DocumentReference,
+  commande: FirebaseFirestore.DocumentData,
+  livreurId: string,
+  uid: string,
+) {
+  const id = ref.id;
+  if (commande.mode === "validation" || commande.mode === "expedition") {
+    throw new HttpsError("failed-precondition", "Seule une commande en livraison reçoit un livreur.");
+  }
+  if (!["prete", "assignee"].includes(commande.statut)) {
+    throw new HttpsError("failed-precondition", "La commande n'est pas prête à être livrée.");
+  }
+  const livreur = (await tx.get(db.doc(`users/${livreurId}`))).data();
+  if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
+    throw new HttpsError("failed-precondition", "Ce compte n'est pas un livreur actif.");
+  }
+  if ((livreur.pays || PAYS_DEFAUT) !== (commande.pays || PAYS_DEFAUT)) {
+    throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
+  }
+
+  const tarifs = await tarifsDuPays(tx, commande.pays);
+  tx.update(ref, {
+    statut: "assignee",
+    livreurId,
+    historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("assignee", uid)),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  tx.set(db.doc(`deliveries/${id}`), {
+    commandeId: id,
+    livreurId,
+    fboId: commande.fboId,
+    pays: commande.pays || PAYS_DEFAUT,
+    client: commande.client,
+    adresse: commande.adresse,
+    lignes: commande.lignes,
+    montantAEncaisser: commande.total,
+    commission: tarifs.commissionLivreur,
+    statut: "assignee",
+    montantEncaisse: 0,
+    preuvePhoto: null,
+    signature: null,
+    position: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export const assignerLivreur = onAppel("assignerLivreur", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
   const d = (req.data ?? {}) as Record<string, unknown>;
@@ -550,45 +603,7 @@ export const assignerLivreur = onAppel("assignerLivreur", OPTIONS_APPEL, async (
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
     exigerMemePays(req, commande.pays);
-    if (commande.mode === "validation" || commande.mode === "expedition") {
-      throw new HttpsError("failed-precondition", "Seule une commande en livraison reçoit un livreur.");
-    }
-    if (!["prete", "assignee"].includes(commande.statut)) {
-      throw new HttpsError("failed-precondition", "La commande n'est pas prête à être livrée.");
-    }
-    const livreur = (await tx.get(db.doc(`users/${livreurId}`))).data();
-    if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
-      throw new HttpsError("failed-precondition", "Ce compte n'est pas un livreur actif.");
-    }
-    if ((livreur.pays || PAYS_DEFAUT) !== (commande.pays || PAYS_DEFAUT)) {
-      throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
-    }
-
-    const tarifs = await tarifsDuPays(tx, commande.pays);
-    tx.update(ref, {
-      statut: "assignee",
-      livreurId,
-      historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("assignee", uid)),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.set(db.doc(`deliveries/${id}`), {
-      commandeId: id,
-      livreurId,
-      fboId: commande.fboId,
-      pays: commande.pays || PAYS_DEFAUT,
-      client: commande.client,
-      adresse: commande.adresse,
-      lignes: commande.lignes,
-      montantAEncaisser: commande.total,
-      commission: tarifs.commissionLivreur,
-      statut: "assignee",
-      montantEncaisse: 0,
-      preuvePhoto: null,
-      signature: null,
-      position: null,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    await affecterLivreur(tx, ref, commande, livreurId, uid);
   });
 
   await journaliser("livreur_assigne", uid, id, { livreurId });

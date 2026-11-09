@@ -11,6 +11,7 @@ export {
 } from "./utilisateurs.js";
 export { notifierCommande } from "./notifications.js";
 export { commanderEnBoutique } from "./boutique.js";
+export { affectationAutomatique, affecterMeilleurLivreur, proposerLivreurs } from "./affectation.js";
 export { alimenterValidation, envoyerReserveEnValidation, validerLotSiege } from "./validationSiege.js";
 export { definirPin, verifierPin } from "./pin.js";
 export {

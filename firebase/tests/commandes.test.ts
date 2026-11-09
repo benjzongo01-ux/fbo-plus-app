@@ -717,6 +717,61 @@ describe("commande en ligne depuis la boutique", () => {
   });
 });
 
+describe("affectation intelligente des livreurs", () => {
+  async function prete(u: Awaited<ReturnType<typeof fbo>>, quartier: string) {
+    const { id } = await nouvelle(u, { clientQuartier: quartier });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    return id;
+  }
+
+  it("préfère le livreur déjà en tournée dans le même quartier, puis le moins chargé", async () => {
+    const pays = "Sénégal"; // pays isolé : seuls les livreurs de ce test comptent
+    await adminDb().doc("warehouses/dakar").set({ nom: "Dakar", pays, actif: true });
+    await adminDb().doc(`stock/dakar_${produit}`).set({ disponible: 10, reserve: 0 });
+    const u = await fbo();
+    const operateur = await compte("operateur", { pays });
+    const occupe = await compte("livreur", { pays, nom: "Occupé ailleurs" });
+    const voisin = await compte("livreur", { pays, nom: "Déjà à Médina" });
+    const libre = await compte("livreur", { pays, nom: "Libre" });
+
+    const enCours = async (livreurId: string, quartier: string) => {
+      const { id } = await nouvelle(u, { pays, clientQuartier: quartier });
+      await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+      await operateur.appeler("assignerLivreur", { id, livreurId });
+    };
+    await enCours(occupe.uid, "Plateau");
+    await enCours(voisin.uid, "Médina");
+
+    const { id } = await nouvelle(u, { pays, clientQuartier: "medina" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    const { propositions } = await operateur.appeler("proposerLivreurs", { id });
+    const noms = propositions.map((p: { nom: string }) => p.nom).filter((n: string) => ["Déjà à Médina", "Libre", "Occupé ailleurs"].includes(n));
+    expect(noms).toEqual(["Déjà à Médina", "Libre", "Occupé ailleurs"]);
+    expect(propositions[0].nom).toBe("Déjà à Médina");
+    expect(propositions[0].raisons.join(" ")).toContain("même tournée");
+
+    const meilleur = await operateur.appeler("affecterMeilleurLivreur", { id });
+    expect(meilleur.livreurId).toBe(voisin.uid);
+    expect((await commande(id)).livreurId).toBe(voisin.uid);
+    await adminDb().doc("warehouses/dakar").delete();
+  });
+
+  it("avec l'affectation automatique, une commande prête part seule au meilleur livreur", async () => {
+    await adminDb().doc("tarifsPays/Burkina Faso").set({ affectationAuto: true, fraisLivraison: 0 });
+    const u = await fbo();
+    await compte("livreur", { nom: "Auto" });
+    const id = await prete(u, "Gounghin");
+    let livreurId: string | undefined;
+    for (let i = 0; i < 40 && !livreurId; i++) {
+      livreurId = (await commande(id)).livreurId ?? undefined;
+      if (!livreurId) await new Promise((ok) => setTimeout(ok, 250));
+    }
+    await adminDb().doc("tarifsPays/Burkina Faso").delete();
+    expect(livreurId).toBeTruthy();
+    expect((await commande(id)).statut).toBe("assignee");
+  });
+});
+
 describe("validation au siège", () => {
   async function attendre<T>(lire: () => Promise<T | undefined>): Promise<T | undefined> {
     for (let i = 0; i < 40; i++) {
