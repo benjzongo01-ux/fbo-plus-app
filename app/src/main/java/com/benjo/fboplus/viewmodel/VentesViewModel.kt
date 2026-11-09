@@ -35,7 +35,9 @@ data class DetailsCommande(
     // Livraison : zone facultative (commune, quartier) dont le tarif remplace celui du pays.
     val zoneId: String = "",
     val zoneNom: String = "",
-    val fraisZone: Int = 0
+    val fraisZone: Int = 0,
+    // Frais de livraison choisis dans la fourchette du pays (0 = tarif de base).
+    val fraisChoisis: Int = 0
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {

@@ -49,24 +49,6 @@ const lot = db.bulkWriter();
 for (const { id, ...entrepot } of entrepots) lot.set(db.doc(`warehouses/${id}`), { ...entrepot, actif: true });
 lot.set(db.doc("centres/ouagadougou"), { nom: "Ouagadougou", actif: true });
 
-// Zones de livraison d'Abidjan (position approximative du centre, pour l'affectation des livreurs).
-const zones = [
-  ["plateau", CI, "Plateau", 3000, 5.3237, -4.0223],
-  ["cocody", CI, "Cocody", 3000, 5.36, -3.99],
-  ["adjame", CI, "Adjamé", 3000, 5.36, -4.03],
-  ["treichville", CI, "Treichville", 3000, 5.295, -4.008],
-  ["marcory", CI, "Marcory", 3000, 5.3, -3.98],
-  ["koumassi", CI, "Koumassi", 3500, 5.29, -3.95],
-  ["yopougon", CI, "Yopougon", 4000, 5.345, -4.08],
-  ["abobo", CI, "Abobo", 4000, 5.42, -4.02],
-  ["port-bouet", CI, "Port-Bouët", 4000, 5.256, -3.926],
-  ["bingerville", CI, "Bingerville", 5000, 5.355, -3.89],
-  ["anyama", CI, "Anyama", 5000, 5.495, -4.052],
-];
-for (const [id, pays, nom, frais, lat, lng] of zones) {
-  lot.set(db.doc(`zonesLivraison/${id}`), { pays, nom, frais, position: { lat, lng }, actif: true });
-}
-
 // Villes d'expédition fictives et leurs frais, une liste par pays.
 const villes = [
   ["bobo", BF, "Bobo-Dioulasso", 2500],
@@ -79,10 +61,10 @@ const villes = [
 for (const [id, pays, ville, frais] of villes) {
   lot.set(db.doc(`villesExpedition/${id}`), { pays, ville, frais, actif: true });
 }
-// Livraison : 2 000 FCFA minimum (tout Ouagadougou) ; Abidjan dès 3 000, selon la zone.
-lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 2000, commissionLivreur: 500 });
-lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 2000, commissionLivreur: 500 });
-lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 3000, commissionLivreur: 700 });
+// Livraison : Burkina de 1 000 (proche) à 2 000 FCFA (plus reculé) ; Côte d'Ivoire de 2 000 à 5 000.
+lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
+lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 2000, fraisMin: 2000, fraisMax: 5000, commissionLivreur: 700 });
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);

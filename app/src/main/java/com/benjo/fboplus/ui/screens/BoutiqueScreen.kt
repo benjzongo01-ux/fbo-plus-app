@@ -52,6 +52,7 @@ private fun publierBoutique(uid: String, profil: Profil) {
         mapOf(
             "nom" to listOf(profil.prenom, profil.nom).filter { it.isNotBlank() }.joinToString(" "),
             "ville" to profil.ville,
+            "idForever" to profil.idDistributeur,
             "pays" to profil.pays,
             "whatsapp" to "${profil.indicatifWhatsapp}${profil.whatsapp}"
         ),

@@ -274,10 +274,34 @@ async function tarifsDuPays(tx: Transaction, pays: string) {
     db.doc("parametres/tarifs"),
   );
   const t = propres.exists ? propres.data()! : communs.data() ?? {};
+  const fraisLivraison = Number(t.fraisLivraison ?? 0);
   return {
-    fraisLivraison: Number(t.fraisLivraison ?? 0),
+    fraisLivraison,
+    // Fourchette de livraison du pays (Burkina 1 000 à 2 000, Côte d'Ivoire 2 000 à 5 000).
+    fraisMin: Number(t.fraisMin ?? fraisLivraison),
+    fraisMax: Number(t.fraisMax ?? fraisLivraison),
     commissionLivreur: Number(t.commissionLivreur ?? 0),
   };
+}
+
+const PALIER_FRAIS = 500;
+
+/**
+ * Frais de livraison choisis à la commande (proche ou plus reculé) : ils doivent rester dans la
+ * fourchette du pays, par paliers de 500 FCFA. Sans choix, le tarif de base du pays s'applique.
+ */
+function fraisDansFourchette(valeur: unknown, t: { fraisLivraison: number; fraisMin: number; fraisMax: number }) {
+  if (valeur === undefined || valeur === null || valeur === "" || t.fraisMin === t.fraisMax) {
+    return Math.min(Math.max(t.fraisLivraison, t.fraisMin), t.fraisMax);
+  }
+  const frais = Number(valeur);
+  if (!Number.isInteger(frais) || frais < t.fraisMin || frais > t.fraisMax || frais % PALIER_FRAIS !== 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Frais de livraison entre ${t.fraisMin} et ${t.fraisMax} FCFA, par paliers de ${PALIER_FRAIS}.`,
+    );
+  }
+  return frais;
 }
 
 /**
@@ -339,7 +363,7 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     const zone = mode === "livraison" ? await lireZone(tx, d, pays) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
     const frais =
-      mode === "livraison" ? (zone?.frais ?? tarifs.fraisLivraison) : (envoi?.expedition.frais ?? 0);
+      mode === "livraison" ? (zone?.frais ?? fraisDansFourchette(d.fraisLivraison, tarifs)) : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
@@ -734,16 +758,17 @@ export const fixerFraisExpedition = onAppel("fixerFraisExpedition", OPTIONS_APPE
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
     exigerMemePays(req, commande.pays);
-    if (commande.mode !== "expedition") {
-      throw new HttpsError("failed-precondition", "Cette commande n'est pas une expédition.");
+    if (commande.mode !== "expedition" && commande.mode !== "livraison") {
+      throw new HttpsError("failed-precondition", "Cette commande n'a pas de frais de transport.");
     }
     if (!["nouvelle", "confirmee"].includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "Les frais ne peuvent plus changer à cette étape.");
     }
+    if (commande.mode === "livraison") fraisDansFourchette(frais, await tarifsDuPays(tx, commande.pays));
     const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais);
     tx.update(ref, {
       ...montants,
-      "expedition.frais": frais,
+      ...(commande.mode === "expedition" ? { "expedition.frais": frais } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });

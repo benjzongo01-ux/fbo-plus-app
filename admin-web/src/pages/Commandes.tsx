@@ -81,7 +81,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
   );
   const validation = commande.mode === "validation";
   const expedition = commande.mode === "expedition";
-  const [frais, setFrais] = useState(String(commande.expedition?.frais ?? 0));
+  const [frais, setFrais] = useState(String(commande.expedition?.frais ?? commande.fraisLivraison ?? 0));
   const [compagnie, setCompagnie] = useState(commande.expedition?.compagnie ?? "");
   const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
@@ -216,15 +216,15 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </div>
       )}
 
-      {centreAppel && expedition && ["nouvelle", "confirmee"].includes(commande.statut) && (
+      {centreAppel && (expedition || commande.mode === "livraison") && ["nouvelle", "confirmee"].includes(commande.statut) && (
         <div className="actions">
           <label>
-            Frais d'expédition (FCFA)
+            {expedition ? "Frais d'expédition (FCFA)" : "Frais de livraison (FCFA, dans la fourchette du pays)"}
             <input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} />
           </label>
           <button
             className="secondaire"
-            disabled={enCours || Number(frais) === commande.expedition?.frais || !/^\d+$/.test(frais)}
+            disabled={enCours || Number(frais) === commande.fraisLivraison || !/^\d+$/.test(frais)}
             onClick={() => lancer(() => appeler("fixerFraisExpedition", { id: commande.id, frais: Number(frais) }))}
           >
             Ajuster les frais

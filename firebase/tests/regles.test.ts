@@ -94,6 +94,16 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("seul le distributeur lit et classe les commandes de sa boutique", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "commandesBoutique/b1"), { fboId: "fbo1", statut: "nouvelle", total: 22000 }),
+    );
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "commandesBoutique/b1")));
+    await assertFails(updateDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1"), { total: 1 }));
+    await assertSucceeds(updateDoc(doc(db("fbo1", "fbo"), "commandesBoutique/b1"), { statut: "traitee" }));
+  });
+
   it("un distributeur voit sa réserve et ses lots de validation, pas ceux d'un autre", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), "reservesValidation/fbo1_226"), { fboId: "fbo1", pays: "Burkina Faso" });

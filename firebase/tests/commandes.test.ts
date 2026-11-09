@@ -144,6 +144,25 @@ describe("creerCommande", () => {
     await adminDb().doc("parametres/tarifs").delete();
   });
 
+  it("les frais de livraison se choisissent dans la fourchette du pays", async () => {
+    await adminDb().doc("tarifsPays/Côte d'Ivoire").set({ fraisLivraison: 2000, fraisMin: 2000, fraisMax: 5000 });
+    await adminDb().doc("stock/abidjan_" + produit).set({ disponible: 10, reserve: 0 });
+    const u = await fbo();
+    const ci = { pays: "Côte d'Ivoire" };
+    expect((await nouvelle(u, ci)).total).toBe(46000);
+    expect((await nouvelle(u, { ...ci, fraisLivraison: 3500 })).total).toBe(47500);
+    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 1000 }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 5500 }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 2750 }))).toBe("functions/invalid-argument");
+
+    const { id } = await nouvelle(u, ci);
+    const operateurCI = await compte("operateur", { pays: "Côte d'Ivoire" });
+    await operateurCI.appeler("fixerFraisExpedition", { id, frais: 4000 });
+    expect(await commande(id)).toMatchObject({ fraisLivraison: 4000, total: 48000 });
+    expect(await codeErreur(operateurCI.appeler("fixerFraisExpedition", { id, frais: 6000 }))).toBe("functions/invalid-argument");
+    await adminDb().doc("tarifsPays/Côte d'Ivoire").delete();
+  });
+
   it("une zone de livraison impose son tarif, et seulement dans son pays", async () => {
     await adminDb().doc("zonesLivraison/yopougon").set({ pays: "Côte d'Ivoire", nom: "Yopougon", frais: 4000, actif: true });
     await adminDb().doc("zonesLivraison/fermee").set({ pays: "Burkina Faso", nom: "Ancienne", frais: 1, actif: false });
@@ -642,6 +661,59 @@ describe("administration par pays", () => {
     expect(await codeErreur(adminBf.appeler("definirStatut", { uid: livreurCi.uid, statut: "suspendu" }))).toBe(
       "functions/permission-denied",
     );
+  });
+});
+
+describe("commande en ligne depuis la boutique", () => {
+  async function client() {
+    // Un visiteur de la boutique : session anonyme, sans rôle.
+    const { initializeApp, deleteApp } = await import("firebase/app");
+    const { connectAuthEmulator, getAuth: authClient, signInAnonymously } = await import("firebase/auth");
+    const { connectFunctionsEmulator, getFunctions, httpsCallable } = await import("firebase/functions");
+    const app = initializeApp({ apiKey: "demo", projectId: "demo-fbo-plus" }, `visiteur-${cle()}`);
+    const auth = authClient(app);
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    await signInAnonymously(auth);
+    const f = getFunctions(app, "europe-west1");
+    connectFunctionsEmulator(f, "127.0.0.1", 5001);
+    return {
+      appeler: async (nom: string, data: unknown) => (await httpsCallable(f, nom)(data)).data as Record<string, any>,
+      fermer: () => deleteApp(app),
+    };
+  }
+
+  it("arrive chez le distributeur au prix officiel, sans toucher au stock", async () => {
+    const u = await fbo();
+    await adminDb().doc(`boutiques/${u.uid}`).set({ nom: "Awa Test" });
+    const visiteur = await client();
+    const commande = {
+      boutiqueId: u.uid,
+      clientNom: "Mariam K.",
+      clientTelephone: "+22670112233",
+      quartier: "Gounghin",
+      lignes: [{ produitId: produit, quantite: 2, prixUnitaire: 1 }],
+    };
+    expect(await codeErreur(visiteur.appeler("commanderEnBoutique", { ...commande, clientTelephone: "12" }))).toBe(
+      "functions/invalid-argument",
+    );
+    expect(await codeErreur(visiteur.appeler("commanderEnBoutique", { ...commande, boutiqueId: "inconnue" }))).toBe(
+      "functions/not-found",
+    );
+    const { id, total } = await visiteur.appeler("commanderEnBoutique", commande);
+    expect(total).toBe(44000);
+    expect((await adminDb().doc(`commandesBoutique/${id}`).get()).data()).toMatchObject({ fboId: u.uid, statut: "nouvelle" });
+    expect(await stock()).toMatchObject({ disponible: 10, reserve: 0 });
+    await visiteur.fermer();
+  });
+
+  it("un même appareil ne peut pas envoyer de rafale de commandes", async () => {
+    const u = await fbo();
+    await adminDb().doc(`boutiques/${u.uid}`).set({ nom: "Awa Test" });
+    const visiteur = await client();
+    const commande = { boutiqueId: u.uid, clientNom: "X", clientTelephone: "+22670112233", quartier: "Q", lignes: [{ produitId: produit, quantite: 1 }] };
+    for (let i = 0; i < 5; i++) await visiteur.appeler("commanderEnBoutique", commande);
+    expect(await codeErreur(visiteur.appeler("commanderEnBoutique", commande))).toBe("functions/resource-exhausted");
+    await visiteur.fermer();
   });
 });
 

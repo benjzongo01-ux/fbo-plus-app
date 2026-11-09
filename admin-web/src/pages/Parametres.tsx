@@ -177,6 +177,8 @@ export default function Parametres() {
   const [frais, setFrais] = useState("");
   const [commission, setCommission] = useState("");
   const [minimum, setMinimum] = useState("");
+  const [fraisMin, setFraisMin] = useState("");
+  const [fraisMax, setFraisMax] = useState("");
   const [enregistre, setEnregistre] = useState(false);
   const action = useAction();
   const { docs: centres } = useCollection("centres");
@@ -190,6 +192,8 @@ export default function Parametres() {
       setFrais(String(t?.fraisLivraison ?? 0));
       setCommission(String(t?.commissionLivreur ?? 0));
       setMinimum(String(t?.minimumValidation ?? 36000));
+      setFraisMin(String(t?.fraisMin ?? t?.fraisLivraison ?? 0));
+      setFraisMax(String(t?.fraisMax ?? t?.fraisLivraison ?? 0));
     });
   }, [paysVise]);
 
@@ -201,6 +205,8 @@ export default function Parametres() {
         fraisLivraison: Number(frais),
         commissionLivreur: Number(commission),
         minimumValidation: Number(minimum),
+        fraisMin: Number(fraisMin),
+        fraisMax: Math.max(Number(fraisMax), Number(fraisMin)),
       }),
     );
     setEnregistre(ok);
@@ -227,7 +233,9 @@ export default function Parametres() {
             </select>
           </label>
         )}
-        <label>Frais de livraison (FCFA)<input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} required /></label>
+        <label>Frais de livraison minimum (FCFA)<input type="number" min={0} step={500} value={fraisMin} onChange={(e) => setFraisMin(e.target.value)} required /></label>
+        <label>Frais de livraison maximum (FCFA)<input type="number" min={0} step={500} value={fraisMax} onChange={(e) => setFraisMax(e.target.value)} required /></label>
+        <label>Frais proposés par défaut (FCFA)<input type="number" min={0} step={500} value={frais} onChange={(e) => setFrais(e.target.value)} required /></label>
         <label>Commission par livraison (FCFA)<input type="number" min={0} value={commission} onChange={(e) => setCommission(e.target.value)} required /></label>
         <label>Achat minimum pour la validation au siège (FCFA)<input type="number" min={0} value={minimum} onChange={(e) => setMinimum(e.target.value)} required /></label>
         {action.erreur && <p className="erreur">{action.erreur}</p>}

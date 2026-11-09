@@ -164,6 +164,16 @@ service cloud.firestore {
       allow delete: if connecte() && resource.data.userId == request.auth.uid;
     }
 
+    // Commandes reçues par la boutique publique : le distributeur les lit et les classe (traitée, refusée).
+    match /commandesBoutique/{id} {
+      allow read: if role() == 'fbo' && resource.data.fboId == request.auth.uid;
+      allow update: if role() == 'fbo'
+        && resource.data.fboId == request.auth.uid
+        && !bloqueParMaintenance()
+        && champsModifies().hasOnly(['statut', 'traiteeLe'])
+        && request.resource.data.statut in ['traitee', 'refusee'];
+    }
+
     // Validation au siège : réserves (sous l'achat minimum) et lots à valider. Écriture serveur seulement.
     match /reservesValidation/{id} {
       allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
