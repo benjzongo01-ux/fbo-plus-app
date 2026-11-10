@@ -30,90 +30,30 @@ fun PinEntryScreen(
 ) {
     val uiState by authViewModel.uiState.collectAsState()
     var currentInput by remember { mutableStateOf("") }
+    var numeroErreur by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(uiState) {
         if (uiState is AuthUiState.Success) onSuccess()
-    }
-
-    fun onDigit(digit: String) {
-        if (currentInput.length < 4) currentInput += digit
-        if (currentInput.length == 4) {
-            authViewModel.verifierPin(currentInput)
-        }
-    }
-
-    fun onDelete() {
-        if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1)
-    }
-
-    LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Error) currentInput = ""
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(SBackgroundBlack).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Entrez votre code PIN", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = STextWhite)
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            repeat(4) { index ->
-                Box(
-                    modifier = Modifier.size(16.dp).clip(CircleShape)
-                        .background(if (index < currentInput.length) SGoldPrimary else STextGray.copy(alpha = 0.3f))
-                )
-            }
-        }
-
         if (uiState is AuthUiState.Error) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text((uiState as AuthUiState.Error).message, color = SError, fontSize = 13.sp)
-        }
-
-        if (uiState is AuthUiState.Loading) {
-            Spacer(modifier = Modifier.height(16.dp))
-            CircularProgressIndicator(color = SGoldPrimary)
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        val rows = listOf(
-            listOf("1", "2", "3"),
-            listOf("4", "5", "6"),
-            listOf("7", "8", "9"),
-            listOf("", "0", "⌫")
-        )
-
-        val clavierActif = uiState !is AuthUiState.Loading
-
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                row.forEach { key ->
-                    Box(
-                        modifier = Modifier.size(64.dp).clip(CircleShape)
-                            .then(
-                                if (key.isNotEmpty() && clavierActif)
-                                    Modifier.border(1.dp, STextGray.copy(alpha = 0.3f), CircleShape).clickable {
-                                        when (key) {
-                                            "⌫" -> onDelete()
-                                            else -> onDigit(key)
-                                        }
-                                    }
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (key.isNotEmpty()) Text(key, fontSize = 22.sp, color = STextWhite)
-                    }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
-        TextButton(onClick = onOublie) {
-            Text("Code oublié ? Choisir un nouveau code", color = SGoldPrimary, fontSize = 14.sp)
+            currentInput = ""
+            numeroErreur++
         }
     }
+
+    EcranPin(
+        titre = "Entrez votre code PIN",
+        sousTitre = "Pour confirmer que c'est bien vous.",
+        saisis = currentInput.length,
+        erreur = (uiState as? AuthUiState.Error)?.message,
+        numeroErreur = numeroErreur,
+        enCours = uiState is AuthUiState.Loading,
+        onChiffre = { c ->
+            if (currentInput.length < 4) currentInput += c
+            if (currentInput.length == 4) authViewModel.verifierPin(currentInput)
+        },
+        onEffacer = { if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1) },
+        // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
+        lien = "Code oublié ? Choisir un nouveau code",
+        onLien = onOublie
+    )
 }
