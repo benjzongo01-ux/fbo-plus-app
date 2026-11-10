@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.FBO" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Fond sombre dès le lancement : pas d'écran blanc avant l'animation d'ouverture. -->
+    <style name="Theme.FBO" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fond_ouverture</item>
+        <item name="android:statusBarColor">@color/fond_ouverture</item>
+        <item name="android:navigationBarColor">@color/fond_ouverture</item>
+    </style>
 </resources>

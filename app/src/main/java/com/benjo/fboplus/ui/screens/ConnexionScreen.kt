@@ -120,7 +120,18 @@ fun ConnexionScreen(
 
     val intro = remember { Animatable(if (introJouee) 1f else 0f) }
     LaunchedEffect(Unit) {
-        if (intro.value < 1f) intro.animateTo(1f, tween(2800, easing = LinearEasing))
+        if (intro.value < 1f) {
+            // Démarrage à froid : on attend des images fluides, sinon l'animation serait sautée.
+            var fluides = 0
+            var avant = withFrameNanos { it }
+            val limite = avant + 3_000_000_000L
+            while (fluides < 6 && avant < limite) {
+                val maintenant = withFrameNanos { it }
+                fluides = if (maintenant - avant < 34_000_000L) fluides + 1 else 0
+                avant = maintenant
+            }
+            intro.animateTo(1f, tween(2800, easing = LinearEasing))
+        }
         introJouee = true
     }
     val flottement by rememberInfiniteTransition(label = "globe").animateFloat(
@@ -625,7 +636,7 @@ private fun LienIcone(s: Dp, ts: (Float) -> TextUnit, icone: ImageVector?, debut
             Text(debut, color = Color.White, fontSize = ts(20f), fontWeight = FontWeight.Medium)
             Spacer(Modifier.width(s * 10))
         }
-        Column {
+        Column(Modifier.width(IntrinsicSize.Max)) {
             Text(lien, color = OrVif, fontSize = ts(21f), fontWeight = FontWeight.Bold)
             Box(
                 Modifier
