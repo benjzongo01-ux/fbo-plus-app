@@ -162,7 +162,7 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - Plus de mot de passe : Google, ou l'adresse email puis un code à 6 chiffres reçu par email, puis le code PIN (FBO+). Même chose dans Delivery, où seuls les livreurs invités entrent.
 - Serveur (`firebase/functions/src/codeEmail.ts`) : `demanderCodeEmail` et `verifierCodeEmail`. Code valable 10 minutes, empreinte salée seulement (`codesEmail`, illisible par les clients), 5 essais, usage unique, pas de renvoi avant 60 secondes, débit limité par adresse et par appareil. Le bon code donne un jeton de connexion ; le compte est créé au besoin et l'adresse est marquée prouvée (les invitations s'appliquent).
 - L'email part en écrivant un document dans `mail`. Sur les émulateurs, le code s'affiche aussi dans le journal des fonctions.
-- Écran de connexion dessiné d'après la maquette (calques tirés de la maquette dans `res/drawable-nodpi/connexion_*.png`), avec l'animation d'ouverture : le globe et le logo apparaissent au centre puis vont se placer. Delivery a le badge « DELIVERY » avec le scooter et le titre « Espace livreur ».
+- Écran de connexion sobre (noir, or, blanc), dessiné dans l'application (`ConnexionDesign.kt`, copié à l'identique dans Delivery) : anneau d'or tracé autour du « + », lettres FBO, montée du logo, contenu en cascade, puis halo qui respire. Delivery affiche « DELIVERY » avec un scooter et « Espace livreur ».
 
 ## Protection contre les rafales de requêtes (2026-11-08)
 

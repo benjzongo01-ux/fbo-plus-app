@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -148,7 +149,9 @@ fun EcranConnexion(
     BoxWithConstraints(Modifier.fillMaxSize().background(Noir)) {
         val densite = LocalDensity.current
         val hauteur = with(densite) { maxHeight.toPx() }
-        val zoneLogo = maxHeight * 0.36f
+        // Clavier ouvert : la zone du logo se resserre pour laisser voir le champ et le bouton.
+        val clavierOuvert = WindowInsets.ime.getBottom(densite) > 0
+        val zoneLogo by animateDpAsState(maxHeight * (if (clavierOuvert) 0.2f else 0.36f), tween(350), label = "zoneLogo")
         val zoneLogoPx = with(densite) { zoneLogo.toPx() }
         val contenu = phase(t, 0.7f, 0.3f)
 
@@ -167,13 +170,13 @@ fun EcranConnexion(
                 radius = size.width * 0.75f,
                 center = centre
             )
-            repeat(16) { i ->
+            repeat(12) { i ->
                 val graine = (i * 0.6180339f) % 1f
                 val x = size.width * ((graine * 7.3f + 0.13f * i) % 1f)
                 val cycle = (temps * (0.6f + graine) + graine) % 1f
                 val y = size.height * (1.05f - cycle * 1.1f)
-                val a = (sin(cycle * PI.toFloat()) * 0.35f) * contenu
-                drawCircle(OrClair.copy(alpha = a), radius = (1.2f + graine * 2f).dp.toPx(), center = Offset(x, y))
+                val a = (sin(cycle * PI.toFloat()) * 0.22f) * contenu
+                drawCircle(OrClair.copy(alpha = a), radius = (0.7f + graine * 0.9f).dp.toPx(), center = Offset(x, y))
             }
         }
 
@@ -266,12 +269,12 @@ private fun Logo(livreur: Boolean, t: Float, decalageY: Float) {
                     Text(
                         lettre.toString(),
                         color = Color.White,
-                        fontSize = 48.sp,
+                        fontSize = 52.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = (-1).sp,
                         modifier = Modifier.graphicsLayer {
                             alpha = p
-                            translationX = (1 - p) * 18.dp.toPx()
+                            translationX = -(1 - p) * 14.dp.toPx()
                         }
                     )
                 }
@@ -279,7 +282,7 @@ private fun Logo(livreur: Boolean, t: Float, decalageY: Float) {
             Text(
                 "+",
                 color = OrMarque,
-                fontSize = 52.sp,
+                fontSize = 56.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier
                     .drawBehind {
