@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fond sombre dès le lancement : pas d'écran blanc avant l'animation d'ouverture. -->
+    <style name="Theme.Delivery" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fond_ouverture</item>
+        <item name="android:statusBarColor">@color/fond_ouverture</item>
+        <item name="android:navigationBarColor">@color/fond_ouverture</item>
+    </style>
+    <color name="fond_ouverture">#05060A</color>
+</resources>

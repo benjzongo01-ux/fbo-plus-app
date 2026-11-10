@@ -19,6 +19,7 @@ export { suivreReappro, surveillerStock } from "./reappro.js";
 export { affectationAutomatique, affecterMeilleurLivreur, proposerLivreurs } from "./affectation.js";
 export { alimenterValidation, envoyerReserveEnValidation, validerLotSiege } from "./validationSiege.js";
 export { definirPin, verifierPin } from "./pin.js";
+export { demanderCodeEmail, verifierCodeEmail } from "./codeEmail.js";
 export {
   ajusterStock,
   annulerCommande,
