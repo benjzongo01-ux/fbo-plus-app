@@ -87,18 +87,33 @@ class ConnexionViewModel : ViewModel() {
 
     fun connecterGoogle(activity: Activity) = executer { depot.connecterGoogle(activity); terminer() }
     fun connecterGoogleDeTest(email: String) = executer { depot.connecterGoogleDeTest(email); terminer() }
-    fun connecterEmail(email: String, motDePasse: String) = executer { depot.connecterEmail(email, motDePasse); terminer() }
+    // Connexion par code email : l'adresse en attente du code, et le numéro de l'envoi (relance le décompte).
+    private val _emailCode = MutableStateFlow<String?>(null)
+    val emailCode: StateFlow<String?> = _emailCode
+    private val _numeroEnvoi = MutableStateFlow(0)
+    val numeroEnvoi: StateFlow<Int> = _numeroEnvoi
 
-    fun creerMotDePasse(email: String, motDePasse: String) = executer {
-        depot.creerMotDePasse(email, motDePasse)
-        _info.value = "Un lien de confirmation a été envoyé à votre adresse. Cliquez dessus, puis connectez-vous."
+    fun demanderCode(email: String) = executer {
+        val adresse = email.trim().lowercase()
+        depot.demanderCodeEmail(adresse)
+        _emailCode.value = adresse
+        _numeroEnvoi.value++
         _etat.value = EtatConnexion.Saisie
     }
 
-    fun motDePasseOublie(email: String) = executer {
-        depot.reinitialiserMotDePasse(email)
-        _info.value = "Si cette adresse a un compte, un lien pour choisir un nouveau mot de passe vient d'être envoyé."
-        _etat.value = EtatConnexion.Saisie
+    fun verifierCode(code: String) {
+        val adresse = _emailCode.value ?: return
+        executer {
+            depot.verifierCodeEmail(adresse, code)
+            _emailCode.value = null
+            terminer()
+        }
+    }
+
+    fun changerEmail() {
+        _emailCode.value = null
+        _erreur.value = null
+        _info.value = null
     }
 
     fun deconnecter() {

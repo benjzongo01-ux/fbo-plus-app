@@ -60,18 +60,15 @@ class AuthRepository(
         auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
     }
 
-    suspend fun connecterEmail(email: String, motDePasse: String) {
-        auth.signInWithEmailAndPassword(email.trim(), motDePasse).await()
+    /** Envoie un code de connexion à 6 chiffres à cette adresse (pas de mot de passe). */
+    suspend fun demanderCodeEmail(email: String) {
+        appeler("demanderCodeEmail", mapOf("email" to email.trim()))
     }
 
-    /** Crée le compte et envoie le lien de confirmation de l'adresse. */
-    suspend fun creerCompteEmail(email: String, motDePasse: String) {
-        val compte = auth.createUserWithEmailAndPassword(email.trim(), motDePasse).await().user
-        runCatching { compte?.sendEmailVerification()?.await() }
-    }
-
-    suspend fun reinitialiserMotDePasse(email: String) {
-        auth.sendPasswordResetEmail(email.trim()).await()
+    /** Le bon code donne un jeton : le compte est créé au besoin, l'adresse est prouvée. */
+    suspend fun verifierCodeEmail(email: String, code: String) {
+        val data = appeler("verifierCodeEmail", mapOf("email" to email.trim(), "code" to code))
+        auth.signInWithCustomToken(data["jeton"] as String).await()
     }
 
     fun deconnecter() = auth.signOut()

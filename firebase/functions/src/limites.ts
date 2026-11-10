@@ -24,6 +24,11 @@ export const LIMITES: Record<string, Limite> = {
   initialiserProfil: { max: 10, fenetreS: 60 },
   definirPin: { max: 5, fenetreS: 600 },
   verifierPin: { max: 10, fenetreS: 600 },
+  // Code de connexion par email : par adresse, puis par appareil (adresse IP).
+  demanderCodeEmail: { max: 5, fenetreS: 900 },
+  demanderCodeEmailAppareil: { max: 15, fenetreS: 900 },
+  verifierCodeEmail: { max: 10, fenetreS: 900 },
+  verifierCodeEmailAppareil: { max: 30, fenetreS: 900 },
   // Commandes du distributeur.
   creerCommande: { max: 10, fenetreS: 60 },
   modifierCommande: { max: 20, fenetreS: 60 },

@@ -172,19 +172,16 @@ class DepotAuth {
         auth.signInWithCredential(GoogleAuthProvider.getCredential(jeton, null)).await()
     }
 
-    suspend fun connecterEmail(email: String, motDePasse: String) {
-        auth.signInWithEmailAndPassword(email.trim(), motDePasse).await()
+    /** Envoie un code de connexion à 6 chiffres à cette adresse (pas de mot de passe). */
+    suspend fun demanderCodeEmail(email: String) {
+        functions.getHttpsCallable("demanderCodeEmail").call(mapOf("email" to email.trim())).await()
     }
 
-    /** Première connexion par email : crée le mot de passe et envoie le lien de confirmation. */
-    suspend fun creerMotDePasse(email: String, motDePasse: String) {
-        val compte = auth.createUserWithEmailAndPassword(email.trim(), motDePasse).await().user
-        compte?.sendEmailVerification()?.await()
-        auth.signOut()
-    }
-
-    suspend fun reinitialiserMotDePasse(email: String) {
-        auth.sendPasswordResetEmail(email.trim()).await()
+    /** Le bon code donne un jeton de connexion ; l'invitation est ensuite vérifiée par le serveur. */
+    suspend fun verifierCodeEmail(email: String, code: String) {
+        val data = functions.getHttpsCallable("verifierCodeEmail")
+            .call(mapOf("email" to email.trim(), "code" to code)).await().getData() as Map<*, *>
+        auth.signInWithCustomToken(data["jeton"] as String).await()
     }
 
     /**

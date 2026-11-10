@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { deleteApp, initializeApp as initClient } from "firebase/app";
 import { connectAuthEmulator, getAuth as getClientAuth, signInWithCustomToken } from "firebase/auth";
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
@@ -274,5 +274,80 @@ describe("PIN", () => {
 
     expect(await definirPinSessionAncienne(u.uid, { pin: "1234", pinActuel: "4827" })).toBeUndefined();
     expect((await u.appeler("verifierPin", { pin: "1234" })).valide).toBe(true);
+  });
+});
+
+describe("connexion par code email (sans mot de passe)", () => {
+  const adresse = () => `awa.${randomUUID().slice(0, 8)}@gmail.com`;
+
+  /** Appareil pas encore connecté. */
+  function appareil() {
+    const app = initClient({ apiKey: "demo", projectId: PROJET }, `appareil-${randomUUID()}`);
+    applis.push(app);
+    const auth = getClientAuth(app);
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    const functions = getFunctions(app, REGION);
+    connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+    return {
+      auth,
+      appeler: async (nom: string, data: unknown = {}) =>
+        (await httpsCallable(functions, nom)(data)).data as Record<string, any>,
+    };
+  }
+
+  /** Le code du dernier email envoyé à cette adresse (collection lue par l'extension d'envoi). */
+  async function dernierCode(email: string) {
+    const mails = (await getFirestore().collection("mail").where("to", "==", email).get()).docs
+      .map((d) => d.data())
+      .sort((a, b) => b.creeLe.toMillis() - a.creeLe.toMillis());
+    return /(\d{6})/.exec(String(mails[0]?.message?.subject))![1];
+  }
+
+  it("crée le compte au premier code, puis le profil distributeur ; un code ne sert qu'une fois", async () => {
+    const tel = appareil();
+    const email = adresse();
+    expect(await tel.appeler("demanderCodeEmail", { email: ` ${email.toUpperCase()} ` })).toMatchObject({ envoye: true });
+    const code = await dernierCode(email);
+    const { jeton } = await tel.appeler("verifierCodeEmail", { email, code });
+    await signInWithCustomToken(tel.auth, jeton);
+    expect(await tel.appeler("initialiserProfil")).toEqual({ role: "fbo", aPin: false });
+    expect((await getAuth().getUserByEmail(email)).emailVerified).toBe(true);
+    expect(await codeErreur(tel.appeler("verifierCodeEmail", { email, code }))).toBe("functions/deadline-exceeded");
+  });
+
+  it("5 faux codes au plus, puis le code est détruit", async () => {
+    const tel = appareil();
+    const email = adresse();
+    await tel.appeler("demanderCodeEmail", { email });
+    const code = await dernierCode(email);
+    const faux = String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+    for (let i = 0; i < 5; i++) {
+      expect(await codeErreur(tel.appeler("verifierCodeEmail", { email, code: faux }))).toBe("functions/permission-denied");
+    }
+    expect(await codeErreur(tel.appeler("verifierCodeEmail", { email, code }))).toBe("functions/deadline-exceeded");
+  });
+
+  it("un code expiré ne sert plus ; pas de nouveau code avant 60 secondes", async () => {
+    const tel = appareil();
+    const email = adresse();
+    await tel.appeler("demanderCodeEmail", { email });
+    expect(await codeErreur(tel.appeler("demanderCodeEmail", { email }))).toBe("functions/resource-exhausted");
+    const cle = createHash("sha256").update(email).digest("hex");
+    await getFirestore().doc(`codesEmail/${cle}`).update({ expire: Date.now() - 1000 });
+    const code = await dernierCode(email);
+    expect(await codeErreur(tel.appeler("verifierCodeEmail", { email, code }))).toBe("functions/deadline-exceeded");
+    expect(await codeErreur(tel.appeler("demanderCodeEmail", { email: "pas-une-adresse" }))).toBe("functions/invalid-argument");
+  });
+
+  it("retrouve le compte existant de la même adresse et applique une invitation", async () => {
+    const email = adresse();
+    const ancien = await getAuth().createUser({ email, emailVerified: false });
+    await getFirestore().doc(`invitations/${email}`).set({ role: "livreur", pays: "Burkina Faso", nom: "Awa" });
+    const tel = appareil();
+    await tel.appeler("demanderCodeEmail", { email });
+    const { jeton } = await tel.appeler("verifierCodeEmail", { email, code: await dernierCode(email) });
+    const { user } = await signInWithCustomToken(tel.auth, jeton);
+    expect(user.uid).toBe(ancien.uid);
+    expect((await tel.appeler("initialiserProfil")).role).toBe("livreur");
   });
 });

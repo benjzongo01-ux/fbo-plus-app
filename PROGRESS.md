@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 128 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 132 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -157,6 +157,13 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
 - le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
 
+## Connexion par code email et nouvel écran (2026-11-10)
+
+- Plus de mot de passe : Google, ou l'adresse email puis un code à 6 chiffres reçu par email, puis le code PIN (FBO+). Même chose dans Delivery, où seuls les livreurs invités entrent.
+- Serveur (`firebase/functions/src/codeEmail.ts`) : `demanderCodeEmail` et `verifierCodeEmail`. Code valable 10 minutes, empreinte salée seulement (`codesEmail`, illisible par les clients), 5 essais, usage unique, pas de renvoi avant 60 secondes, débit limité par adresse et par appareil. Le bon code donne un jeton de connexion ; le compte est créé au besoin et l'adresse est marquée prouvée (les invitations s'appliquent).
+- L'email part en écrivant un document dans `mail`. Sur les émulateurs, le code s'affiche aussi dans le journal des fonctions.
+- Écran de connexion dessiné d'après la maquette (calques tirés de la maquette dans `res/drawable-nodpi/connexion_*.png`), avec l'animation d'ouverture : le globe et le logo apparaissent au centre puis vont se placer. Delivery a le badge « DELIVERY » avec le scooter et le titre « Espace livreur ».
+
 ## Protection contre les rafales de requêtes (2026-11-08)
 
 Branche `feature/limitation-requetes`, fusionnée dans `main`.
@@ -238,6 +245,8 @@ Défauts trouvés par ce test et corrigés :
 8. Remplacer `demo-fbo-plus` dans `firebase/.firebaserc`, se connecter avec `firebase login` sous le compte FBO+, puis déployer.
 9. Créer le premier compte avec `scripts/creer-super-admin.mjs`.
 10. Refaire le parcours complet avec de vrais SMS.
+11. Envoi des codes de connexion par email : installer l'extension Firebase « Trigger Email » (collection `mail`) avec un service d'envoi (SMTP du compte FBO+ ou un service gratuit au départ), et une adresse d'expédition au nom de FBO+.
+12. Donner au compte de service des fonctions le rôle « Créateur de jetons du compte de service » (Service Account Token Creator) : `verifierCodeEmail` en a besoin pour créer le jeton de connexion.
 
 Sans `-Pfbo.firebaseReel=true`, les builds Android utilisent toujours les émulateurs, même si `google-services.json` est présent. Sans vrai identifiant dans `.firebaserc`, un `firebase deploy` vise le projet fictif et échoue.
 

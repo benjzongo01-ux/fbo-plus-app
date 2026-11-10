@@ -62,21 +62,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         apresConnexion()
     }
 
-    fun connecterEmail(email: String, motDePasse: String) = executer {
-        repository.connecterEmail(email, motDePasse)
-        apresConnexion()
+    // Connexion par code email : l'adresse en attente du code, et le numéro de l'envoi (relance le décompte).
+    private val _emailCode = MutableStateFlow<String?>(null)
+    val emailCode: StateFlow<String?> = _emailCode.asStateFlow()
+    private val _numeroEnvoi = MutableStateFlow(0)
+    val numeroEnvoi: StateFlow<Int> = _numeroEnvoi.asStateFlow()
+
+    fun demanderCode(email: String) = executer {
+        val adresse = email.trim().lowercase()
+        repository.demanderCodeEmail(adresse)
+        _emailCode.value = adresse
+        _numeroEnvoi.value++
+        _uiState.value = AuthUiState.Idle
     }
 
-    fun creerCompte(email: String, motDePasse: String) = executer {
-        repository.creerCompteEmail(email, motDePasse)
-        apresConnexion()
+    fun verifierCode(code: String) {
+        val adresse = _emailCode.value ?: return
+        executer {
+            repository.verifierCodeEmail(adresse, code)
+            _emailCode.value = null
+            apresConnexion()
+        }
     }
 
-    fun motDePasseOublie(email: String) = executer {
-        repository.reinitialiserMotDePasse(email)
-        _uiState.value = AuthUiState.Info(
-            "Si cette adresse a un compte, un lien pour choisir un nouveau mot de passe vient d'être envoyé."
-        )
+    fun changerEmail() {
+        _emailCode.value = null
+        resetState()
     }
 
     /** Vrai juste après une connexion : on peut alors choisir un nouveau PIN sans l'ancien. */
@@ -181,7 +192,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             // Limite de requêtes : le serveur dit combien de secondes attendre. Sinon, PIN bloqué.
             FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED ->
                 e.message?.takeIf { it.contains("Réessayez dans") } ?: MESSAGE_PIN_BLOQUE
-            FirebaseFunctionsException.Code.PERMISSION_DENIED -> "Code PIN incorrect."
+            FirebaseFunctionsException.Code.PERMISSION_DENIED ->
+                e.message?.takeIf { it.startsWith("Code incorrect") || it.contains("suspendu") } ?: "Code PIN incorrect."
+            // Code email expiré ou adresse invalide : le serveur explique.
+            FirebaseFunctionsException.Code.DEADLINE_EXCEEDED,
+            FirebaseFunctionsException.Code.INVALID_ARGUMENT -> e.message ?: "Code invalide."
             // Maintenance, compte à confirmer… : le serveur explique lui-même.
             FirebaseFunctionsException.Code.FAILED_PRECONDITION -> e.message ?: "Action impossible pour le moment."
             FirebaseFunctionsException.Code.UNAVAILABLE ->
