@@ -39,6 +39,51 @@ import com.benjo.fboplus.viewmodel.VentesViewModel
 import java.util.Locale
 
 private val Forme = RoundedCornerShape(12.dp)
+
+/** Frais d'une validation sur l'ID (le serveur applique ceux du pays, 2 000 FCFA par défaut). */
+private const val FRAIS_VALIDATION = 2000
+
+@Composable
+private fun Ligne(libelle: String, valeur: String, fort: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(libelle, color = if (fort) WhitePrimary else WhiteSub, fontSize = 14.sp, fontWeight = if (fort) FontWeight.Bold else FontWeight.Normal)
+        Text(valeur, color = if (fort) GoldPrimary else WhitePrimary, fontSize = 14.sp, fontWeight = if (fort) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+/** Liste déroulante des pays, avec drapeau et recherche. */
+@Composable
+private fun DialoguePays(onChoix: (String) -> Unit, onFermer: () -> Unit) {
+    var recherche by remember { mutableStateOf("") }
+    val visibles = paysAutorises.filter { it.nom.contains(recherche.trim(), ignoreCase = true) }
+    AlertDialog(
+        onDismissRequest = onFermer,
+        containerColor = BlackCard,
+        title = { Text("Choisir le pays", color = WhitePrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(
+                    value = recherche,
+                    onValueChange = { recherche = it },
+                    placeholder = { Text("Rechercher un pays") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                visibles.forEach { p ->
+                    Text(
+                        "${p.drapeau}  ${p.nom}  ${p.indicatif}",
+                        color = WhitePrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.fillMaxWidth().clickable { onChoix(p.nom) }.padding(vertical = 12.dp)
+                    )
+                }
+                if (visibles.isEmpty()) Text("Aucun pays ne correspond.", color = WhiteSub)
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onFermer) { Text("Fermer", color = WhiteSub) } }
+    )
+}
 private val FormeSection = RoundedCornerShape(16.dp)
 private fun fcfa(n: Int) = "%,d FCFA".format(Locale.FRANCE, n)
 
@@ -62,32 +107,13 @@ fun DetailsCommandeEcran(
     var tentative by remember { mutableStateOf(false) }
     var choixClient by remember { mutableStateOf(false) }
 
-    // Villes d'expédition du pays choisi : rechargées à chaque changement de pays.
-    var villes by remember { mutableStateOf<List<VilleExpedition>?>(null) }
-    var tarifs by remember { mutableStateOf<TarifsLivraison?>(null) }
-    val fraisLivraison = tarifs?.base
-    var zones by remember { mutableStateOf<List<VilleExpedition>>(emptyList()) }
-    LaunchedEffect(details.pays) {
-        villes = null
-        tarifs = null
-        if (details.pays.isNotBlank()) {
-            villes = runCatching { VentesRepository.villesExpedition(details.pays) }.getOrDefault(emptyList())
-            tarifs = runCatching { VentesRepository.fraisLivraison(details.pays) }.getOrNull()
-            zones = runCatching { VentesRepository.zonesLivraison(details.pays) }.getOrDefault(emptyList())
-        }
-    }
-
-    // Total que le serveur calculera, affiché avant l'envoi.
-    val frais = when (details.mode) {
-        "livraison" -> when {
-            details.zoneId.isNotBlank() -> details.fraisZone
-            details.fraisChoisis > 0 -> details.fraisChoisis
-            else -> fraisLivraison ?: 0
-        }
-        "expedition" -> details.fraisVille
-        else -> 0
-    }
-    val totalEstime = sousTotal - reduction + frais
+    // Réduction : facultative, demandée par une question (« Non » = 0).
+    var aReduction by remember { mutableStateOf(reduction > 0) }
+    val validation = details.mode == "validation"
+    // Validation : prix public moins la remise du grade, plus les frais de validation (pas de réduction).
+    val prixValidation = sousTotal - reductionMax
+    val totalEstime = if (validation) prixValidation + FRAIS_VALIDATION else sousTotal - reduction
+    var choixPays by remember { mutableStateOf(false) }
 
     // Le pays du profil est proposé par défaut, s'il fait partie des pays ouverts.
     LaunchedEffect(Unit) {
@@ -96,7 +122,7 @@ fun DetailsCommandeEcran(
         }
     }
 
-    val erreur = details.erreur(profil.idDistributeur) ?: if (reduction > reductionMax) {
+    val erreur = details.erreur(profil.idDistributeur) ?: if (!validation && reduction > reductionMax) {
         "La réduction dépasse votre marge sur cette commande."
     } else null
 
@@ -132,19 +158,19 @@ fun DetailsCommandeEcran(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Section("1. Pays") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    paysAutorises.forEach { p ->
-                        Pastille(
-                            texte = "${p.drapeau} ${p.nom}",
-                            choisie = details.pays == p.nom,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            ventesViewModel.modifierDetails {
-                                if (it.pays == p.nom) it
-                                else it.copy(pays = p.nom, villeId = "", villeNom = "", fraisVille = 0, zoneId = "", zoneNom = "", fraisZone = 0, fraisChoisis = 0)
-                            }
-                        }
-                    }
+                val choisi = paysAutorises.find { it.nom == details.pays }
+                OutlinedButton(
+                    onClick = { choixPays = true },
+                    shape = Forme,
+                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                ) {
+                    Text(
+                        choisi?.let { "${it.drapeau}  ${it.nom}" } ?: "Choisir le pays",
+                        color = WhitePrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("▾", color = GoldPrimary, fontSize = 18.sp)
                 }
                 Aide("La commande sera traitée par l'administration de ce pays.")
             }
@@ -193,27 +219,15 @@ fun DetailsCommandeEcran(
                 }
                 if (details.mode == "validation") {
                     Aide("Pas de livraison : les produits sont seulement validés sur l'ID. Aucune information client n'est demandée.")
+                    Ligne("Prix public", fcfa(sousTotal))
+                    Ligne("Remise de votre grade", "− " + fcfa(reductionMax))
+                    Ligne("Prix de validation", fcfa(prixValidation))
+                    Ligne("Frais de validation", fcfa(FRAIS_VALIDATION))
+                    Ligne("À payer", fcfa(prixValidation + FRAIS_VALIDATION), fort = true)
                 } else if (details.mode == "expedition") {
-                    Aide("Le colis part de l'entrepôt du pays vers une autre ville, par une compagnie de transport.")
-                    val liste = villes
-                    when {
-                        liste == null -> Aide("Chargement des villes…")
-                        liste.isEmpty() -> Text(
-                            "Aucune ville d'expédition n'est encore ouverte pour ce pays.",
-                            color = RedAlert,
-                            fontSize = 13.sp
-                        )
-                        else -> liste.forEach { v ->
-                            Pastille(
-                                "${v.nom} · ${fcfa(v.frais)}",
-                                details.villeId == v.id,
-                                Modifier.fillMaxWidth()
-                            ) {
-                                ventesViewModel.modifierDetails {
-                                    it.copy(villeId = v.id, villeNom = v.nom, fraisVille = v.frais)
-                                }
-                            }
-                        }
+                    Aide("Le colis part de l'entrepôt du pays vers la ville indiquée. Les frais d'expédition sont fixés par l'administration.")
+                    Champ("Ville, province ou village de destination", details.villeSaisie, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(villeSaisie = v) }
                     }
                     Champ("Nom et prénom du destinataire", details.clientNom, majuscules = true) { v ->
                         ventesViewModel.modifierDetails { it.copy(clientNom = v) }
@@ -224,15 +238,8 @@ fun DetailsCommandeEcran(
                     Champ("Deuxième téléphone (facultatif)", details.clientTelephone2, clavier = KeyboardType.Phone) { v ->
                         ventesViewModel.modifierDetails { it.copy(clientTelephone2 = v) }
                     }
-                    Champ("Compagnie de transport (facultatif)", details.compagnie, majuscules = true) { v ->
-                        ventesViewModel.modifierDetails { it.copy(compagnie = v) }
-                    }
-                    Aide("Si vous n'indiquez pas de compagnie, celui qui expédie la choisira.")
-                    Champ("Précisions : gare, point de retrait (facultatif)", details.adresse) { v ->
-                        ventesViewModel.modifierDetails { it.copy(adresse = v) }
-                    }
-                    if (details.villeId.isNotBlank()) {
-                        Aide("Frais d'expédition vers ${details.villeNom} : ${fcfa(details.fraisVille)}, ajoutés au total. L'administration peut les ajuster selon le colis.")
+                    Champ("Gare d'expédition (facultatif)", details.gare, majuscules = true) { v ->
+                        ventesViewModel.modifierDetails { it.copy(gare = v) }
                     }
                 } else {
                     OutlinedButton(
@@ -255,50 +262,30 @@ fun DetailsCommandeEcran(
                     Champ("Adresse, repère (facultatif)", details.adresse) { v ->
                         ventesViewModel.modifierDetails { it.copy(adresse = v) }
                     }
-                    if (zones.isNotEmpty()) {
-                        Aide("Zone de livraison : le tarif dépend de la commune.")
-                        Pastille(
-                            "Autre zone · ${fcfa(fraisLivraison ?: 0)}",
-                            details.zoneId.isBlank(),
-                            Modifier.fillMaxWidth()
-                        ) { ventesViewModel.modifierDetails { it.copy(zoneId = "", zoneNom = "", fraisZone = 0) } }
-                        zones.forEach { z ->
-                            Pastille("${z.nom} · ${fcfa(z.frais)}", details.zoneId == z.id, Modifier.fillMaxWidth()) {
-                                ventesViewModel.modifierDetails { it.copy(zoneId = z.id, zoneNom = z.nom, fraisZone = z.frais) }
-                            }
-                        }
-                    } else {
-                        val paliers = tarifs?.paliers.orEmpty()
-                        if (paliers.size > 1) {
-                            Aide("Frais de livraison : moins cher pour un coin proche, plus pour un coin reculé.")
-                            val choisi = details.fraisChoisis.takeIf { it in paliers } ?: tarifs!!.base
-                            paliers.chunked(4).forEach { rangee ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    rangee.forEach { montant ->
-                                        Pastille("%,d".format(Locale.FRANCE, montant), choisi == montant, Modifier.weight(1f)) {
-                                            ventesViewModel.modifierDetails { it.copy(fraisChoisis = montant) }
-                                        }
-                                    }
-                                    repeat(4 - rangee.size) { Spacer(Modifier.weight(1f)) }
-                                }
-                            }
-                        } else {
-                            Aide(
-                                fraisLivraison?.let { "Frais de livraison (${details.pays}) : ${fcfa(it)}, ajoutés au total." }
-                                    ?: "Les frais de livraison du pays s'ajoutent au total."
-                            )
-                        }
-                    }
+                    Aide("Les frais de livraison sont fixés par l'administration selon le lieu, puis ajoutés au total.")
                 }
             }
 
-            Section("4. Réduction, titre et note") {
-                Champ(
-                    "Réduction client en FCFA (max ${"%,d".format(Locale.FRANCE, reductionMax)})",
-                    if (reduction == 0) "" else reduction.toString(),
-                    clavier = KeyboardType.Number
-                ) { v -> ventesViewModel.setReduction(v.filter(Char::isDigit).take(9).toIntOrNull() ?: 0) }
-                Champ("Titre de la commande (facultatif)", titre) { ventesViewModel.setTitreCommande(it) }
+            Section(if (validation) "4. Note" else "4. Réduction et note") {
+                if (!validation) {
+                    Text("Avez-vous fait une réduction au client ?", color = WhitePrimary, fontSize = 14.sp)
+                    Choix(
+                        gauche = "Non",
+                        droite = "Oui",
+                        droiteChoisie = aReduction,
+                        onChoix = { oui ->
+                            aReduction = oui
+                            if (!oui) ventesViewModel.setReduction(0)
+                        }
+                    )
+                    if (aReduction) {
+                        Champ(
+                            "Montant de la réduction en FCFA (max ${"%,d".format(Locale.FRANCE, reductionMax)})",
+                            if (reduction == 0) "" else reduction.toString(),
+                            clavier = KeyboardType.Number
+                        ) { v -> ventesViewModel.setReduction(v.filter(Char::isDigit).take(9).toIntOrNull() ?: 0) }
+                    }
+                }
                 OutlinedTextField(
                     value = details.note,
                     onValueChange = { v -> ventesViewModel.modifierDetails { it.copy(note = v.take(500)) } },
@@ -322,9 +309,13 @@ fun DetailsCommandeEcran(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    if (frais > 0) "Total (dont ${fcfa(frais)} de frais)" else "Total",
+                    when (details.mode) {
+                        "validation" -> "À payer (frais de validation compris)"
+                        else -> "Total, hors frais à fixer par l'administration"
+                    },
                     color = WhiteSub,
-                    fontSize = 14.sp
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f)
                 )
                 Text(fcfa(totalEstime), color = GoldPrimary, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
             }
@@ -350,6 +341,16 @@ fun DetailsCommandeEcran(
                 )
             }
         }
+    }
+
+    if (choixPays) {
+        DialoguePays(
+            onChoix = { p ->
+                choixPays = false
+                ventesViewModel.modifierDetails { if (it.pays == p) it else it.copy(pays = p) }
+            },
+            onFermer = { choixPays = false }
+        )
     }
 
     if (choixClient) {
