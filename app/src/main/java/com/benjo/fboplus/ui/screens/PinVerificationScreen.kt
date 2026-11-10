@@ -133,7 +133,7 @@ fun PinVerificationScreen(
         Spacer(modifier = Modifier.height(24.dp))
         // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
         TextButton(onClick = onOublie) {
-            Text("Code oublié ? Se reconnecter avec mon numéro", color = SGoldPrimary, fontSize = 14.sp)
+            Text("Code oublié ? Se reconnecter (Google ou email)", color = SGoldPrimary, fontSize = 14.sp)
         }
     }
 }
