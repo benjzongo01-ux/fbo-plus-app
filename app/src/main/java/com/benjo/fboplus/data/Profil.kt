@@ -45,5 +45,6 @@ data class PaysInscription(
 val paysAutorises = listOf(
     PaysInscription("Burkina Faso", "🇧🇫", "+226"),
     PaysInscription("Côte d'Ivoire", "🇨🇮", "+225"),
-    PaysInscription("Sénégal", "🇸🇳", "+221")
+    PaysInscription("Sénégal", "🇸🇳", "+221"),
+    PaysInscription("Guinée", "🇬🇳", "+224")
 )

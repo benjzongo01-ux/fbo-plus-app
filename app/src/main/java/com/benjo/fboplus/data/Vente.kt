@@ -70,8 +70,15 @@ data class Commande(
     val beneficeTotal: Int get() = caTotal - prixValidation - reduction
 
     /** Titre choisi, sinon le client, sinon le bénéficiaire (une validation n'a pas de client). */
-    val nomAffiche: String get() = titre.takeIf { it.isNotBlank() && it != "Commande" }
-        ?: clientNom.ifBlank { beneficiaireNom.ifBlank { "Commande" } }
+    val nomAffiche: String get() {
+        val personne = clientNom.ifBlank { beneficiaireNom }
+        return when {
+            // Numéro attribué par le serveur : « N° 12 · Awa Traoré ».
+            titre.startsWith("N° ") -> listOf(titre, personne).filter { it.isNotBlank() }.joinToString(" · ")
+            titre.isNotBlank() && titre != "Commande" -> titre
+            else -> personne.ifBlank { "Commande" }
+        }
+    }
 
     val modifiable: Boolean get() = docId.isNotEmpty() && statut == "nouvelle"
     val annulable: Boolean get() = docId.isNotEmpty() && statut in setOf("nouvelle", "confirmee")

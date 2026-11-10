@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 125 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 128 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -99,6 +99,15 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - Delivery : bouton d'appel du deuxième numéro du client.
 - Le Sénégal n'a pas encore d'entrepôt : ses commandes sont refusées avec un message clair.
 - Comptes de test ajoutés pour la Côte d'Ivoire : admin +225 07 00 00 00 11, livreur +225 07 00 00 00 14, entrepôt `abidjan`.
+
+## Règles de prix et de commande (2026-11-10, à la demande de l'utilisateur)
+
+- **Frais de livraison et d'expédition** : jamais choisis par le distributeur ni le livreur. La commande arrive « frais à fixer » ; le centre d'appel les saisit à la confirmation (livraison : fourchette du pays, Burkina 1 000 à 2 000, Côte d'Ivoire 2 000 à 5 000). Pas de confirmation ni de livreur sans frais fixés. Plus tard : calcul automatique selon le lieu.
+- **Expédition** : ville, province ou village saisi par le distributeur, destinataire (nom, téléphones), gare facultative. Plus de liste de villes ni de prix affichés.
+- **Validation sur l'ID** : pas de réduction ; à payer = prix public − remise du grade + 2 000 FCFA de frais de validation (`fraisValidation` par pays).
+- **Réduction** (livraison, expédition) : question « Avez-vous fait une réduction au client ? » ; « Non » = 0.
+- **Numéro de commande** unique et suivi (N° 1, N° 2…, compteur `compteurs/commandes`) ; plus de titre à saisir, la note reste.
+- **Pays** : liste déroulante avec drapeau et recherche ; Guinée (Conakry, +224) ajoutée, fermée tant qu'elle n'a pas d'entrepôt.
 
 ## Connexion Google, validation au siège, boutique en ligne (2026-11-10)
 

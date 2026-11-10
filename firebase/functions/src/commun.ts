@@ -56,7 +56,7 @@ export function exigerAdmin(req: CallableRequest<unknown>): { uid: string; role:
 }
 
 /** Pays où FBO+ opère, chacun géré par sa propre administration. */
-export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal"];
+export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal", "Guinée"];
 
 /** Données d'avant la gestion par pays : elles relèvent du Burkina Faso. */
 export const PAYS_DEFAUT = "Burkina Faso";

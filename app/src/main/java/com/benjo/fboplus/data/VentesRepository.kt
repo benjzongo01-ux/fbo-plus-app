@@ -169,9 +169,9 @@ object VentesRepository {
                 "clientQuartier" to details.quartier.trim(),
                 "adresse" to details.adresse.trim(),
                 "note" to details.note.trim(),
-                "villeExpeditionId" to details.villeId,
-                "zoneId" to if (details.mode == "livraison") details.zoneId else "",
-                "fraisLivraison" to if (details.mode == "livraison" && details.fraisChoisis > 0) details.fraisChoisis else "",
+                "villeExpedition" to details.villeSaisie.trim(),
+                "gare" to details.gare.trim(),
+
                 "destinataireNom" to details.clientNom.trim(),
                 "destinataireTelephone" to details.clientTelephone.trim(),
                 "destinataireTelephone2" to details.clientTelephone2.trim(),

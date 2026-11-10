@@ -115,13 +115,28 @@ describe("creerCommande", () => {
     expect(total).toBe(41800);
   });
 
-  it("applique les frais de livraison des paramètres, pas ceux du client", async () => {
-    await adminDb().doc("parametres/tarifs").set({ fraisLivraison: 1500 });
+  it("les frais de livraison sont fixés par l'administration à la confirmation, jamais par le distributeur", async () => {
+    await adminDb().doc("parametres/tarifs").set({ fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000 });
     const u = await fbo();
-    const { id, total } = await nouvelle(u, { fraisLivraison: 0 });
+    const operateur = await compte("operateur");
+    const { id, total } = await nouvelle(u, { fraisLivraison: 50 });
+    expect(total).toBe(44000);
+    expect(await commande(id)).toMatchObject({ fraisAFixer: true, fraisLivraison: 0 });
+
+    expect(await codeErreur(operateur.appeler("avancerCommande", { id }))).toBe("functions/failed-precondition");
+    expect(await codeErreur(operateur.appeler("avancerCommande", { id, frais: 3000 }))).toBe("functions/invalid-argument");
+    await operateur.appeler("avancerCommande", { id, frais: 1500 });
+    expect(await commande(id)).toMatchObject({ statut: "confirmee", fraisAFixer: false, fraisLivraison: 1500, total: 45500 });
     await adminDb().doc("parametres/tarifs").delete();
-    expect(total).toBe(45500);
-    expect((await commande(id)).fraisLivraison).toBe(1500);
+  });
+
+  it("aucun livreur tant que les frais ne sont pas fixés", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const livreur = await compte("livreur");
+    const { id } = await nouvelle(u);
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid }))).toBe("functions/failed-precondition");
   });
 
   it("chaque pays a ses propres frais de livraison et sa commission", async () => {
@@ -131,14 +146,16 @@ describe("creerCommande", () => {
     const u = await fbo();
     const { total: bf } = await nouvelle(u);
     const { id, total: ci } = await nouvelle(u, { pays: "Côte d'Ivoire" });
-    expect(bf).toBe(45500); // tarifs communs, faute de tarifs propres au Burkina
-    expect(ci).toBe(46000);
+    expect(bf).toBe(44000); // frais pas encore fixés
+    expect(ci).toBe(44000);
 
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
     const livreurCI = await compte("livreur", { pays: "Côte d'Ivoire" });
     await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    // Tarif unique du pays : appliqué tout seul à la confirmation.
+    expect(await commande(id)).toMatchObject({ fraisLivraison: 2000, total: 46000 });
     await adminCI.appeler("assignerLivreur", { id, livreurId: livreurCI.uid });
     expect((await adminDb().doc(`deliveries/${id}`).get()).data()!.commission).toBe(700);
 
@@ -146,19 +163,20 @@ describe("creerCommande", () => {
     await adminDb().doc("parametres/tarifs").delete();
   });
 
-  it("les frais de livraison se choisissent dans la fourchette du pays", async () => {
+  it("l'administration fixe les frais dans la fourchette du pays", async () => {
     await adminDb().doc("tarifsPays/Côte d'Ivoire").set({ fraisLivraison: 2000, fraisMin: 2000, fraisMax: 5000 });
     await adminDb().doc("stock/abidjan_" + produit).set({ disponible: 10, reserve: 0 });
     const u = await fbo();
     const ci = { pays: "Côte d'Ivoire" };
-    expect((await nouvelle(u, ci)).total).toBe(46000);
-    expect((await nouvelle(u, { ...ci, fraisLivraison: 3500 })).total).toBe(47500);
-    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 1000 }))).toBe("functions/invalid-argument");
-    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 5500 }))).toBe("functions/invalid-argument");
-    expect(await codeErreur(nouvelle(u, { ...ci, fraisLivraison: 2750 }))).toBe("functions/invalid-argument");
+    const operateurCI = await compte("operateur", { pays: "Côte d'Ivoire" });
+    const { id: a } = await nouvelle(u, ci);
+    for (const faux of [1000, 5500, 2750]) {
+      expect(await codeErreur(operateurCI.appeler("avancerCommande", { id: a, frais: faux }))).toBe("functions/invalid-argument");
+    }
+    await operateurCI.appeler("avancerCommande", { id: a, frais: 3500 });
+    expect((await commande(a)).total).toBe(47500);
 
     const { id } = await nouvelle(u, ci);
-    const operateurCI = await compte("operateur", { pays: "Côte d'Ivoire" });
     await operateurCI.appeler("fixerFraisExpedition", { id, frais: 4000 });
     expect(await commande(id)).toMatchObject({ fraisLivraison: 4000, total: 48000 });
     expect(await codeErreur(operateurCI.appeler("fixerFraisExpedition", { id, frais: 6000 }))).toBe("functions/invalid-argument");
@@ -323,6 +341,31 @@ describe("cycle complet jusqu'à la livraison", () => {
   });
 });
 
+describe("numéro de commande et prix de validation", () => {
+  it("chaque commande reçoit un numéro suivi, sans titre à saisir", async () => {
+    const u = await fbo();
+    const { id: a } = await nouvelle(u, { titre: "Mon titre" });
+    const { id: b } = await nouvelle(u);
+    const [ca, cb] = [await commande(a), await commande(b)];
+    expect(cb.numero).toBe(ca.numero + 1);
+    expect(ca.titre).toBe(`N° ${ca.numero}`);
+  });
+
+  it("une validation coûte le prix de validation du grade plus 2 000 FCFA, sans réduction", async () => {
+    const u = await fbo(); // Manager : 48 %
+    const { id, total } = await u.appeler("creerCommande", {
+      cleIdempotence: cle(),
+      lignes: [{ produitId: produit, quantite: 2 }],
+      pays: "Burkina Faso",
+      pourQui: "moi",
+      mode: "validation",
+      reduction: 5000,
+    });
+    expect(total).toBe(44000 - 21120 + 2000);
+    expect(await commande(id)).toMatchObject({ reduction: 0, prixValidation: 22880, fraisLivraison: 2000, fraisAFixer: false });
+  });
+});
+
 describe("pour qui, livraison ou validation", () => {
   it("une commande pour soi est validée sur son propre ID Forever", async () => {
     const u = await fbo();
@@ -375,7 +418,7 @@ describe("pour qui, livraison ou validation", () => {
       mode: "validation",
     });
     await adminDb().doc("parametres/tarifs").delete();
-    expect(total).toBe(44000);
+    expect(total).toBe(24880); // prix de validation (Manager, −48 %) + 2 000 FCFA
     expect((await commande(id)).client).toBeNull();
 
     await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
@@ -412,7 +455,7 @@ describe("pour qui, livraison ou validation", () => {
 describe("expédition vers une autre ville", () => {
   const EXPEDITION = {
     mode: "expedition",
-    villeExpeditionId: "bobo",
+    villeExpedition: "Bobo-Dioulasso",
     destinataireNom: "Issa Destinataire",
     destinataireTelephone: "+22670000040",
   };
@@ -423,20 +466,25 @@ describe("expédition vers une autre ville", () => {
     await adminDb().doc("villesExpedition/fermee").set({ pays: "Burkina Faso", ville: "Gaoua", frais: 3000, actif: false });
   });
 
-  it("applique les frais de la ville et garde le destinataire et la compagnie", async () => {
+  it("la ville est saisie par le distributeur, les frais attendent l'administration", async () => {
     const u = await fbo();
-    const { id, total } = await nouvelle(u, { ...EXPEDITION, compagnie: "STAF", adresse: "Gare STAF" });
-    expect(total).toBe(46500);
+    const { id, total } = await nouvelle(u, { ...EXPEDITION, compagnie: "STAF", gare: "Gare STAF" });
+    expect(total).toBe(44000);
     const c = await commande(id);
-    expect(c.expedition).toMatchObject({ ville: "Bobo-Dioulasso", compagnie: "STAF", frais: 2500 });
+    expect(c.fraisAFixer).toBe(true);
+    expect(c.expedition).toMatchObject({ ville: "Bobo-Dioulasso", gare: "Gare STAF", compagnie: "STAF", frais: 0 });
+    const operateur = await compte("operateur");
+    expect(await codeErreur(operateur.appeler("avancerCommande", { id }))).toBe("functions/failed-precondition");
+    await operateur.appeler("avancerCommande", { id, frais: 3000 });
+    expect(await commande(id)).toMatchObject({ total: 47000, expedition: { frais: 3000 }, fraisAFixer: false });
     expect(c.client).toMatchObject({ nom: "Issa Destinataire", telephone: "+22670000040" });
     expect(c.adresse).toBe("Bobo-Dioulasso, Gare STAF");
   });
 
-  it("exige une ville de la liste du pays, le nom et le téléphone du destinataire", async () => {
+  it("exige la ville, le nom et le téléphone du destinataire", async () => {
     const u = await fbo();
-    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpeditionId: "bouake" }))).toBe("functions/invalid-argument");
-    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpeditionId: "fermee" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpedition: "" }))).toBe("functions/invalid-argument");
+    expect(await codeErreur(nouvelle(u, { ...EXPEDITION, villeExpedition: undefined, villeExpeditionId: "bouake" }))).toBe("functions/invalid-argument");
     expect(await codeErreur(nouvelle(u, { ...EXPEDITION, destinataireNom: "" }))).toBe("functions/invalid-argument");
     expect(await codeErreur(nouvelle(u, { ...EXPEDITION, destinataireTelephone: "12" }))).toBe("functions/invalid-argument");
   });
@@ -475,7 +523,7 @@ describe("expédition vers une autre ville", () => {
   it("l'administration d'un autre pays ne peut pas expédier", async () => {
     const u = await fbo();
     const { id } = await nouvelle(u, { ...EXPEDITION, compagnie: "STAF" });
-    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete", fraisAFixer: false });
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
     expect(await codeErreur(adminCI.appeler("expedierCommande", { id }))).toBe("functions/permission-denied");
   });
@@ -706,7 +754,7 @@ describe("vérification d'identité des livreurs", () => {
     const sa = await compte("super_admin");
     const nouveau = await compte("livreur", { kyc: { statut: "aucun" }, nom: "Nouveau" });
     const { id } = await nouvelle(u);
-    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete", fraisAFixer: false });
     expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: nouveau.uid }))).toBe("functions/failed-precondition");
 
     const dossier = {
@@ -856,7 +904,7 @@ describe("commande en ligne depuis la boutique", () => {
 describe("affectation intelligente des livreurs", () => {
   async function prete(u: Awaited<ReturnType<typeof fbo>>, quartier: string) {
     const { id } = await nouvelle(u, { clientQuartier: quartier });
-    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete", fraisAFixer: false });
     return id;
   }
 
@@ -872,14 +920,14 @@ describe("affectation intelligente des livreurs", () => {
 
     const enCours = async (livreurId: string, quartier: string) => {
       const { id } = await nouvelle(u, { pays, clientQuartier: quartier });
-      await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+      await adminDb().doc(`orders/${id}`).update({ statut: "prete", fraisAFixer: false });
       await operateur.appeler("assignerLivreur", { id, livreurId });
     };
     await enCours(occupe.uid, "Plateau");
     await enCours(voisin.uid, "Médina");
 
     const { id } = await nouvelle(u, { pays, clientQuartier: "medina" });
-    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete", fraisAFixer: false });
     const { propositions } = await operateur.appeler("proposerLivreurs", { id });
     const noms = propositions.map((p: { nom: string }) => p.nom).filter((n: string) => ["Déjà à Médina", "Libre", "Occupé ailleurs"].includes(n));
     expect(noms).toEqual(["Déjà à Médina", "Libre", "Occupé ailleurs"]);

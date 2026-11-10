@@ -120,7 +120,8 @@ const POINTS_CONTROLE: [string, string][] = [
 const nomBeneficiaire = (c: Doc) =>
   [c.beneficiaire?.prenom, c.beneficiaire?.nom].filter(Boolean).join(" ");
 
-const nomCommande = (c: Doc) => c.client?.nom || nomBeneficiaire(c) || c.titre;
+const nomCommande = (c: Doc) =>
+  [c.numero ? `N° ${c.numero}` : "", c.client?.nom || nomBeneficiaire(c) || (c.numero ? "" : c.titre)].filter(Boolean).join(" · ");
 
 function DetailCommande({ commande }: { commande: Doc }) {
   const { role } = useSession();
@@ -135,7 +136,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
   );
   const validation = commande.mode === "validation";
   const expedition = commande.mode === "expedition";
-  const [frais, setFrais] = useState(String(commande.expedition?.frais ?? commande.fraisLivraison ?? 0));
+  const [frais, setFrais] = useState(commande.fraisAFixer ? "" : String(commande.fraisLivraison ?? 0));
   const [compagnie, setCompagnie] = useState(commande.expedition?.compagnie ?? "");
   const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
@@ -223,7 +224,9 @@ function DetailCommande({ commande }: { commande: Doc }) {
       </table>
       <p className="droite">
         {commande.reduction > 0 && <>Réduction : -{fcfa(commande.reduction)}<br /></>}
-        {commande.fraisLivraison > 0 && <>{expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
+        {commande.fraisAFixer && <><span className="alerte">Frais de {expedition ? "l'expédition" : "livraison"} à fixer selon le lieu</span><br /></>}
+        {commande.fraisLivraison > 0 && <>{validation ? "Frais de validation" : expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
+        {validation && commande.prixValidation > 0 && <>Prix de validation : {fcfa(commande.prixValidation)}<br /></>}
         <strong>Total : {fcfa(commande.total)}</strong>
       </p>
 
@@ -245,7 +248,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
         {!change && etape?.roles.includes(role) && (
           <button
             className="principal"
-            disabled={enCours || (commande.statut === "en_preparation" && !controleComplet)}
+            disabled={enCours || (commande.statut === "en_preparation" && !controleComplet) || (commande.statut === "nouvelle" && commande.fraisAFixer)}
             onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id, controle }))}
           >
             {etape.libelle}
@@ -292,7 +295,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
       {centreAppel && (expedition || commande.mode === "livraison") && ["nouvelle", "confirmee"].includes(commande.statut) && (
         <div className="actions">
           <label>
-            {expedition ? "Frais d'expédition (FCFA)" : "Frais de livraison (FCFA, dans la fourchette du pays)"}
+            {expedition ? "Frais d'expédition selon la ville (FCFA)" : "Frais de livraison selon le lieu (FCFA, dans la fourchette du pays)"}
             <input type="number" min={0} value={frais} onChange={(e) => setFrais(e.target.value)} />
           </label>
           <button

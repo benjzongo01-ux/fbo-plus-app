@@ -161,11 +161,21 @@ function lireMode(valeur: unknown): Mode {
  * de transport ; sinon celui qui expédie la choisit.
  */
 async function lireExpedition(tx: Transaction, d: Record<string, unknown>, pays: string) {
+  // Le distributeur écrit la ville, la province ou le village ; une ville de la liste reste possible.
   const villeId = texte(d.villeExpeditionId, 128);
-  const ville = villeId ? (await tx.get(db.doc(`villesExpedition/${villeId}`))).data() : undefined;
-  if (!ville || ville.actif !== true || ville.pays !== pays) {
-    throw new HttpsError("invalid-argument", "Choisissez une ville d'expédition de la liste.");
+  let ville: { ville: string; frais: number } | null = null;
+  if (villeId) {
+    const v = (await tx.get(db.doc(`villesExpedition/${villeId}`))).data();
+    if (!v || v.actif !== true || v.pays !== pays) {
+      throw new HttpsError("invalid-argument", "Ville d'expédition inconnue pour ce pays.");
+    }
+    ville = { ville: String(v.ville), frais: Number(v.frais ?? 0) };
+  } else {
+    const saisie = texte(d.villeExpedition, 120);
+    if (!saisie) throw new HttpsError("invalid-argument", "Indiquez la ville, la province ou le village de destination.");
+    ville = { ville: saisie, frais: 0 };
   }
+  const gare = texte(d.gare, 200) || texte(d.adresse);
   const nom = texte(d.destinataireNom, 120);
   const telephone = texte(d.destinataireTelephone, 20);
   const telephone2 = texte(d.destinataireTelephone2, 20);
@@ -176,13 +186,14 @@ async function lireExpedition(tx: Transaction, d: Record<string, unknown>, pays:
   }
   return {
     expedition: {
-      villeId,
-      ville: String(ville.ville),
+      villeId: villeId || null,
+      ville: ville.ville,
+      gare,
       compagnie: texte(d.compagnie, 80),
-      frais: Number(ville.frais ?? 0),
+      frais: ville.frais,
       numeroColis: "",
     },
-    destinataire: { id: null, nom, telephone, telephone2, quartier: "", adresse: texte(d.adresse) },
+    destinataire: { id: null, nom, telephone, telephone2, quartier: "", adresse: gare },
   };
 }
 
@@ -206,17 +217,27 @@ async function lignesAuPrixOfficiel(tx: Transaction, demandes: LigneDemandee[]):
   });
 }
 
-function calculerMontants(lignes: LigneCommande[], remiseGrade: number, reduction: number, frais: number) {
+/**
+ * Montants d'une commande.
+ * - Livraison et expédition : le client paie le prix public, moins la réduction éventuelle, plus les frais.
+ * - Validation sur l'ID : pas de client à livrer ni de réduction ; le distributeur paie le prix de
+ *   validation (prix public moins la remise de son grade) plus les frais de validation.
+ */
+function calculerMontants(lignes: LigneCommande[], remiseGrade: number, reductionDemandee: number, frais: number, mode?: string) {
   const sousTotal = lignes.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
   const margeBrute = Math.floor((sousTotal * remiseGrade) / 100);
+  const validation = mode === "validation";
+  const reduction = validation ? 0 : reductionDemandee;
   if (reduction > margeBrute) {
     throw new HttpsError("invalid-argument", `Réduction maximale : ${margeBrute} FCFA.`);
   }
+  const prixValidation = sousTotal - margeBrute;
   return {
     sousTotal,
     reduction,
+    prixValidation,
     fraisLivraison: frais,
-    total: sousTotal - reduction + frais,
+    total: (validation ? prixValidation : sousTotal - reduction) + frais,
     ccTotal: Math.round(lignes.reduce((s, l) => s + l.cc * l.quantite, 0) * 1000) / 1000,
     remiseGrade,
     beneficeFbo: margeBrute - reduction,
@@ -281,6 +302,8 @@ async function tarifsDuPays(tx: Transaction, pays: string) {
     fraisMin: Number(t.fraisMin ?? fraisLivraison),
     fraisMax: Number(t.fraisMax ?? fraisLivraison),
     commissionLivreur: Number(t.commissionLivreur ?? 0),
+    // Frais d'une validation sur l'ID (traitement au siège), 2 000 FCFA par défaut.
+    fraisValidation: Number(t.fraisValidation ?? 2000),
   };
 }
 
@@ -352,6 +375,9 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     if (existante.exists) return { id: ref.id, total: existante.data()!.total as number, cree: false };
 
     const profil = (await tx.get(db.doc(`users/${uid}`))).data();
+    // Numéro de commande unique et suivi pour toute l'organisation : N° 1, N° 2…
+    const refCompteur = db.doc("compteurs/commandes");
+    const numero = Number((await tx.get(refCompteur)).data()?.dernier ?? 0) + 1;
 
     if (!estPays(d.pays)) throw new HttpsError("invalid-argument", "Choisissez le pays de la commande.");
     const pays = d.pays;
@@ -371,8 +397,14 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     }
     const zone = mode === "livraison" ? await lireZone(tx, d, pays) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
+    // Livraison : les frais sont fixés par l'administration selon le lieu, à la confirmation.
+    // Le distributeur et le livreur ne les choisissent jamais.
+    // Expédition vers une ville saisie : frais fixés aussi par l'administration.
+    const fraisAFixer = (mode === "livraison" && !zone) || (mode === "expedition" && !envoi?.expedition.villeId);
     const frais =
-      mode === "livraison" ? (zone?.frais ?? fraisDansFourchette(d.fraisLivraison, tarifs)) : (envoi?.expedition.frais ?? 0);
+      mode === "livraison" ? (zone?.frais ?? 0)
+      : mode === "validation" ? tarifs.fraisValidation
+      : (envoi?.expedition.frais ?? 0);
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
     const montants = calculerMontants(
@@ -380,6 +412,7 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       REMISES[String(profil?.grade)] ?? REMISES["Client Privilégié (CP)"],
       reduction,
       frais,
+      mode,
     );
 
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
@@ -396,14 +429,17 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       });
     }
 
+    tx.set(refCompteur, { dernier: numero }, { merge: true });
     tx.create(ref, {
       pays,
       fboId: uid,
-      titre: texte(d.titre, 120) || "Commande",
+      numero,
+      titre: `N° ${numero}`,
       // Note du distributeur pour le centre d'appel et le livreur (horaires, consignes…).
       note: texte(d.note, 500),
       mode,
       beneficiaire,
+      fraisAFixer,
       // En expédition, « client » désigne le destinataire du colis.
       client: client ?? envoi?.destinataire ?? null,
       zone: zone ? { id: zone.id, nom: zone.nom } : null,
@@ -454,7 +490,7 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
     }
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
-    const montants = calculerMontants(lignes, commande.remiseGrade, reduction, commande.fraisLivraison);
+    const montants = calculerMontants(lignes, commande.remiseGrade, reduction, commande.fraisLivraison, commande.mode);
 
     const ecarts = new Map<string, number>();
     for (const l of commande.lignes as LigneCommande[]) ecarts.set(l.produitId, -l.quantite);
@@ -465,7 +501,6 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
     tx.update(ref, {
       lignes,
       ...montants,
-      titre: texte(d.titre, 120) || commande.titre,
       adresse: d.adresse === undefined ? commande.adresse : texte(d.adresse),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -551,6 +586,30 @@ export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (
       throw new HttpsError("permission-denied", "Action non autorisée pour ce rôle.");
     }
     // Contrôle qualité obligatoire avant « prête » : bons produits, bonnes quantités, dates, emballage.
+    let fraisFixes: Record<string, unknown> | undefined;
+    if (transition.vers === "confirmee" && commande.fraisAFixer) {
+      const saisis = (req.data as Record<string, unknown> | null)?.frais;
+      const vide = saisis === undefined || saisis === null || saisis === "";
+      let frais: number;
+      if (commande.mode === "expedition") {
+        if (vide) throw new HttpsError("failed-precondition", "Indiquez les frais d'expédition vers cette ville.");
+        frais = lireMontant(saisis);
+      } else {
+        const tarifs = await tarifsDuPays(tx, commande.pays);
+        if (vide && tarifs.fraisMin !== tarifs.fraisMax) {
+          throw new HttpsError(
+            "failed-precondition",
+            `Indiquez les frais de livraison selon le lieu (entre ${tarifs.fraisMin} et ${tarifs.fraisMax} FCFA).`,
+          );
+        }
+        frais = fraisDansFourchette(saisis, tarifs);
+      }
+      fraisFixes = {
+        ...calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode),
+        ...(commande.mode === "expedition" ? { "expedition.frais": frais } : {}),
+        fraisAFixer: false,
+      };
+    }
     let controleQualite: Record<string, unknown> | undefined;
     if (transition.vers === "prete") {
       const c = ((req.data as Record<string, unknown> | null)?.controle ?? {}) as Record<string, unknown>;
@@ -560,6 +619,7 @@ export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (
       controleQualite = { par: uid, le: Timestamp.now(), points: POINTS_CONTROLE };
     }
     tx.update(ref, {
+      ...(fraisFixes ?? {}),
       ...(controleQualite ? { controleQualite } : {}),
       statut: transition.vers,
       historiqueStatuts: FieldValue.arrayUnion(etapeHistorique(transition.vers, uid)),
@@ -589,6 +649,9 @@ export async function affecterLivreur(
   }
   if (!["prete", "assignee"].includes(commande.statut)) {
     throw new HttpsError("failed-precondition", "La commande n'est pas prête à être livrée.");
+  }
+  if (commande.fraisAFixer) {
+    throw new HttpsError("failed-precondition", "Fixez d'abord les frais de livraison de cette commande.");
   }
   const livreur = (await tx.get(db.doc(`users/${livreurId}`))).data();
   if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
@@ -817,9 +880,10 @@ export const fixerFraisExpedition = onAppel("fixerFraisExpedition", OPTIONS_APPE
       throw new HttpsError("failed-precondition", "Les frais ne peuvent plus changer à cette étape.");
     }
     if (commande.mode === "livraison") fraisDansFourchette(frais, await tarifsDuPays(tx, commande.pays));
-    const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais);
+    const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode);
     tx.update(ref, {
       ...montants,
+      fraisAFixer: false,
       ...(commande.mode === "expedition" ? { "expedition.frais": frais } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
