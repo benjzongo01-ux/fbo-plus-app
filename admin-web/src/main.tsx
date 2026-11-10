@@ -9,6 +9,7 @@ import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
 import Connexion from "./pages/Connexion";
 import Livreurs from "./pages/Livreurs";
+import Messages from "./pages/Messages";
 import ValidationsSiege from "./pages/ValidationsSiege";
 import Parametres from "./pages/Parametres";
 import Produits from "./pages/Produits";
@@ -25,6 +26,7 @@ const PAGES = [
   { chemin: "/commandes", titre: "Centre d'appel", roles: ["operateur", "gestionnaire_stock", ...ADMIN], page: <Commandes /> },
   { chemin: "/stocks", titre: "Stocks", roles: ["gestionnaire_stock", ...ADMIN], page: <Stocks /> },
   { chemin: "/produits", titre: "Produits", roles: SUPER, page: <Produits /> },
+  { chemin: "/messages", titre: "Messages", roles: ["operateur", ...ADMIN], page: <Messages /> },
   { chemin: "/livreurs", titre: "Livreurs", roles: ["operateur", ...ADMIN], page: <Livreurs /> },
   { chemin: "/validations", titre: "Validations siège", roles: ["operateur", ...ADMIN], page: <ValidationsSiege /> },
   { chemin: "/utilisateurs", titre: "Utilisateurs", roles: SUPER, page: <Utilisateurs /> },
@@ -60,6 +62,12 @@ function Cadre() {
   const { utilisateur, role, pays } = useSession();
   const { docs: nouvelles } = useCollection("orders", where("statut", "==", "nouvelle"), ...filtrePays(role, pays));
   const aTraiter = nouvelles?.length ?? 0;
+  const { docs: conversations } = useCollection(
+    ["operateur", ...ADMIN].includes(role) ? "conversations" : null,
+    where("nonLusCentre", ">", 0),
+    ...filtrePays(role, pays),
+  );
+  const nonLus = conversations?.length ?? 0;
   const pages = PAGES.filter((p) => p.roles.includes(role));
   return (
     <div className="cadre">
@@ -70,6 +78,7 @@ function Cadre() {
             <NavLink key={p.chemin} to={p.chemin}>
               {p.titre}
               {p.chemin === "/commandes" && aTraiter > 0 && <span className="pastille">{aTraiter}</span>}
+              {p.chemin === "/messages" && nonLus > 0 && <span className="pastille">{nonLus}</span>}
             </NavLink>
           ))}
         </nav>

@@ -1,0 +1,166 @@
+[
+  {
+    "id": "plan-marketing",
+    "ordre": 1,
+    "categorie": "Business Forever",
+    "titre": "Comprendre le plan marketing Forever",
+    "resume": "Grades, remises, Case Credits (CC) et statut actif : comment votre activité est récompensée.",
+    "sections": [
+      {
+        "titre": "Le Case Credit (CC)",
+        "texte": "Chaque produit Forever a une valeur en CC. Par exemple, une Pulpe d'Aloès vaut 0,1 CC. Vos CC mesurent votre activité : ce sont eux qui font monter de grade et ouvrent les primes. Dans FBO+, les CC de chaque commande sont calculés automatiquement, puis crédités sur l'ID Forever après la validation au siège."
+      },
+      {
+        "titre": "Les grades et leur remise",
+        "texte": "Client Privilégié : 5 % de remise. Animateur Adjoint : 35 %, atteint avec 2 CC en deux mois au plus. Animateur : 38 %, avec 10 CC sur un mois. Manager Adjoint : 43 %, avec 60 CC en deux mois au plus. Manager : 48 %, avec 120 CC sur un ou deux mois, ou 150 CC sur trois ou quatre mois. Ces CC comptent ceux de votre groupe (vous et votre équipe, appelé « Open Group »)."
+      },
+      {
+        "titre": "Être FBO actif",
+        "texte": "Vous êtes actif un mois donné si vous réalisez au moins 4 CC dans le mois, dont au moins 1 CC d'achats personnels. Rester actif chaque mois est la condition pour toucher les primes sur votre équipe : planifiez vos 4 CC dès le début du mois."
+      },
+      {
+        "titre": "Votre marge",
+        "texte": "Vous achetez au prix de votre grade et revendez au prix public conseillé : la différence est votre bénéfice. Plus votre grade est élevé, plus votre marge est grande. FBO+ affiche pour chaque commande le prix de validation et votre bénéfice."
+      }
+    ],
+    "quiz": [
+      { "question": "Combien de CC faut-il pour devenir Animateur Adjoint ?", "choix": ["2 CC en deux mois au plus", "10 CC en un mois", "25 CC en un mois"] },
+      { "question": "Quelle est la remise d'un Animateur ?", "choix": ["35 %", "38 %", "43 %"] },
+      { "question": "Pour être actif dans le mois, il faut :", "choix": ["2 CC", "4 CC dont au moins 1 CC personnel", "10 CC personnels"] },
+      { "question": "Le niveau Manager s'obtient avec :", "choix": ["60 CC en deux mois", "120 CC sur un ou deux mois, ou 150 CC sur trois ou quatre mois", "200 CC en un mois"] },
+      { "question": "Les CC qui comptent pour monter de grade sont :", "choix": ["Seulement mes achats personnels", "Ceux de mon groupe : moi et mon équipe", "Ceux de mon parrain"] }
+    ],
+    "reponses": [0, 1, 1, 1, 1]
+  },
+  {
+    "id": "parrainage",
+    "ordre": 2,
+    "categorie": "Business Forever",
+    "titre": "Le parrainage et votre équipe",
+    "resume": "Construire une équipe solide, honnêtement, pour faire grandir votre groupe.",
+    "sections": [
+      {
+        "titre": "Parrainer, c'est accompagner",
+        "texte": "Votre filleul devient distributeur sous votre ID. Ses CC s'ajoutent à ceux de votre groupe et vous aident à monter de grade. Un bon parrain forme, encourage et aide son filleul à vendre : un filleul qui réussit fait réussir son parrain."
+      },
+      {
+        "titre": "Les règles à respecter",
+        "texte": "Ne parrainez que des personnes réelles, informées des conditions du statut de distributeur et qui ont signé leur agrément. Inscrire des personnes fictives ou à leur insu pour se qualifier est interdit et peut entraîner la résiliation du contrat."
+      },
+      {
+        "titre": "Commander pour un filleul dans FBO+",
+        "texte": "Lors d'une commande, choisissez « Mon filleul » et indiquez son nom, son prénom et son ID Forever : les produits seront validés sur son ID, et les CC compteront pour lui et pour votre groupe."
+      },
+      {
+        "titre": "Une équipe dans plusieurs pays",
+        "texte": "Un distributeur garde le même numéro de FBO dans tous les pays où il exerce. FBO+ gère le Burkina Faso, la Côte d'Ivoire et le Sénégal : chaque commande part vers l'administration du pays choisi."
+      }
+    ],
+    "quiz": [
+      { "question": "Les CC de votre filleul :", "choix": ["Ne comptent que pour lui", "S'ajoutent à ceux de votre groupe", "Sont perdus"] },
+      { "question": "Inscrire une personne fictive pour se qualifier est :", "choix": ["Autorisé si on paie", "Interdit, avec risque de résiliation", "Conseillé en fin de mois"] },
+      { "question": "Pour commander pour un filleul dans FBO+, il faut :", "choix": ["Son nom, son prénom et son ID Forever", "Seulement son numéro de téléphone", "Le mot de passe de son compte"] },
+      { "question": "Un distributeur qui exerce dans un autre pays :", "choix": ["Change de numéro de FBO", "Garde le même numéro de FBO", "Doit recommencer à zéro"] }
+    ],
+    "reponses": [1, 1, 0, 1]
+  },
+  {
+    "id": "vendre",
+    "ordre": 3,
+    "categorie": "Vente",
+    "titre": "Vendre, conseiller et fidéliser",
+    "resume": "Présenter un produit, répondre aux objections et garder vos clients.",
+    "sections": [
+      {
+        "titre": "Écouter avant de proposer",
+        "texte": "Commencez par poser des questions : quel est le besoin de la personne (énergie, digestion, peau, poids…) ? Proposez ensuite un ou deux produits adaptés, pas tout le catalogue. Un conseil juste vaut mieux qu'une longue liste."
+      },
+      {
+        "titre": "Présenter un produit",
+        "texte": "Expliquez simplement ce que contient le produit, comment l'utiliser et combien de temps. Parlez de bien-être, jamais de guérison : un produit Forever n'est pas un médicament et ne remplace pas un avis médical."
+      },
+      {
+        "titre": "Répondre aux objections",
+        "texte": "« C'est cher » : ramenez le prix à la durée de la cure (par jour, c'est souvent moins qu'une boisson). « Je vais réfléchir » : proposez de commencer par un seul produit et donnez rendez-vous. « Ça marche vraiment ? » : partagez votre propre expérience, sans promesse exagérée."
+      },
+      {
+        "titre": "Fidéliser avec FBO+",
+        "texte": "Chaque commande enregistre votre client dans « Mes clients ». FBO+ le classe (nouveau, fidèle, VIP) et vous rappelle quand le relancer, par exemple à la fin de sa cure. Un message WhatsApp prêt à envoyer vous fait gagner du temps. La boutique en ligne permet à vos clients de recommander seuls."
+      }
+    ],
+    "quiz": [
+      { "question": "Avant de proposer un produit, il faut d'abord :", "choix": ["Présenter tout le catalogue", "Comprendre le besoin du client", "Annoncer une promotion"] },
+      { "question": "Un produit Forever doit être présenté comme :", "choix": ["Un médicament qui guérit", "Un produit de bien-être, sans promesse de guérison", "Un remède miracle"] },
+      { "question": "À l'objection « c'est cher », une bonne réponse est :", "choix": ["Baisser le prix sans limite", "Ramener le prix à la durée de la cure", "Abandonner la vente"] },
+      { "question": "Dans FBO+, la liste « À relancer » sert à :", "choix": ["Supprimer des clients", "Recontacter les clients au bon moment", "Changer de grade"] }
+    ],
+    "reponses": [1, 1, 1, 1]
+  },
+  {
+    "id": "company-policy",
+    "ordre": 4,
+    "categorie": "Politique de la compagnie",
+    "titre": "Les règles essentielles de la Company Policy",
+    "resume": "Résumé des points à connaître. Le document officiel de Forever fait foi : demandez-le à votre upline ou à votre bureau Forever.",
+    "sections": [
+      {
+        "titre": "Pourquoi des règles ?",
+        "texte": "La Company Policy fixe les droits et devoirs de chaque distributeur. Chaque FBO doit la lire et la respecter : elle protège l'image de Forever et l'équité entre distributeurs. Ce résumé ne remplace pas le document officiel."
+      },
+      {
+        "titre": "Pas d'achat pour se qualifier",
+        "texte": "On ne commande que ce dont on a besoin pour ses ventes. Avant de recommander, la plus grande partie du stock (75 %) doit avoir été vendue, consommée ou utilisée. Acheter uniquement pour toucher des primes ou monter de grade est interdit."
+      },
+      {
+        "titre": "Pas de parrainage fictif",
+        "texte": "Chaque filleul doit être une personne réelle, informée et volontaire. Les inscriptions fictives ou forcées sont un motif de résiliation."
+      },
+      {
+        "titre": "Internet et la marque Forever",
+        "texte": "L'utilisation du nom Forever, de ses logos et de ses produits sur Internet est encadrée par des règles précises. Avant de publier une page, une publicité ou une vente en ligne, vérifiez les règles d'usage d'Internet dans le document officiel."
+      },
+      {
+        "titre": "Rester actif et honnête",
+        "texte": "Restez actif chaque mois (4 CC), décrivez les produits sans exagération et respectez vos clients comme vos collègues distributeurs. En cas de doute, demandez conseil à votre upline ou au bureau Forever de votre pays."
+      }
+    ],
+    "quiz": [
+      { "question": "Avant de recommander du stock, il faut avoir écoulé :", "choix": ["10 % du stock", "75 % du stock", "Rien, on commande à volonté"] },
+      { "question": "Acheter uniquement pour monter de grade est :", "choix": ["Interdit", "Conseillé", "Obligatoire en fin de mois"] },
+      { "question": "En cas de doute sur une règle, on :", "choix": ["Fait comme on veut", "Se réfère au document officiel ou demande au bureau Forever", "Demande à un client"] },
+      { "question": "Publier une publicité Forever sur Internet :", "choix": ["Est libre, sans règle", "Doit respecter les règles d'usage d'Internet de la compagnie", "Est réservé aux clients"] }
+    ],
+    "reponses": [1, 0, 1, 1]
+  },
+  {
+    "id": "fbo-plus",
+    "ordre": 5,
+    "categorie": "Utiliser FBO+",
+    "titre": "Bien utiliser FBO+",
+    "resume": "Commandes, validation au siège, boutique en ligne et centre d'appel.",
+    "sections": [
+      {
+        "titre": "Passer une commande",
+        "texte": "Choisissez les produits, puis le pays, pour qui (vous ou un filleul) et le type : livraison, validation sur l'ID ou expédition. Le prix et les CC sont calculés par le serveur ; vous suivez chaque étape en temps réel."
+      },
+      {
+        "titre": "La validation au siège",
+        "texte": "Les produits vendus sont validés au siège Forever sur l'ID du bénéficiaire dès que l'achat minimum (36 000 FCFA) est atteint. En dessous, ils attendent dans « Validations au siège » : votre prochaine vente complète le lot, rien n'est perdu."
+      },
+      {
+        "titre": "Votre boutique en ligne",
+        "texte": "Partagez le lien ou le QR code de votre boutique. Vos clients y commandent directement ; vous recevez la commande dans « Commandes de ma boutique » et la préparez en un toucher."
+      },
+      {
+        "titre": "Le centre d'appel",
+        "texte": "Une question sur une commande ? Écrivez au centre d'appel depuis le suivi de la commande ou depuis votre profil. Vous recevez une notification à chaque réponse."
+      }
+    ],
+    "quiz": [
+      { "question": "L'achat minimum pour une validation au siège est de :", "choix": ["10 000 FCFA", "36 000 FCFA", "100 000 FCFA"] },
+      { "question": "Une vente sous le minimum est :", "choix": ["Perdue", "Mise en réserve jusqu'au minimum", "Annulée"] },
+      { "question": "Les commandes de votre boutique en ligne arrivent :", "choix": ["Par SMS", "Dans « Commandes de ma boutique »", "Chez le siège directement"] }
+    ],
+    "reponses": [1, 1, 1]
+  }
+]

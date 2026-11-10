@@ -103,7 +103,9 @@ fun ProfilScreen(
     onBoutique: () -> Unit,
     onNotifications: () -> Unit,
     onValidations: () -> Unit,
-    onCommandesBoutique: () -> Unit
+    onCommandesBoutique: () -> Unit,
+    onMessagerie: () -> Unit,
+    onFormations: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -188,6 +190,14 @@ fun ProfilScreen(
                     }
                     Separateur()
                     LigneOption(Icons.AutoMirrored.Filled.ReceiptLong, "Mes commandes", sousTitre = "Suivi en temps réel", onClick = onCommandes) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Verified, "Formations", sousTitre = "Plan de progression, cours et certificats", onClick = onFormations) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
+                    LigneOption(Icons.Filled.Notifications, "Centre d'appel", sousTitre = "Messagerie", onClick = onMessagerie) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
                     }
                     Separateur()

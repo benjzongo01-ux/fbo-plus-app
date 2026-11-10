@@ -94,6 +94,36 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("les bonnes réponses des quiz ne sont lisibles par personne", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "formations/f1"), { titre: "Plan marketing" });
+      await setDoc(doc(ctx.firestore(), "formationsCorrections/f1"), { reponses: [0] });
+      await setDoc(doc(ctx.firestore(), "certificats/fbo1_f1"), { userId: "fbo1" });
+    });
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "formations/f1")));
+    await assertFails(getDoc(doc(db("fbo1", "fbo"), "formationsCorrections/f1")));
+    await assertFails(getDoc(doc(db("sa", "super_admin", ""), "formationsCorrections/f1")));
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "certificats/fbo1_f1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "certificats/fbo1_f1")));
+    await assertFails(setDoc(doc(db("fbo1", "fbo"), "certificats/fbo1_f2"), { userId: "fbo1" }));
+  });
+
+  it("une conversation n'est lue que par son distributeur et le centre de son pays", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "conversations/fbo1"), { fboId: "fbo1", pays: "Burkina Faso", nonLusFbo: 2, nonLusCentre: 1 });
+      await setDoc(doc(ctx.firestore(), "conversations/fbo1/messages/m1"), { texte: "Bonjour" });
+    });
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "conversations/fbo1/messages/m1")));
+    await assertSucceeds(getDoc(doc(db("op", "operateur"), "conversations/fbo1/messages/m1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "conversations/fbo1/messages/m1")));
+    await assertFails(getDoc(doc(db("ci", "operateur", "Côte d'Ivoire"), "conversations/fbo1")));
+    await assertFails(getDoc(doc(db("liv", "livreur"), "conversations/fbo1")));
+    await assertFails(setDoc(doc(db("fbo1", "fbo"), "conversations/fbo1/messages/m2"), { texte: "faux" }));
+    await assertSucceeds(updateDoc(doc(db("fbo1", "fbo"), "conversations/fbo1"), { nonLusFbo: 0 }));
+    await assertFails(updateDoc(doc(db("fbo1", "fbo"), "conversations/fbo1"), { nonLusCentre: 0 }));
+    await assertSucceeds(updateDoc(doc(db("op", "operateur"), "conversations/fbo1"), { nonLusCentre: 0 }));
+  });
+
   it("seul le distributeur lit et classe les commandes de sa boutique", async () => {
     await env.withSecurityRulesDisabled((ctx) =>
       setDoc(doc(ctx.firestore(), "commandesBoutique/b1"), { fboId: "fbo1", statut: "nouvelle", total: 22000 }),

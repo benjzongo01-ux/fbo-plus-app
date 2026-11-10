@@ -1,6 +1,9 @@
 package com.benjo.fboplus.data
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import java.util.Date
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,7 +13,10 @@ data class Client(
     val nom: String = "",
     val telephone: String = "",
     val adresse: String = "",
-    val notes: String = ""
+    val notes: String = "",
+    // Relance programmée (date en millisecondes) et son motif.
+    val relanceLe: Long? = null,
+    val relanceMotif: String = ""
 )
 
 object ClientsRepository {
@@ -35,7 +41,9 @@ object ClientsRepository {
                     nom = d.getString("nom").orEmpty(),
                     telephone = d.getString("telephone").orEmpty(),
                     adresse = d.getString("adresse").orEmpty(),
-                    notes = d.getString("notes").orEmpty()
+                    notes = d.getString("notes").orEmpty(),
+                    relanceLe = d.getTimestamp("relanceLe")?.toDate()?.time,
+                    relanceMotif = d.getString("relanceMotif").orEmpty()
                 )
             }.sortedBy { it.nom.lowercase() }
         }
@@ -58,8 +66,19 @@ object ClientsRepository {
             "adresse" to client.adresse.trim(),
             "notes" to client.notes.trim()
         )
+        // Fusion : la relance programmée et les autres champs sont conservés.
         if (client.id.isEmpty()) collection.document().set(donnees)
-        else collection.document(client.id).set(donnees)
+        else collection.document(client.id).set(donnees, SetOptions.merge())
+    }
+
+    fun programmerRelance(id: String, le: Long?, motif: String) {
+        if (id.isEmpty()) return
+        collection.document(id).update(
+            mapOf(
+                "relanceLe" to le?.let { Timestamp(Date(it)) },
+                "relanceMotif" to motif.trim()
+            )
+        )
     }
 
     fun supprimer(id: String) {

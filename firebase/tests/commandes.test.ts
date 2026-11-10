@@ -664,6 +664,58 @@ describe("administration par pays", () => {
   });
 });
 
+describe("formations et certificats", () => {
+  it("le serveur corrige le quiz et délivre un certificat à 80 %", async () => {
+    await adminDb().doc("formations/test").set({ titre: "Test", quiz: [{}, {}, {}, {}, {}] });
+    await adminDb().doc("formationsCorrections/test").set({ reponses: [0, 1, 2, 0, 1] });
+    const u = await fbo();
+    expect(await codeErreur(u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 1] }))).toBe("functions/invalid-argument");
+
+    const rate = await u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 0, 0, 0, 1] });
+    expect(rate).toMatchObject({ justes: 3, reussi: false, manquees: [1, 2] });
+    expect((await adminDb().doc(`certificats/${u.uid}_test`).get()).exists).toBe(false);
+
+    const reussi = await u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 1, 2, 0, 0] });
+    expect(reussi).toMatchObject({ justes: 4, reussi: true });
+    expect((await adminDb().doc(`certificats/${u.uid}_test`).get()).data()).toMatchObject({ score: 80, nom: "Awa Test" });
+  });
+});
+
+describe("carnet de clients alimenté par les commandes", () => {
+  it("une commande crée la fiche du client, la suivante la réutilise", async () => {
+    const u = await fbo();
+    const { id: a } = await nouvelle(u, { clientTelephone: "+22670998877", clientNom: "Rasmata" });
+    const { id: b } = await nouvelle(u, { clientTelephone: "+22670998877", clientNom: "Rasmata" });
+    const fiches = await adminDb().collection("customers").where("ownerId", "==", u.uid).get();
+    expect(fiches.size).toBe(1);
+    expect(fiches.docs[0].data()).toMatchObject({ nom: "Rasmata", telephone: "+22670998877" });
+    expect((await commande(a)).client.id).toBe(fiches.docs[0].id);
+    expect((await commande(b)).client.id).toBe(fiches.docs[0].id);
+  });
+});
+
+describe("messagerie avec le centre d'appel", () => {
+  it("le distributeur écrit, le centre de son pays répond ; les autres n'y ont pas accès", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const operateurCI = await compte("operateur", { pays: "Côte d'Ivoire" });
+    const autre = await fbo();
+    const { id } = await nouvelle(u);
+
+    await u.appeler("envoyerMessage", { texte: "Bonjour, ma cliente veut être livrée après 17 h.", commandeId: id });
+    expect((await adminDb().doc(`conversations/${u.uid}`).get()).data()).toMatchObject({ nonLusCentre: 1, pays: "Burkina Faso" });
+
+    expect(await codeErreur(autre.appeler("envoyerMessage", { texte: "x", commandeId: id }))).toBe("functions/permission-denied");
+    expect(await codeErreur(operateurCI.appeler("envoyerMessage", { texte: "x", fboId: u.uid }))).toBe("functions/permission-denied");
+    expect(await codeErreur(u.appeler("envoyerMessage", { texte: "   " }))).toBe("functions/invalid-argument");
+
+    await operateur.appeler("envoyerMessage", { texte: "C'est noté, merci !", fboId: u.uid });
+    const messages = await adminDb().collection(`conversations/${u.uid}/messages`).orderBy("createdAt").get();
+    expect(messages.docs.map((m) => m.data().duCentre)).toEqual([false, true]);
+    expect((await adminDb().doc(`conversations/${u.uid}`).get()).data()).toMatchObject({ nonLusFbo: 1 });
+  });
+});
+
 describe("commande en ligne depuis la boutique", () => {
   async function client() {
     // Un visiteur de la boutique : session anonyme, sans rôle.

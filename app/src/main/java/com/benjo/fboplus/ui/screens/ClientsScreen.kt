@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benjo.fboplus.data.Client
 import com.benjo.fboplus.data.ClientsRepository
+import com.benjo.fboplus.data.ProfilRepository
 import com.benjo.fboplus.data.VentesRepository
 import com.benjo.fboplus.ui.theme.*
 import java.util.Locale
@@ -39,10 +40,14 @@ private val Forme = RoundedCornerShape(16.dp)
 @Composable
 fun ClientsScreen(onOuvrir: (String) -> Unit, onNouveau: () -> Unit, onRetour: () -> Unit) {
     val clients by ClientsRepository.clients.collectAsState()
+    val commandes by VentesRepository.commandes.collectAsState()
     var recherche by remember { mutableStateOf("") }
+    var filtre by remember { mutableStateOf("Tous") }
+    val suivis = remember(clients, commandes) { clients.associate { it.id to suiviClient(it, commandes) } }
     val visibles = clients.filter {
-        it.nom.contains(recherche, ignoreCase = true) || it.telephone.contains(recherche)
-    }
+        (it.nom.contains(recherche, ignoreCase = true) || it.telephone.contains(recherche)) &&
+            garderSelonFiltre(filtre, suivis.getValue(it.id))
+    }.sortedByDescending { suivis.getValue(it.id).aRelancer }
 
     Column(Modifier.fillMaxSize().background(BlackDeep)) {
         EnTeteSimple("Mes clients", onRetour) {
@@ -60,6 +65,7 @@ fun ClientsScreen(onOuvrir: (String) -> Unit, onNouveau: () -> Unit, onRetour: (
             colors = couleursChampClient(),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
         )
+        FiltresClients(filtre, suivis.values.count { it.aRelancer }) { filtre = it }
         if (visibles.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -96,12 +102,16 @@ fun ClientsScreen(onOuvrir: (String) -> Unit, onNouveau: () -> Unit, onRetour: (
                             )
                         }
                         Spacer(Modifier.width(12.dp))
-                        Column {
+                        val suivi = suivis.getValue(client.id)
+                        Column(Modifier.weight(1f)) {
                             Text(client.nom, color = WhitePrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                            if (client.telephone.isNotBlank()) {
-                                Text(client.telephone, color = WhiteSub, fontSize = 13.sp)
-                            }
+                            Text(
+                                if (suivi.aRelancer) suivi.raisonRelance else depuisLe(suivi.dernierAchat),
+                                color = if (suivi.aRelancer) GoldPrimary else WhiteSub,
+                                fontSize = 13.sp
+                            )
                         }
+                        BadgeCategorie(suivi.categorie)
                     }
                 }
             }
@@ -120,8 +130,10 @@ fun ClientDetailScreen(
     val clients by ClientsRepository.clients.collectAsState()
     val commandes by VentesRepository.commandes.collectAsState()
     val client = clients.find { it.id == clientId }
-    val historique = commandes.filter { it.clientId == clientId }.sortedByDescending { it.dateMillis }
-    val valides = historique.filter { it.statut !in setOf("annulee", "retournee") }
+    val suivi = client?.let { suiviClient(it, commandes) }
+    val historique = suivi?.commandes.orEmpty().sortedByDescending { it.dateMillis }
+    val valides = historique
+    val profil = remember { ProfilRepository.getProfil(context) }
 
     Column(Modifier.fillMaxSize().background(BlackDeep)) {
         EnTeteSimple(client?.nom ?: "Client", onRetour) {
@@ -168,6 +180,15 @@ fun ClientDetailScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
+            if (suivi != null) item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BadgeCategorie(suivi.categorie)
+                    Text(depuisLe(suivi.dernierAchat), color = WhiteSub, fontSize = 13.sp)
+                }
+            }
+            if (suivi != null) item {
+                SectionRelance(client, suivi, listOf(profil.prenom, profil.nom).filter { it.isNotBlank() }.joinToString(" "))
             }
             items(historique, key = { it.docId }) { commande ->
                 CarteCommande(commande) { onCommande(commande.docId) }

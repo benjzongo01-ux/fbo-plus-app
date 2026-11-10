@@ -131,7 +131,7 @@ async function lireClientLivraison(tx: Transaction, d: Record<string, unknown>, 
       throw new HttpsError("permission-denied", "Ce client ne vous appartient pas.");
     }
   }
-  return { id: clientId, nom, telephone, telephone2, quartier, adresse: texte(d.adresse) };
+  return { id: clientId as string | null, nom, telephone, telephone2, quartier, adresse: texte(d.adresse) };
 }
 
 type Mode = "livraison" | "validation" | "expedition";
@@ -360,6 +360,15 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     const mode = lireMode(d.mode);
     const beneficiaire = lireBeneficiaire(d, profil);
     const client = mode === "livraison" ? await lireClientLivraison(tx, d, uid) : null;
+    // Carnet de clients : retrouve la fiche par le téléphone, ou en prépare une nouvelle.
+    let nouvelleFiche: FirebaseFirestore.DocumentReference | null = null;
+    if (client && !client.id) {
+      const existantes = await tx.get(
+        db.collection("customers").where("ownerId", "==", uid).where("telephone", "==", client.telephone).limit(1),
+      );
+      if (existantes.empty) nouvelleFiche = db.collection("customers").doc();
+      client.id = existantes.empty ? nouvelleFiche!.id : existantes.docs[0].id;
+    }
     const zone = mode === "livraison" ? await lireZone(tx, d, pays) : null;
     const envoi = mode === "expedition" ? await lireExpedition(tx, d, pays) : null;
     const frais =
@@ -376,6 +385,16 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
     const reserver = await preparerReservations(tx, entrepotId, ecarts);
     reserver(uid, ref.id);
+    if (nouvelleFiche && client) {
+      tx.create(nouvelleFiche, {
+        ownerId: uid,
+        nom: client.nom,
+        telephone: client.telephone,
+        adresse: [client.quartier, client.adresse].filter(Boolean).join(", "),
+        notes: "",
+        creeeParCommande: true,
+      });
+    }
 
     tx.create(ref, {
       pays,

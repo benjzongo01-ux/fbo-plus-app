@@ -137,7 +137,8 @@ fun CommandeDetailScreen(
     docId: String,
     ventesViewModel: VentesViewModel,
     onModifier: (Commande) -> Unit,
-    onRetour: () -> Unit
+    onRetour: () -> Unit,
+    onEcrire: (String) -> Unit = {}
 ) {
     val commandes by VentesRepository.commandes.collectAsState()
     val commande = commandes.find { it.docId == docId }
@@ -197,6 +198,11 @@ fun CommandeDetailScreen(
             }
 
             TimelineStatuts(commande)
+
+            OutlinedButton(
+                onClick = { onEcrire(commande.docId) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Écrire au centre d'appel à propos de cette commande", color = GoldPrimary) }
 
             Column(Modifier.fillMaxWidth().clip(FormeCarte).background(BlackCard).padding(16.dp)) {
                 commande.lignes.forEach { l ->
