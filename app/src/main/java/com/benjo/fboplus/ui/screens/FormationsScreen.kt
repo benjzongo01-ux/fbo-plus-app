@@ -290,7 +290,7 @@ private fun PlanProgression(profil: Profil, commandes: List<Commande>) {
         val joursRestants = Calendar.getInstance().let { it.getActualMaximum(Calendar.DAY_OF_MONTH) - it.get(Calendar.DAY_OF_MONTH) + 1 }
         val parSemaine = reste / (joursRestants / 7.0).coerceAtLeast(1.0)
         Text(
-            "Prochain grade : ${suivant.grade} (remise ${suivant.remise} %) avec %.0f CC ${if (suivant.mois == 1) "sur un mois" else "sur deux mois consécutifs"}.".format(Locale.FRANCE, suivant.cc),
+            "Prochain grade : ${suivant.grade} (remise ${suivant.remise} %%) avec %.0f CC ${if (suivant.mois == 1) "sur un mois" else "sur deux mois consécutifs"}.".format(Locale.FRANCE, suivant.cc),
             color = WhitePrimary,
             fontSize = 14.sp
         )
