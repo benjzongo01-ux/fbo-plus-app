@@ -343,8 +343,7 @@ function exporterCommandes(commandes: Doc[]) {
       ].map(champ).join(";"),
     );
   }
-  const fichier = new Blob(["﻿" + lignes.join("
-")], { type: "text/csv;charset=utf-8" });
+  const fichier = new Blob(["﻿" + lignes.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const lien = document.createElement("a");
   lien.href = URL.createObjectURL(fichier);
   lien.download = `commandes-${new Date().toISOString().slice(0, 10)}.csv`;
