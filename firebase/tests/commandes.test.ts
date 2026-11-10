@@ -664,6 +664,19 @@ describe("administration par pays", () => {
   });
 });
 
+describe("carnet de clients alimenté par les commandes", () => {
+  it("une commande crée la fiche du client, la suivante la réutilise", async () => {
+    const u = await fbo();
+    const { id: a } = await nouvelle(u, { clientTelephone: "+22670998877", clientNom: "Rasmata" });
+    const { id: b } = await nouvelle(u, { clientTelephone: "+22670998877", clientNom: "Rasmata" });
+    const fiches = await adminDb().collection("customers").where("ownerId", "==", u.uid).get();
+    expect(fiches.size).toBe(1);
+    expect(fiches.docs[0].data()).toMatchObject({ nom: "Rasmata", telephone: "+22670998877" });
+    expect((await commande(a)).client.id).toBe(fiches.docs[0].id);
+    expect((await commande(b)).client.id).toBe(fiches.docs[0].id);
+  });
+});
+
 describe("messagerie avec le centre d'appel", () => {
   it("le distributeur écrit, le centre de son pays répond ; les autres n'y ont pas accès", async () => {
     const u = await fbo();
