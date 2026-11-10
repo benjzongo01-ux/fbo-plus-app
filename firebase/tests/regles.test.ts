@@ -94,6 +94,20 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("les bonnes réponses des quiz ne sont lisibles par personne", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "formations/f1"), { titre: "Plan marketing" });
+      await setDoc(doc(ctx.firestore(), "formationsCorrections/f1"), { reponses: [0] });
+      await setDoc(doc(ctx.firestore(), "certificats/fbo1_f1"), { userId: "fbo1" });
+    });
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "formations/f1")));
+    await assertFails(getDoc(doc(db("fbo1", "fbo"), "formationsCorrections/f1")));
+    await assertFails(getDoc(doc(db("sa", "super_admin", ""), "formationsCorrections/f1")));
+    await assertSucceeds(getDoc(doc(db("fbo1", "fbo"), "certificats/fbo1_f1")));
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "certificats/fbo1_f1")));
+    await assertFails(setDoc(doc(db("fbo1", "fbo"), "certificats/fbo1_f2"), { userId: "fbo1" }));
+  });
+
   it("une conversation n'est lue que par son distributeur et le centre de son pays", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), "conversations/fbo1"), { fboId: "fbo1", pays: "Burkina Faso", nonLusFbo: 2, nonLusCentre: 1 });

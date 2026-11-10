@@ -664,6 +664,23 @@ describe("administration par pays", () => {
   });
 });
 
+describe("formations et certificats", () => {
+  it("le serveur corrige le quiz et délivre un certificat à 80 %", async () => {
+    await adminDb().doc("formations/test").set({ titre: "Test", quiz: [{}, {}, {}, {}, {}] });
+    await adminDb().doc("formationsCorrections/test").set({ reponses: [0, 1, 2, 0, 1] });
+    const u = await fbo();
+    expect(await codeErreur(u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 1] }))).toBe("functions/invalid-argument");
+
+    const rate = await u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 0, 0, 0, 1] });
+    expect(rate).toMatchObject({ justes: 3, reussi: false, manquees: [1, 2] });
+    expect((await adminDb().doc(`certificats/${u.uid}_test`).get()).exists).toBe(false);
+
+    const reussi = await u.appeler("soumettreQuiz", { formationId: "test", reponses: [0, 1, 2, 0, 0] });
+    expect(reussi).toMatchObject({ justes: 4, reussi: true });
+    expect((await adminDb().doc(`certificats/${u.uid}_test`).get()).data()).toMatchObject({ score: 80, nom: "Awa Test" });
+  });
+});
+
 describe("carnet de clients alimenté par les commandes", () => {
   it("une commande crée la fiche du client, la suivante la réutilise", async () => {
     const u = await fbo();

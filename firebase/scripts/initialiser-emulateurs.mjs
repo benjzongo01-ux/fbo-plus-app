@@ -20,6 +20,7 @@ const db = getFirestore();
 
 const ici = dirname(fileURLToPath(import.meta.url));
 const produits = JSON.parse(readFileSync(resolve(ici, "../seed/products.json"), "utf8"));
+const formations = JSON.parse(readFileSync(resolve(ici, "../seed/formations.json"), "utf8"));
 
 const BF = "Burkina Faso";
 const CI = "Côte d'Ivoire";
@@ -65,6 +66,12 @@ for (const [id, pays, ville, frais] of villes) {
 lot.set(db.doc("parametres/tarifs"), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
 lot.set(db.doc(`tarifsPays/${BF}`), { fraisLivraison: 1000, fraisMin: 1000, fraisMax: 2000, commissionLivreur: 500 });
 lot.set(db.doc(`tarifsPays/${CI}`), { fraisLivraison: 2000, fraisMin: 2000, fraisMax: 5000, commissionLivreur: 700 });
+
+// Formations : le contenu est public pour les comptes ; les bonnes réponses restent côté serveur.
+for (const { id, reponses, ...formation } of formations) {
+  lot.set(db.doc(`formations/${id}`), { ...formation, actif: true });
+  lot.set(db.doc(`formationsCorrections/${id}`), { reponses });
+}
 
 for (const { id, ...produit } of produits) {
   lot.set(db.doc(`products/${id}`), produit);

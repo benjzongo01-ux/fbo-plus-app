@@ -171,6 +171,15 @@ service cloud.firestore {
       allow delete: if connecte() && resource.data.userId == request.auth.uid;
     }
 
+    // Formations : lisibles par tout compte ; corrections jamais lisibles ; certificats par leur titulaire.
+    match /formations/{id} {
+      allow read: if aUnRole();
+      allow write: if estSuperAdmin();
+    }
+    match /certificats/{id} {
+      allow read: if connecte() && resource.data.userId == request.auth.uid;
+    }
+
     // Messagerie distributeur ↔ centre d'appel du pays. Messages écrits par le serveur uniquement ;
     // chacun ne remet à zéro que son propre compteur de non-lus.
     match /conversations/{fboId} {

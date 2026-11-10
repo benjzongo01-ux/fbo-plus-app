@@ -72,6 +72,9 @@ import com.benjo.fboplus.ui.screens.PinVerificationScreen
 import com.benjo.fboplus.ui.screens.ValidationsScreen
 import com.benjo.fboplus.ui.screens.CommandesBoutiqueScreen
 import com.benjo.fboplus.ui.screens.MessagerieScreen
+import com.benjo.fboplus.ui.screens.FormationsScreen
+import com.benjo.fboplus.ui.screens.FormationDetailScreen
+import com.benjo.fboplus.ui.screens.FichesProduitsScreen
 import com.benjo.fboplus.viewmodel.AuthViewModel
 
 @Composable
@@ -131,7 +134,7 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}", "formations", "formation/{id}", "fiches_produits"
     )
 
     // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
@@ -383,6 +386,7 @@ fun FBONavigation() {
                     onValidations = { navController.navigate("validations") },
                     onCommandesBoutique = { navController.navigate("commandes_boutique") },
                     onMessagerie = { navController.navigate("messagerie") },
+                    onFormations = { navController.navigate("formations") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -390,6 +394,24 @@ fun FBONavigation() {
                         }
                     }
                 )
+            }
+            composable("formations") {
+                val profil by profilViewModel.profil.collectAsState()
+                FormationsScreen(
+                    profil = profil,
+                    onOuvrir = { navController.navigate("formation/$it") },
+                    onFichesProduits = { navController.navigate("fiches_produits") },
+                    onRetour = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "formation/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { entree ->
+                FormationDetailScreen(entree.arguments?.getString("id").orEmpty(), onRetour = { navController.popBackStack() })
+            }
+            composable("fiches_produits") {
+                FichesProduitsScreen(onRetour = { navController.popBackStack() })
             }
             composable("commandes_boutique") {
                 CommandesBoutiqueScreen(
