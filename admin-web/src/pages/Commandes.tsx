@@ -38,6 +38,11 @@ export default function Commandes() {
       </div>
       <div className="deux-colonnes">
         <div>
+          {visibles && visibles.length > 0 && (
+            <div className="actions marge">
+              <button className="secondaire" onClick={() => exporterCommandes(visibles)}>Exporter en Excel</button>
+            </div>
+          )}
           <Etat docs={visibles} erreur={erreur} vide="Aucune commande dans cette file." />
           {visibles && visibles.length > 0 && (
             <table>
@@ -322,4 +327,27 @@ function DetailCommande({ commande }: { commande: Doc }) {
       )}
     </section>
   );
+}
+
+/** Commandes affichées, en fichier CSV lisible par Excel. */
+function exporterCommandes(commandes: Doc[]) {
+  const champ = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lignes = [["Date", "Pour", "ID Forever", "Type", "Pays", "Client", "Téléphone", "Adresse", "Produits", "Total", "CC", "Statut"].join(";")];
+  for (const c of commandes) {
+    lignes.push(
+      [
+        dateCourte(c.createdAt), nomCommande(c), c.beneficiaire?.idForever, c.mode ?? "livraison", c.pays,
+        c.client?.nom, c.client?.telephone, c.adresse,
+        (c.lignes ?? []).map((l: Doc) => `${l.nom} x${l.quantite}`).join(", "),
+        c.total, c.ccTotal, LIBELLES_STATUTS[c.statut] ?? c.statut,
+      ].map(champ).join(";"),
+    );
+  }
+  const fichier = new Blob(["﻿" + lignes.join("
+")], { type: "text/csv;charset=utf-8" });
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(fichier);
+  lien.download = `commandes-${new Date().toISOString().slice(0, 10)}.csv`;
+  lien.click();
+  URL.revokeObjectURL(lien.href);
 }

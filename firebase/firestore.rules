@@ -46,7 +46,7 @@ service cloud.firestore {
           // Le grade est attribué par l'administration : le distributeur ne fait qu'une demande.
           'nom', 'prenom', 'email', 'pays', 'ville', 'gradeDemande',
           'indicatifTelephone', 'telephone', 'indicatifWhatsapp', 'whatsapp',
-          'objectifCC', 'objectifCA', 'idDistributeur'
+          'objectifCC', 'objectifCA', 'idDistributeur', 'parrainIdForever'
         ])
         // L'ID Forever se renseigne une seule fois.
         && (!('idDistributeur' in champsModifies())

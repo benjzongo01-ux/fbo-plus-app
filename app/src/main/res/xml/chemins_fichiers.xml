@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fichiers partagés depuis FBO+ : rapports Excel et PDF générés dans le cache. -->
+<paths>
+    <cache-path name="rapports" path="rapports/" />
+</paths>

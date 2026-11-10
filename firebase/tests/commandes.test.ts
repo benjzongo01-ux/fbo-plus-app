@@ -664,6 +664,29 @@ describe("administration par pays", () => {
   });
 });
 
+describe("mon équipe", () => {
+  it("liste les filleuls inscrits et ceux pour qui j'ai commandé, avec leurs CC du mois", async () => {
+    const parrain = await compte("fbo", { grade: "Manager (M)", idDistributeur: "226-111-000-111", prenom: "Awa", nom: "Parrain" });
+    const filleul = await compte("fbo", {
+      grade: "Animateur (A)", idDistributeur: "226222000222", prenom: "Ali", nom: "Filleul", parrainIdForever: "226111000111",
+    });
+    await nouvelle(filleul, { lignes: [{ produitId: produit, quantite: 3 }] });
+    await nouvelle(parrain, {
+      pourQui: "filleul", filleulNom: "Kaboré", filleulPrenom: "Ina", filleulId: "226333000333",
+      lignes: [{ produitId: produit2, quantite: 1 }],
+    });
+
+    const r = await parrain.appeler("monEquipe");
+    expect(r.equipe).toEqual([
+      expect.objectContaining({ nom: "Ali Filleul", ccMois: 0.3, surFboPlus: true, grade: "Animateur (A)" }),
+      expect.objectContaining({ nom: "Ina Kaboré", ccMois: 0.13, surFboPlus: false }),
+    ]);
+    expect(r.ccEquipe).toBe(0.43);
+    // Un inconnu n'obtient pas l'équipe d'un autre : chacun ne voit que la sienne.
+    expect((await filleul.appeler("monEquipe")).equipe).toEqual([]);
+  });
+});
+
 describe("formations et certificats", () => {
   it("le serveur corrige le quiz et délivre un certificat à 80 %", async () => {
     await adminDb().doc("formations/test").set({ titre: "Test", quiz: [{}, {}, {}, {}, {}] });
