@@ -27,7 +27,8 @@ export async function compte(role?: string, profil: Record<string, unknown> = {}
   // Le personnel et les livreurs travaillent dans un pays, le Burkina Faso par défaut.
   const pays = (profil.pays as string | undefined) ?? "Burkina Faso";
   if (role) await getAuth().setCustomUserClaims(uid, role === "fbo" ? { role } : { role, pays });
-  await getFirestore().doc(`users/${uid}`).set({ role: role ?? null, statut: "actif", pays, ...profil });
+  const kyc = role === "livreur" ? { kyc: { statut: "valide" } } : {};
+  await getFirestore().doc(`users/${uid}`).set({ role: role ?? null, statut: "actif", pays, ...kyc, ...profil });
 
   const app = initClient({ apiKey: "demo", projectId: PROJET }, uid);
   applis.push(app);

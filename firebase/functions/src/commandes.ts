@@ -582,6 +582,9 @@ export async function affecterLivreur(
   if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
     throw new HttpsError("failed-precondition", "Ce compte n'est pas un livreur actif.");
   }
+  if (livreur.kyc?.statut !== "valide") {
+    throw new HttpsError("failed-precondition", "L'identité de ce livreur n'est pas encore vérifiée.");
+  }
   if ((livreur.pays || PAYS_DEFAUT) !== (commande.pays || PAYS_DEFAUT)) {
     throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");
   }

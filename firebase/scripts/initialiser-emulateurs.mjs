@@ -98,6 +98,7 @@ for (const c of comptes) {
       telephone: c.telephone,
       email: c.email,
       role: c.role,
+      ...(c.role === "livreur" ? { kyc: { statut: "valide" } } : {}),
       pays: c.pays,
       statut: "actif",
       createdAt: FieldValue.serverTimestamp(),

@@ -18,6 +18,16 @@ service firebase.storage {
         && image();
     }
 
+    // Pièces d'identité des livreurs : déposées par le livreur, lues par lui et le super administrateur.
+    match /kyc/{livreurId}/{fichier} {
+      allow read: if request.auth != null
+        && (request.auth.uid == livreurId || request.auth.token.role == 'super_admin');
+      allow create: if request.auth != null
+        && request.auth.uid == livreurId
+        && request.auth.token.role == 'livreur'
+        && image();
+    }
+
     // Preuves de livraison : déposées par le livreur concerné, jamais remplacées.
     match /deliveries/{deliveryId}/{livreurId}/{fichier} {
       allow read: if request.auth != null

@@ -664,6 +664,32 @@ describe("administration par pays", () => {
   });
 });
 
+describe("vérification d'identité des livreurs", () => {
+  it("pas de mission sans dossier validé ; le super admin valide", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const sa = await compte("super_admin");
+    const nouveau = await compte("livreur", { kyc: { statut: "aucun" }, nom: "Nouveau" });
+    const { id } = await nouvelle(u);
+    await adminDb().doc(`orders/${id}`).update({ statut: "prete" });
+    expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: nouveau.uid }))).toBe("functions/failed-precondition");
+
+    const dossier = {
+      numeroPiece: "B1234567", adresse: "Secteur 15, Ouagadougou", contactNom: "Mariam", contactTelephone: "+22670111111",
+      pieceRecto: `kyc/${nouveau.uid}/recto.jpg`, pieceVerso: `kyc/${nouveau.uid}/verso.jpg`, selfie: `kyc/${nouveau.uid}/visage.jpg`,
+    };
+    expect(await codeErreur(nouveau.appeler("soumettreKyc", { ...dossier, selfie: "kyc/autre/visage.jpg" }))).toBe("functions/invalid-argument");
+    await nouveau.appeler("soumettreKyc", dossier);
+    expect((await adminDb().doc(`users/${nouveau.uid}`).get()).data()?.kyc.statut).toBe("en_attente");
+
+    expect(await codeErreur((await compte("admin")).appeler("deciderKyc", { uid: nouveau.uid, valider: true }))).toBe("functions/permission-denied");
+    expect(await codeErreur(sa.appeler("deciderKyc", { uid: nouveau.uid, valider: false }))).toBe("functions/invalid-argument");
+    await sa.appeler("deciderKyc", { uid: nouveau.uid, valider: true });
+    await operateur.appeler("assignerLivreur", { id, livreurId: nouveau.uid });
+    expect((await commande(id)).livreurId).toBe(nouveau.uid);
+  });
+});
+
 describe("mon équipe", () => {
   it("liste les filleuls inscrits et ceux pour qui j'ai commandé, avec leurs CC du mois", async () => {
     const parrain = await compte("fbo", { grade: "Manager (M)", idDistributeur: "226-111-000-111", prenom: "Awa", nom: "Parrain" });

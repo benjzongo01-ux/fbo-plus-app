@@ -9,6 +9,7 @@ import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
 import Connexion from "./pages/Connexion";
 import Livreurs from "./pages/Livreurs";
+import Identites from "./pages/Identites";
 import Messages from "./pages/Messages";
 import ValidationsSiege from "./pages/ValidationsSiege";
 import Parametres from "./pages/Parametres";
@@ -29,6 +30,7 @@ const PAGES = [
   { chemin: "/messages", titre: "Messages", roles: ["operateur", ...ADMIN], page: <Messages /> },
   { chemin: "/livreurs", titre: "Livreurs", roles: ["operateur", ...ADMIN], page: <Livreurs /> },
   { chemin: "/validations", titre: "Validations siège", roles: ["operateur", ...ADMIN], page: <ValidationsSiege /> },
+  { chemin: "/identites", titre: "Identités livreurs", roles: SUPER, page: <Identites /> },
   { chemin: "/utilisateurs", titre: "Utilisateurs", roles: SUPER, page: <Utilisateurs /> },
   { chemin: "/parametres", titre: "Paramètres", roles: SUPER, page: <Parametres /> },
 ];

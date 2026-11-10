@@ -118,7 +118,7 @@ private fun Badge(statut: String) {
 }
 
 @Composable
-private fun couleursChamp() = OutlinedTextFieldDefaults.colors(
+internal fun couleursChamp() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = Surface2,
     unfocusedContainerColor = Surface2,
     focusedTextColor = Texte,

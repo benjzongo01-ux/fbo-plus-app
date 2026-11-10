@@ -50,7 +50,7 @@ export async function classerLivreurs(commande: FirebaseFirestore.DocumentData):
   const propositions: Proposition[] = [];
   for (const doc of livreurs.docs) {
     const l = doc.data();
-    if (l.statut !== "actif") continue;
+    if (l.statut !== "actif" || l.kyc?.statut !== "valide") continue;
     const siennes = livraisons.docs.map((d) => d.data()).filter((d) => d.livreurId === doc.id);
     const enCours = siennes.filter((d) => ["assignee", "en_livraison"].includes(d.statut));
     const livrees = siennes.filter((d) => d.statut === "livree").length;

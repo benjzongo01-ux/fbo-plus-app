@@ -191,3 +191,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .bulle { max-width: 80%; padding: 8px 12px; border-radius: 12px; background: var(--surface); }
 .bulle.centre { align-self: flex-end; background: rgba(212,175,55,.15); }
 .bulle .heure { font-size: 11px; margin-top: 4px; }
+
+/* Dossiers d'identité */
+.pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 10px 0; }
+.piece { margin: 0; }
+.piece img { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; border: 1px solid var(--bordure); }
