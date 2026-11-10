@@ -171,6 +171,20 @@ service cloud.firestore {
       allow delete: if connecte() && resource.data.userId == request.auth.uid;
     }
 
+    // Messagerie distributeur ↔ centre d'appel du pays. Messages écrits par le serveur uniquement ;
+    // chacun ne remet à zéro que son propre compteur de non-lus.
+    match /conversations/{fboId} {
+      allow read: if moi(fboId) || (aRole(['operateur', 'admin', 'super_admin']) && voitPays(resource.data.get('pays', 'Burkina Faso')));
+      allow update: if (moi(fboId) && champsModifies().hasOnly(['nonLusFbo']) && request.resource.data.nonLusFbo == 0)
+        || (aRole(['operateur', 'admin', 'super_admin']) && voitPays(resource.data.get('pays', 'Burkina Faso'))
+          && champsModifies().hasOnly(['nonLusCentre']) && request.resource.data.nonLusCentre == 0);
+
+      match /messages/{id} {
+        allow read: if moi(fboId) || (aRole(['operateur', 'admin', 'super_admin'])
+          && voitPays(get(/databases/$(database)/documents/conversations/$(fboId)).data.get('pays', 'Burkina Faso')));
+      }
+    }
+
     // Commandes reçues par la boutique publique : le distributeur les lit et les classe (traitée, refusée).
     match /commandesBoutique/{id} {
       allow read: if role() == 'fbo' && resource.data.fboId == request.auth.uid;

@@ -29,6 +29,7 @@ export const LIMITES: Record<string, Limite> = {
   modifierCommande: { max: 20, fenetreS: 60 },
   annulerCommande: { max: 20, fenetreS: 60 },
   importerVentes: { max: 3, fenetreS: 600 },
+  envoyerMessage: { max: 30, fenetreS: 60 },
   // Boutique publique : un appareil ne peut pas inonder un distributeur de fausses commandes.
   commanderEnBoutique: { max: 5, fenetreS: 600 },
   // Administration : un centre d'appel enchaîne beaucoup d'actions, on reste large.

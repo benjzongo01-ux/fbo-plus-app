@@ -71,6 +71,7 @@ import com.benjo.fboplus.ui.screens.BiometricSuggestionScreen
 import com.benjo.fboplus.ui.screens.PinVerificationScreen
 import com.benjo.fboplus.ui.screens.ValidationsScreen
 import com.benjo.fboplus.ui.screens.CommandesBoutiqueScreen
+import com.benjo.fboplus.ui.screens.MessagerieScreen
 import com.benjo.fboplus.viewmodel.AuthViewModel
 
 @Composable
@@ -130,7 +131,7 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}"
     )
 
     // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
@@ -381,6 +382,7 @@ fun FBONavigation() {
                     onNotifications = { navController.navigate("notifications") },
                     onValidations = { navController.navigate("validations") },
                     onCommandesBoutique = { navController.navigate("commandes_boutique") },
+                    onMessagerie = { navController.navigate("messagerie") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -416,6 +418,16 @@ fun FBONavigation() {
                         ventesViewModel.chargerCommandePourModification(commande)
                         navController.navigate("modifier_commande")
                     },
+                    onRetour = { navController.popBackStack() },
+                    onEcrire = { id -> navController.navigate("messagerie?commande=$id") }
+                )
+            }
+            composable(
+                route = "messagerie?commande={commande}",
+                arguments = listOf(navArgument("commande") { type = NavType.StringType; nullable = true; defaultValue = null })
+            ) { entree ->
+                MessagerieScreen(
+                    commandeId = entree.arguments?.getString("commande"),
                     onRetour = { navController.popBackStack() }
                 )
             }

@@ -664,6 +664,28 @@ describe("administration par pays", () => {
   });
 });
 
+describe("messagerie avec le centre d'appel", () => {
+  it("le distributeur écrit, le centre de son pays répond ; les autres n'y ont pas accès", async () => {
+    const u = await fbo();
+    const operateur = await compte("operateur");
+    const operateurCI = await compte("operateur", { pays: "Côte d'Ivoire" });
+    const autre = await fbo();
+    const { id } = await nouvelle(u);
+
+    await u.appeler("envoyerMessage", { texte: "Bonjour, ma cliente veut être livrée après 17 h.", commandeId: id });
+    expect((await adminDb().doc(`conversations/${u.uid}`).get()).data()).toMatchObject({ nonLusCentre: 1, pays: "Burkina Faso" });
+
+    expect(await codeErreur(autre.appeler("envoyerMessage", { texte: "x", commandeId: id }))).toBe("functions/permission-denied");
+    expect(await codeErreur(operateurCI.appeler("envoyerMessage", { texte: "x", fboId: u.uid }))).toBe("functions/permission-denied");
+    expect(await codeErreur(u.appeler("envoyerMessage", { texte: "   " }))).toBe("functions/invalid-argument");
+
+    await operateur.appeler("envoyerMessage", { texte: "C'est noté, merci !", fboId: u.uid });
+    const messages = await adminDb().collection(`conversations/${u.uid}/messages`).orderBy("createdAt").get();
+    expect(messages.docs.map((m) => m.data().duCentre)).toEqual([false, true]);
+    expect((await adminDb().doc(`conversations/${u.uid}`).get()).data()).toMatchObject({ nonLusFbo: 1 });
+  });
+});
+
 describe("commande en ligne depuis la boutique", () => {
   async function client() {
     // Un visiteur de la boutique : session anonyme, sans rôle.
