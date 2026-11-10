@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 115 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 125 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -111,7 +111,16 @@ Branche `feature/commande-livraison-validation`, fusionnée dans `main`.
 - **Affectation intelligente** : livreurs classés (charge, même quartier, distance à l'entrepôt, fiabilité), bouton « Affecter le meilleur », affectation automatique activable par pays.
 - **Note de commande** pour le centre d'appel, visible dans l'admin et par le livreur.
 
-Reste de la spécification (dans l'ordre) : messagerie avec le centre d'appel, CRM (catégories, relances, fidélisation), équipes et rapports PDF ou Excel, KYC des livreurs, formations et plan vers le grade suivant, contrôle qualité et réapprovisionnement. Voir `ECARTS-SPECIFICATION.md`.
+Suite (2026-11-10) :
+- **Messagerie** distributeur ↔ centre d'appel du pays (admin « Messages », FBO+ « Centre d'appel », depuis le suivi d'une commande).
+- **CRM** : carnet alimenté par les commandes, catégories (prospect, nouveau, fidèle, VIP), liste « À relancer », relances à 7, 15 ou 30 jours, message WhatsApp de fidélisation.
+- **Formations** (`firebase/seed/formations.json`) : 5 cours, quiz corrigés par le serveur, certificats à 80 %, fiches produits illustrées, **plan de progression** (seuils officiels de la Company Policy 2026 : AA 2 CC, A 10 CC, MA 60 CC, M 120 CC ; actif 4 CC). La Company Policy n'est **pas** copiée (« Reproduction interdite ») : le cours en donne un résumé non officiel.
+- **Mon équipe et rapports** : ID du parrain dans le profil, filleuls et leurs CC du mois, rapport Excel ou PDF à partager ; export Excel des commandes dans l'admin.
+- **KYC des livreurs** : dossier obligatoire avant toute mission, validé par le super administrateur (« Identités livreurs »).
+- **Contrôle qualité** (4 points obligatoires avant « prête ») et **réapprovisionnement** automatique sous le seuil d'alerte (admin « Réapprovisionnement »).
+- Premier super administrateur : `node scripts/creer-super-admin.mjs <projet> <adresse Google>` (invitation, puis connexion Google à l'admin).
+
+Restent hors de portée sans compte externe : Wallet et paiements, FBO+ AI, mise en ligne (Blaze). Voir `ECARTS-SPECIFICATION.md`.
 
 ## Sécurité des rôles et mode maintenance (2026-11-09)
 

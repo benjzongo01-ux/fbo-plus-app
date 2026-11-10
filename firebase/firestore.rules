@@ -219,6 +219,11 @@ service cloud.firestore {
       allow read, delete: if estSuperAdmin();
     }
 
+    // Demandes de réapprovisionnement : lues par le personnel du pays, suivies par fonction.
+    match /reappros/{id} {
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'));
+    }
+
     // Dossiers d'identité des livreurs : données sensibles, lues par le seul super administrateur.
     match /kyc/{uid} {
       allow read: if estSuperAdmin();

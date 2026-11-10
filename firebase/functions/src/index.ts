@@ -15,6 +15,7 @@ export { envoyerMessage } from "./messagerie.js";
 export { soumettreQuiz } from "./formations.js";
 export { monEquipe } from "./equipe.js";
 export { deciderKyc, soumettreKyc } from "./kyc.js";
+export { suivreReappro, surveillerStock } from "./reappro.js";
 export { affectationAutomatique, affecterMeilleurLivreur, proposerLivreurs } from "./affectation.js";
 export { alimenterValidation, envoyerReserveEnValidation, validerLotSiege } from "./validationSiege.js";
 export { definirPin, verifierPin } from "./pin.js";

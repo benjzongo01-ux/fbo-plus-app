@@ -110,6 +110,13 @@ function Propositions({ commandeId, statut }: { commandeId: string; statut: stri
   );
 }
 
+const POINTS_CONTROLE: [string, string][] = [
+  ["produits", "Bons produits"],
+  ["quantites", "Bonnes quantités"],
+  ["peremption", "Dates de péremption vérifiées"],
+  ["emballage", "Emballage en bon état"],
+];
+
 const nomBeneficiaire = (c: Doc) =>
   [c.beneficiaire?.prenom, c.beneficiaire?.nom].filter(Boolean).join(" ");
 
@@ -133,6 +140,9 @@ function DetailCommande({ commande }: { commande: Doc }) {
   const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
   const [motif, setMotif] = useState<string | null>(null);
+  // Contrôle qualité exigé par le serveur avant « prête ».
+  const [controle, setControle] = useState<Record<string, boolean>>({});
+  const controleComplet = POINTS_CONTROLE.every(([cle]) => controle[cle]);
 
   const centreAppel = ["operateur", ...ADMIN].includes(role);
   const modifiable = centreAppel && ["nouvelle", "confirmee"].includes(commande.statut);
@@ -221,8 +231,23 @@ function DetailCommande({ commande }: { commande: Doc }) {
 
       <div className="actions">
         {change && <button className="principal" disabled={enCours} onClick={enregistrer}>Enregistrer les quantités</button>}
+        {!change && etape?.roles.includes(role) && commande.statut === "en_preparation" && (
+          <div className="encadre controle">
+            <div className="discret">Contrôle qualité avant de marquer prête</div>
+            {POINTS_CONTROLE.map(([cle, libelle]) => (
+              <label key={cle} className="case">
+                <input type="checkbox" checked={!!controle[cle]} onChange={(e) => setControle({ ...controle, [cle]: e.target.checked })} />
+                {libelle}
+              </label>
+            ))}
+          </div>
+        )}
         {!change && etape?.roles.includes(role) && (
-          <button className="principal" disabled={enCours} onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id }))}>
+          <button
+            className="principal"
+            disabled={enCours || (commande.statut === "en_preparation" && !controleComplet)}
+            onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id, controle }))}
+          >
             {etape.libelle}
           </button>
         )}

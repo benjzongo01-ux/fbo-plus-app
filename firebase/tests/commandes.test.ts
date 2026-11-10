@@ -26,6 +26,8 @@ beforeEach(async () => {
   await adminDb().doc(`stock/principal_${produit2}`).set({ disponible: 5, reserve: 0 });
 });
 
+const CONTROLE_OK = { produits: true, quantites: true, peremption: true, emballage: true };
+
 const fbo = () => compte("fbo", { grade: "Manager (M)", idDistributeur: "226000111222", prenom: "Awa", nom: "Test" });
 
 const LIVRAISON = {
@@ -134,9 +136,9 @@ describe("creerCommande", () => {
 
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
     const livreurCI = await compte("livreur", { pays: "Côte d'Ivoire" });
-    await adminCI.appeler("avancerCommande", { id });
-    await adminCI.appeler("avancerCommande", { id });
-    await adminCI.appeler("avancerCommande", { id });
+    await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await adminCI.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     await adminCI.appeler("assignerLivreur", { id, livreurId: livreurCI.uid });
     expect((await adminDb().doc(`deliveries/${id}`).get()).data()!.commission).toBe(700);
 
@@ -217,7 +219,7 @@ describe("modifierCommande et annulerCommande", () => {
     const u = await fbo();
     const operateur = await compte("operateur");
     const { id } = await nouvelle(u);
-    await operateur.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     const lignes = [{ produitId: produit, quantite: 1 }];
     expect(await codeErreur(u.appeler("modifierCommande", { id, lignes }))).toBe("functions/failed-precondition");
     await operateur.appeler("modifierCommande", { id, lignes });
@@ -240,9 +242,9 @@ describe("cycle complet jusqu'à la livraison", () => {
     const operateur = await compte("operateur");
     const gestionnaire = await compte("gestionnaire_stock");
     const { id } = await nouvelle(u);
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     return { u, operateur, gestionnaire, id };
   }
 
@@ -251,10 +253,10 @@ describe("cycle complet jusqu'à la livraison", () => {
     const gestionnaire = await compte("gestionnaire_stock");
     const operateur = await compte("operateur");
     const { id } = await nouvelle(u);
-    expect(await codeErreur(u.appeler("avancerCommande", { id }))).toBe("functions/permission-denied");
-    expect(await codeErreur(gestionnaire.appeler("avancerCommande", { id }))).toBe("functions/permission-denied");
-    await operateur.appeler("avancerCommande", { id });
-    expect(await codeErreur(operateur.appeler("avancerCommande", { id }))).toBe("functions/permission-denied");
+    expect(await codeErreur(u.appeler("avancerCommande", { id, controle: CONTROLE_OK }))).toBe("functions/permission-denied");
+    expect(await codeErreur(gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK }))).toBe("functions/permission-denied");
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    expect(await codeErreur(operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK }))).toBe("functions/permission-denied");
   });
 
   it("va de la commande à la livraison, avec historique et sortie de stock", async () => {
@@ -376,9 +378,9 @@ describe("pour qui, livraison ou validation", () => {
     expect(total).toBe(44000);
     expect((await commande(id)).client).toBeNull();
 
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid }))).toBe(
       "functions/failed-precondition",
     );
@@ -394,9 +396,9 @@ describe("pour qui, livraison ou validation", () => {
     const operateur = await compte("operateur");
     const gestionnaire = await compte("gestionnaire_stock");
     const { id } = await nouvelle(u);
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     expect(await codeErreur(operateur.appeler("validerSurId", { id }))).toBe("functions/failed-precondition");
   });
 
@@ -450,9 +452,9 @@ describe("expédition vers une autre ville", () => {
     await operateur.appeler("fixerFraisExpedition", { id, frais: 4000 });
     expect(await commande(id)).toMatchObject({ fraisLivraison: 4000, total: 48000, expedition: { frais: 4000 } });
 
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     expect(await codeErreur(operateur.appeler("fixerFraisExpedition", { id, frais: 0 }))).toBe("functions/failed-precondition");
     expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid }))).toBe(
       "functions/failed-precondition",
@@ -612,9 +614,9 @@ describe("administration par pays", () => {
     const superAdmin = await compte("super_admin");
     const { id } = await nouvelle(u, { pays: "Côte d'Ivoire", clientTelephone: "+2250700000000" });
 
-    expect(await codeErreur(operateurBf.appeler("avancerCommande", { id }))).toBe("functions/permission-denied");
+    expect(await codeErreur(operateurBf.appeler("avancerCommande", { id, controle: CONTROLE_OK }))).toBe("functions/permission-denied");
     expect(await codeErreur(operateurBf.appeler("annulerCommande", { id }))).toBe("functions/permission-denied");
-    await operateurCi.appeler("avancerCommande", { id });
+    await operateurCi.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     expect((await commande(id)).statut).toBe("confirmee");
     await superAdmin.appeler("annulerCommande", { id, motif: "Test" });
     expect((await commande(id)).statut).toBe("annulee");
@@ -627,9 +629,9 @@ describe("administration par pays", () => {
     const livreurCi = await compte("livreur", { pays: "Côte d'Ivoire" });
     const livreurBf = await compte("livreur");
     const { id } = await nouvelle(u);
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     expect(await codeErreur(operateur.appeler("assignerLivreur", { id, livreurId: livreurCi.uid }))).toBe(
       "functions/failed-precondition",
     );
@@ -661,6 +663,39 @@ describe("administration par pays", () => {
     expect(await codeErreur(adminBf.appeler("definirStatut", { uid: livreurCi.uid, statut: "suspendu" }))).toBe(
       "functions/permission-denied",
     );
+  });
+});
+
+describe("contrôle qualité et réapprovisionnement", () => {
+  it("refuse « prête » sans les 4 points du contrôle qualité, et le trace", async () => {
+    const u = await fbo();
+    const gestionnaire = await compte("gestionnaire_stock");
+    const { id } = await nouvelle(u);
+    await adminDb().doc(`orders/${id}`).update({ statut: "en_preparation" });
+    expect(await codeErreur(gestionnaire.appeler("avancerCommande", { id }))).toBe("functions/failed-precondition");
+    expect(
+      await codeErreur(gestionnaire.appeler("avancerCommande", { id, controle: { ...CONTROLE_OK, peremption: false } })),
+    ).toBe("functions/failed-precondition");
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    expect((await commande(id)).controleQualite).toMatchObject({ par: gestionnaire.uid });
+  });
+
+  it("un stock sous le seuil ouvre une demande ; la réception remet le stock", async () => {
+    const gestionnaire = await compte("gestionnaire_stock");
+    const idStock = `principal_${produit}`;
+    await adminDb().doc(`stock/${idStock}`).set({ entrepotId: "principal", produitId: produit, pays: "Burkina Faso", disponible: 3, reserve: 0, seuilAlerte: 10 });
+    let demande;
+    for (let i = 0; i < 40 && !demande; i++) {
+      demande = (await adminDb().doc(`reappros/${idStock}`).get()).data();
+      if (!demande) await new Promise((ok) => setTimeout(ok, 250));
+    }
+    expect(demande).toMatchObject({ statut: "a_traiter", nom: "Pulpe", disponible: 3, quantiteConseillee: 47 });
+
+    await gestionnaire.appeler("suivreReappro", { id: idStock, etape: "commandee" });
+    await gestionnaire.appeler("suivreReappro", { id: idStock, etape: "recue", quantite: 50 });
+    expect(await stock()).toMatchObject({ disponible: 53 });
+    expect((await adminDb().doc(`reappros/${idStock}`).get()).data()).toMatchObject({ statut: "recue", quantiteRecue: 50 });
+    expect(await codeErreur((await fbo()).appeler("suivreReappro", { id: idStock, etape: "commandee" }))).toBe("functions/permission-denied");
   });
 });
 
@@ -1004,9 +1039,9 @@ describe("notifications", () => {
     const livreur = await compte("livreur");
     const { id } = await nouvelle(u, { clientQuartier: "Secteur 15" });
 
-    await operateur.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
-    await gestionnaire.appeler("avancerCommande", { id });
+    await operateur.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
+    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
     await operateur.appeler("assignerLivreur", { id, livreurId: livreur.uid });
 
     const pourFbo = await attendreNotification(u.uid, id, 4);

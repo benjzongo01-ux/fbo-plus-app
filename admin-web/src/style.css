@@ -165,6 +165,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Validations au siège */
 .lots { display: grid; gap: 12px; }
+.controle { display: grid; gap: 4px; margin-bottom: 8px; width: 100%; }
 .propositions { margin: 6px 0 10px; padding-left: 20px; line-height: 1.7; }
 .entete-lot { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .entete-lot h2 { margin: 0 0 4px; }

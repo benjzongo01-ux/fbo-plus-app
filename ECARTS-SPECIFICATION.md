@@ -7,19 +7,19 @@ Légende : ✅ fait · 🟡 partiel · ❌ à faire · 💳 demande un compte ou
 
 | # | Module | État | Ce qui existe | Ce qui manque |
 |---|---|---|---|---|
-| 1 | Identity | 🟡 | Comptes, connexion SMS (OTP), PIN, biométrie, rôles côté serveur, suspension, suppression | Vérification KYC (pièce d'identité), « déconnecter tous mes appareils » |
+| 1 | Identity | ✅ | Comptes, connexion Google ou email, PIN, biométrie, rôles côté serveur, invitations, suspension, suppression, KYC des livreurs | « Déconnecter tous mes appareils » |
 | 2 | Wallet | ❌ 💳 | — | Wallet, dépôts, retraits, historique, abonnements, répartition automatique, Wave, Orange Money, MTN, Moov, Ecobank |
 | 3 | Logistics | ✅ | Commandes, validation sur ID, stock, préparation, expédition, livraison, retour, multi-pays | Demande de réapprovisionnement entre entrepôts |
-| 4 | Operations | 🟡 | Centre d'appel, confirmation, modification, attribution, suivi | Contrôle qualité (vérification avant « prête », appel de satisfaction) |
+| 4 | Operations | ✅ | Centre d'appel, confirmation, modification, attribution, suivi, contrôle qualité, messagerie | Note de satisfaction après livraison |
 | 5 | Delivery Management | ✅ | GPS en continu, itinéraire, historique, confirmation, signature, photo, encaissement, affectation intelligente et automatique | — |
-| 6 | Warehouse | 🟡 | Entrées, sorties, inventaire, seuil d'alerte, multi-entrepôts | Réapprovisionnement (demande et suivi) |
+| 6 | Warehouse | ✅ | Entrées, sorties, inventaire, seuil d'alerte, multi-entrepôts, réapprovisionnement | — |
 | 7 | Order Finance | 🟡 | Prix officiel serveur, réductions plafonnées, frais de livraison (fourchettes par pays) et d'expédition, encaissement, validation au siège avec achat minimum | « Qui paie quoi » (parts FBO / livreur / plateforme), à faire avec le Wallet |
 | 8 | FBO+ AI | ❌ 💳 | — | Assistant marketing, scripts, visuels, vidéos, publicités Facebook, objections, conseils produits |
-| 9 | CRM | 🟡 | Fiches clients, notes, historique des commandes | Prospects, relances programmées, fidélisation |
-| 10 | Business Manager | 🟡 | Statistiques, revenus, CC, objectifs, performances | Équipes (filleuls), rapports exportables (PDF, Excel) |
+| 9 | CRM | ✅ | Fiches alimentées par les commandes, catégories, relances, fidélisation WhatsApp | — |
+| 10 | Business Manager | ✅ | Statistiques, revenus, CC, objectifs, équipe, plan de progression, rapports Excel et PDF | — |
 | 11 | Marketplace | ✅ | Boutique personnelle, catalogue avec photos, QR code, commande en ligne directe et WhatsApp | — |
-| 12 | Learning Center | ❌ | — | Formations, documents, quiz, certifications |
-| 13 | Communication | 🟡 | Notifications dans l'application, push (prêt pour la mise en ligne) | Messagerie, chat avec le centre d'appel |
+| 12 | Learning Center | ✅ | 5 formations, fiches produits illustrées, quiz, certificats | Ajout de cours depuis l'admin |
+| 13 | Communication | ✅ | Notifications, push (prêt pour la mise en ligne), messagerie avec le centre d'appel | — |
 | 14 | Administration | 🟡 | Utilisateurs, centres, livreurs, stocks, tarifs, paramètres, maintenance, journal | Paiements et commissions (versement), dépend du Wallet |
 
 ## Les 3 applications

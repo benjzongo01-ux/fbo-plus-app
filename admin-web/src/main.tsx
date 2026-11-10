@@ -9,6 +9,7 @@ import Boutique from "./pages/Boutique";
 import Commandes from "./pages/Commandes";
 import Connexion from "./pages/Connexion";
 import Livreurs from "./pages/Livreurs";
+import Reappro from "./pages/Reappro";
 import Identites from "./pages/Identites";
 import Messages from "./pages/Messages";
 import ValidationsSiege from "./pages/ValidationsSiege";
@@ -25,6 +26,7 @@ const ADMIN = ["admin", "super_admin"];
 const SUPER = ["super_admin"];
 const PAGES = [
   { chemin: "/commandes", titre: "Centre d'appel", roles: ["operateur", "gestionnaire_stock", ...ADMIN], page: <Commandes /> },
+  { chemin: "/reappro", titre: "Réapprovisionnement", roles: ["gestionnaire_stock", ...ADMIN], page: <Reappro /> },
   { chemin: "/stocks", titre: "Stocks", roles: ["gestionnaire_stock", ...ADMIN], page: <Stocks /> },
   { chemin: "/produits", titre: "Produits", roles: SUPER, page: <Produits /> },
   { chemin: "/messages", titre: "Messages", roles: ["operateur", ...ADMIN], page: <Messages /> },
