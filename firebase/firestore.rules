@@ -46,7 +46,7 @@ service cloud.firestore {
           // Le grade est attribué par l'administration : le distributeur ne fait qu'une demande.
           'nom', 'prenom', 'email', 'pays', 'ville', 'gradeDemande',
           'indicatifTelephone', 'telephone', 'indicatifWhatsapp', 'whatsapp',
-          'objectifCC', 'objectifCA', 'idDistributeur'
+          'objectifCC', 'objectifCA', 'idDistributeur', 'parrainIdForever'
         ])
         // L'ID Forever se renseigne une seule fois.
         && (!('idDistributeur' in champsModifies())
@@ -217,6 +217,16 @@ service cloud.firestore {
     // Invitations du personnel : lues et annulées par le super administrateur, créées par le serveur.
     match /invitations/{email} {
       allow read, delete: if estSuperAdmin();
+    }
+
+    // Demandes de réapprovisionnement : lues par le personnel du pays, suivies par fonction.
+    match /reappros/{id} {
+      allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'));
+    }
+
+    // Dossiers d'identité des livreurs : données sensibles, lues par le seul super administrateur.
+    match /kyc/{uid} {
+      allow read: if estSuperAdmin();
     }
 
     match /auditLogs/{id} {

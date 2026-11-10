@@ -533,6 +533,8 @@ const TRANSITIONS: Record<string, { vers: string; roles: string[] }> = {
   en_preparation: { vers: "prete", roles: ["gestionnaire_stock", ...ROLES_ADMIN] },
 };
 
+export const POINTS_CONTROLE = ["produits", "quantites", "peremption", "emballage"];
+
 /** Avance la commande d'une étape : confirmation, préparation, prête à livrer. */
 export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
@@ -548,7 +550,17 @@ export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (
     if (!transition.roles.includes(roleDe(req))) {
       throw new HttpsError("permission-denied", "Action non autorisée pour ce rôle.");
     }
+    // Contrôle qualité obligatoire avant « prête » : bons produits, bonnes quantités, dates, emballage.
+    let controleQualite: Record<string, unknown> | undefined;
+    if (transition.vers === "prete") {
+      const c = ((req.data as Record<string, unknown> | null)?.controle ?? {}) as Record<string, unknown>;
+      if (!POINTS_CONTROLE.every((p) => c[p] === true)) {
+        throw new HttpsError("failed-precondition", "Cochez les 4 points du contrôle qualité avant de marquer la commande prête.");
+      }
+      controleQualite = { par: uid, le: Timestamp.now(), points: POINTS_CONTROLE };
+    }
     tx.update(ref, {
+      ...(controleQualite ? { controleQualite } : {}),
       statut: transition.vers,
       historiqueStatuts: FieldValue.arrayUnion(etapeHistorique(transition.vers, uid)),
       updatedAt: FieldValue.serverTimestamp(),
@@ -581,6 +593,9 @@ export async function affecterLivreur(
   const livreur = (await tx.get(db.doc(`users/${livreurId}`))).data();
   if (!livreur || livreur.role !== "livreur" || livreur.statut !== "actif") {
     throw new HttpsError("failed-precondition", "Ce compte n'est pas un livreur actif.");
+  }
+  if (livreur.kyc?.statut !== "valide") {
+    throw new HttpsError("failed-precondition", "L'identité de ce livreur n'est pas encore vérifiée.");
   }
   if ((livreur.pays || PAYS_DEFAUT) !== (commande.pays || PAYS_DEFAUT)) {
     throw new HttpsError("failed-precondition", "Ce livreur travaille dans un autre pays.");

@@ -91,6 +91,7 @@ object ProfilRepository {
                 "indicatifWhatsapp" to profil.indicatifWhatsapp,
                 "whatsapp" to profil.whatsapp,
                 "idDistributeur" to profil.idDistributeur,
+                "parrainIdForever" to profil.parrainIdForever.filter { it.isDigit() },
                 "objectifCC" to profil.objectifCC,
                 "objectifCA" to profil.objectifCA
             )
@@ -109,6 +110,7 @@ object ProfilRepository {
         indicatifWhatsapp = doc.getString("indicatifWhatsapp").orEmpty(),
         whatsapp = doc.getString("whatsapp").orEmpty(),
         idDistributeur = doc.getString("idDistributeur").orEmpty(),
+        parrainIdForever = doc.getString("parrainIdForever").orEmpty(),
         objectifCC = doc.getDouble("objectifCC") ?: 0.0,
         objectifCA = doc.getLong("objectifCA")?.toInt() ?: 0
     )

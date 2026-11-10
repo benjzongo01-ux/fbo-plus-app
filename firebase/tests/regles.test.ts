@@ -94,6 +94,13 @@ describe("users", () => {
     await assertFails(updateDoc(doc(d, "users/fbo1"), { statut: "suspendu" }));
   });
 
+  it("le dossier d'identité d'un livreur n'est lu que par le super administrateur", async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "kyc/liv1"), { numeroPiece: "B123" }));
+    await assertFails(getDoc(doc(db("liv1", "livreur"), "kyc/liv1")));
+    await assertFails(getDoc(doc(db("a", "admin"), "kyc/liv1")));
+    await assertSucceeds(getDoc(doc(db("sa", "super_admin", ""), "kyc/liv1")));
+  });
+
   it("les bonnes réponses des quiz ne sont lisibles par personne", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), "formations/f1"), { titre: "Plan marketing" });

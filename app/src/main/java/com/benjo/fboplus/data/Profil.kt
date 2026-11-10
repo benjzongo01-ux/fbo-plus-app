@@ -10,6 +10,8 @@ data class Profil(
     // Grade attribué par l'administration : c'est lui qui fixe la remise.
     val gradeValide: String = "",
     val idDistributeur: String = "",
+    // ID Forever du parrain : relie le distributeur à l'équipe de son parrain.
+    val parrainIdForever: String = "",
     val indicatifTelephone: String = "",
     val telephone: String = "",
     val indicatifWhatsapp: String = "",

@@ -57,6 +57,14 @@
       ]
     },
     {
+      "collectionGroup": "reappros",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pays", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "customers",
       "queryScope": "COLLECTION",
       "fields": [

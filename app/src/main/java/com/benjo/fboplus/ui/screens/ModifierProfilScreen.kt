@@ -79,6 +79,7 @@ fun ModifierProfilScreen(
     var whatsapp by remember(profil) { mutableStateOf(profil.whatsapp) }
     var idForever by remember(profil) { mutableStateOf(profil.idDistributeur) }
     var grade by remember(profil) { mutableStateOf(profil.grade) }
+    var parrain by remember(profil) { mutableStateOf(profil.parrainIdForever) }
     var memeNumero by remember(profil) {
         mutableStateOf(profil.whatsapp.isNotEmpty() && profil.whatsapp == profil.telephone &&
             profil.indicatifWhatsapp == profil.indicatifTelephone)
@@ -111,6 +112,7 @@ fun ModifierProfilScreen(
         indicatifWhatsapp = indicatifWhatsappFinal.dialCode,
         whatsapp = whatsappFinal,
         idDistributeur = idForever,
+        parrainIdForever = parrain,
         grade = grade
     )
     // Pays et indicatifs ont une valeur par défaut : un profil vide n'est pas « modifié » pour autant.
@@ -124,6 +126,7 @@ fun ModifierProfilScreen(
         indicatifWhatsappFinal.dialCode to profil.indicatifWhatsapp.ifBlank { "+226" },
         whatsappFinal to profil.whatsapp,
         idForever to profil.idDistributeur,
+        parrain to profil.parrainIdForever,
         grade to profil.grade
     ).any { (actuel, initial) -> actuel != initial }
 
@@ -293,6 +296,14 @@ fun ModifierProfilScreen(
                         optionnel = true
                     )
                 }
+                ChampTexte(
+                    libelle = "ID Forever de mon parrain",
+                    valeur = parrain,
+                    onChange = { saisie -> parrain = saisie.filter { it.isDigit() }.take(20) },
+                    clavier = KeyboardType.Number,
+                    aide = "Vous apparaîtrez dans « Mon équipe » de votre parrain",
+                    optionnel = true
+                )
                 ChampChoix(
                     libelle = "Grade",
                     valeur = grade,

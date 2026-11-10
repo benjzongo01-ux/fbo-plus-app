@@ -49,11 +49,13 @@ private fun Application() {
         // Recréé à chaque connexion : les missions suivent toujours le compte courant.
         val contexte = androidx.compose.ui.platform.LocalContext.current
         key(etat) {
-            Accueil(onDeconnexion = {
+            val deconnexion = {
                 // Plus de partage de position une fois le livreur déconnecté.
                 SuiviPositionService.arreter(contexte)
                 connexion.deconnecter()
-            })
+            }
+            // Pas de missions tant que l'identité n'est pas vérifiée par l'administration.
+            AvecIdentiteVerifiee(onDeconnexion = deconnexion) { Accueil(onDeconnexion = deconnexion) }
         }
     } else {
         ConnexionEcran(connexion)

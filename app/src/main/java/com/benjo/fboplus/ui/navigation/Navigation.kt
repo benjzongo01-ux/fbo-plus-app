@@ -75,6 +75,7 @@ import com.benjo.fboplus.ui.screens.MessagerieScreen
 import com.benjo.fboplus.ui.screens.FormationsScreen
 import com.benjo.fboplus.ui.screens.FormationDetailScreen
 import com.benjo.fboplus.ui.screens.FichesProduitsScreen
+import com.benjo.fboplus.ui.screens.EquipeScreen
 import com.benjo.fboplus.viewmodel.AuthViewModel
 
 @Composable
@@ -134,7 +135,7 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}", "formations", "formation/{id}", "fiches_produits"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}", "formations", "formation/{id}", "fiches_produits", "equipe"
     )
 
     // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
@@ -387,6 +388,7 @@ fun FBONavigation() {
                     onCommandesBoutique = { navController.navigate("commandes_boutique") },
                     onMessagerie = { navController.navigate("messagerie") },
                     onFormations = { navController.navigate("formations") },
+                    onEquipe = { navController.navigate("equipe") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -409,6 +411,10 @@ fun FBONavigation() {
                 arguments = listOf(navArgument("id") { type = NavType.StringType })
             ) { entree ->
                 FormationDetailScreen(entree.arguments?.getString("id").orEmpty(), onRetour = { navController.popBackStack() })
+            }
+            composable("equipe") {
+                val profil by profilViewModel.profil.collectAsState()
+                EquipeScreen(profil = profil, onRetour = { navController.popBackStack() })
             }
             composable("fiches_produits") {
                 FichesProduitsScreen(onRetour = { navController.popBackStack() })

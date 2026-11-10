@@ -38,6 +38,11 @@ export default function Commandes() {
       </div>
       <div className="deux-colonnes">
         <div>
+          {visibles && visibles.length > 0 && (
+            <div className="actions marge">
+              <button className="secondaire" onClick={() => exporterCommandes(visibles)}>Exporter en Excel</button>
+            </div>
+          )}
           <Etat docs={visibles} erreur={erreur} vide="Aucune commande dans cette file." />
           {visibles && visibles.length > 0 && (
             <table>
@@ -105,6 +110,13 @@ function Propositions({ commandeId, statut }: { commandeId: string; statut: stri
   );
 }
 
+const POINTS_CONTROLE: [string, string][] = [
+  ["produits", "Bons produits"],
+  ["quantites", "Bonnes quantités"],
+  ["peremption", "Dates de péremption vérifiées"],
+  ["emballage", "Emballage en bon état"],
+];
+
 const nomBeneficiaire = (c: Doc) =>
   [c.beneficiaire?.prenom, c.beneficiaire?.nom].filter(Boolean).join(" ");
 
@@ -128,6 +140,9 @@ function DetailCommande({ commande }: { commande: Doc }) {
   const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
   const [motif, setMotif] = useState<string | null>(null);
+  // Contrôle qualité exigé par le serveur avant « prête ».
+  const [controle, setControle] = useState<Record<string, boolean>>({});
+  const controleComplet = POINTS_CONTROLE.every(([cle]) => controle[cle]);
 
   const centreAppel = ["operateur", ...ADMIN].includes(role);
   const modifiable = centreAppel && ["nouvelle", "confirmee"].includes(commande.statut);
@@ -216,8 +231,23 @@ function DetailCommande({ commande }: { commande: Doc }) {
 
       <div className="actions">
         {change && <button className="principal" disabled={enCours} onClick={enregistrer}>Enregistrer les quantités</button>}
+        {!change && etape?.roles.includes(role) && commande.statut === "en_preparation" && (
+          <div className="encadre controle">
+            <div className="discret">Contrôle qualité avant de marquer prête</div>
+            {POINTS_CONTROLE.map(([cle, libelle]) => (
+              <label key={cle} className="case">
+                <input type="checkbox" checked={!!controle[cle]} onChange={(e) => setControle({ ...controle, [cle]: e.target.checked })} />
+                {libelle}
+              </label>
+            ))}
+          </div>
+        )}
         {!change && etape?.roles.includes(role) && (
-          <button className="principal" disabled={enCours} onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id }))}>
+          <button
+            className="principal"
+            disabled={enCours || (commande.statut === "en_preparation" && !controleComplet)}
+            onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id, controle }))}
+          >
             {etape.libelle}
           </button>
         )}
@@ -322,4 +352,26 @@ function DetailCommande({ commande }: { commande: Doc }) {
       )}
     </section>
   );
+}
+
+/** Commandes affichées, en fichier CSV lisible par Excel. */
+function exporterCommandes(commandes: Doc[]) {
+  const champ = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lignes = [["Date", "Pour", "ID Forever", "Type", "Pays", "Client", "Téléphone", "Adresse", "Produits", "Total", "CC", "Statut"].join(";")];
+  for (const c of commandes) {
+    lignes.push(
+      [
+        dateCourte(c.createdAt), nomCommande(c), c.beneficiaire?.idForever, c.mode ?? "livraison", c.pays,
+        c.client?.nom, c.client?.telephone, c.adresse,
+        (c.lignes ?? []).map((l: Doc) => `${l.nom} x${l.quantite}`).join(", "),
+        c.total, c.ccTotal, LIBELLES_STATUTS[c.statut] ?? c.statut,
+      ].map(champ).join(";"),
+    );
+  }
+  const fichier = new Blob(["﻿" + lignes.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const lien = document.createElement("a");
+  lien.href = URL.createObjectURL(fichier);
+  lien.download = `commandes-${new Date().toISOString().slice(0, 10)}.csv`;
+  lien.click();
+  URL.revokeObjectURL(lien.href);
 }
