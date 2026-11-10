@@ -35,11 +35,12 @@ fun PinVerificationScreen(
 
     var currentInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var numeroErreur by remember { mutableIntStateOf(0) }
 
     fun lancerBiometrie() {
         biometricHelper.authenticate(
             onSuccess = { onVerifie() },
-            onError = { /* utilisateur bascule sur le PIN, rien à faire */ },
+            onError = { /* l'utilisateur bascule sur le PIN, rien à faire */ },
             onFailed = { }
         )
     }
@@ -49,91 +50,32 @@ fun PinVerificationScreen(
         if (biometrieDisponible) lancerBiometrie()
     }
 
-    fun onDigit(digit: String) {
-        if (currentInput.length < 4) currentInput += digit
-        if (currentInput.length == 4) {
-            if (storage.verifyPin(currentInput)) {
-                onVerifie()
-            } else {
-                errorMessage = "Code incorrect. Réessayez."
-                currentInput = ""
-            }
-        }
-    }
-
-    fun onDelete() {
-        if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SBackgroundBlack)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Entrez votre code PIN", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = STextWhite)
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            repeat(4) { index ->
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(if (index < currentInput.length) SGoldPrimary else STextGray.copy(alpha = 0.3f))
-                )
-            }
-        }
-
-        errorMessage?.let {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(it, color = SError, fontSize = 13.sp)
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        val rows = listOf(
-            listOf("1", "2", "3"),
-            listOf("4", "5", "6"),
-            listOf("7", "8", "9"),
-            listOf(if (biometrieDisponible) "👆" else "", "0", "⌫")
-        )
-
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                row.forEach { key ->
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .then(
-                                if (key.isNotEmpty())
-                                    Modifier
-                                        .border(1.dp, STextGray.copy(alpha = 0.3f), CircleShape)
-                                        .clickable {
-                                            when (key) {
-                                                "⌫" -> onDelete()
-                                                "👆" -> lancerBiometrie()
-                                                else -> onDigit(key)
-                                            }
-                                        }
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (key.isNotEmpty()) {
-                            Text(key, fontSize = if (key == "👆") 26.sp else 22.sp, color = STextWhite)
-                        }
-                    }
+    EcranPin(
+        titre = "Bon retour",
+        sousTitre = "Entrez votre code PIN pour continuer.",
+        saisis = currentInput.length,
+        erreur = errorMessage,
+        numeroErreur = numeroErreur,
+        enCours = false,
+        onChiffre = { c ->
+            if (currentInput.length < 4) currentInput += c
+            if (currentInput.length == 4) {
+                if (storage.verifyPin(currentInput)) {
+                    onVerifie()
+                } else {
+                    errorMessage = "Code incorrect. Réessayez."
+                    numeroErreur++
+                    currentInput = ""
                 }
             }
-        }
-        Spacer(modifier = Modifier.height(24.dp))
+        },
+        onEffacer = {
+            if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1)
+            errorMessage = null
+        },
+        onBiometrie = if (biometrieDisponible) ({ lancerBiometrie() }) else null,
         // Sans cette sortie, un PIN oublié bloquait l'application. Les ventes du téléphone sont conservées.
-        TextButton(onClick = onOublie) {
-            Text("Code oublié ? Se reconnecter (Google ou email)", color = SGoldPrimary, fontSize = 14.sp)
-        }
-    }
+        lien = "Code oublié ? Se reconnecter (Google ou email)",
+        onLien = onOublie
+    )
 }

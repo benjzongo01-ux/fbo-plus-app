@@ -28,12 +28,17 @@ fun PinCreationScreen(
     var firstPin by remember { mutableStateOf("") }
     var currentInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var numeroErreur by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(uiState) {
         if (uiState is AuthUiState.Success) onPinCreated()
+        if (uiState is AuthUiState.Error) {
+            currentInput = ""
+            numeroErreur++
+        }
     }
 
-    fun onDigit(digit: String) {
+    fun onDigit(digit: Char) {
         if (currentInput.length < 4) currentInput += digit
         if (currentInput.length == 4) {
             if (step == 1) {
@@ -45,7 +50,8 @@ fun PinCreationScreen(
                 if (currentInput == firstPin) {
                     authViewModel.creerPin(firstPin)
                 } else {
-                    errorMessage = "Les codes ne correspondent pas. Réessayez."
+                    errorMessage = "Les codes ne correspondent pas. Recommencez."
+                    numeroErreur++
                     currentInput = ""
                     step = 1
                     firstPin = ""
@@ -54,79 +60,14 @@ fun PinCreationScreen(
         }
     }
 
-    fun onDelete() {
-        if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1)
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = if (step == 1) "Créez votre code PIN" else "Confirmez votre code PIN",
-            fontSize = 20.sp, fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Ce code vous servira pour vos connexions et opérations sensibles", fontSize = 14.sp, color = Color.Gray)
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            repeat(4) { index ->
-                Box(
-                    modifier = Modifier.size(16.dp).clip(CircleShape)
-                        .background(if (index < currentInput.length) Color(0xFF1E88E5) else Color.LightGray)
-                )
-            }
-        }
-
-        errorMessage?.let {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(it, color = Color.Red, fontSize = 13.sp)
-        }
-
-        if (uiState is AuthUiState.Error) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text((uiState as AuthUiState.Error).message, color = Color.Red, fontSize = 13.sp)
-        }
-
-        if (uiState is AuthUiState.Loading) {
-            Spacer(modifier = Modifier.height(16.dp))
-            CircularProgressIndicator()
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        val rows = listOf(
-            listOf("1", "2", "3"),
-            listOf("4", "5", "6"),
-            listOf("7", "8", "9"),
-            listOf("", "0", "⌫")
-        )
-
-        val clavierActif = uiState !is AuthUiState.Loading
-
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                row.forEach { key ->
-                    Box(
-                        modifier = Modifier.size(64.dp).clip(CircleShape)
-                            .then(
-                                if (key.isNotEmpty() && clavierActif)
-                                    Modifier.border(1.dp, Color.LightGray, CircleShape).clickable {
-                                        when (key) {
-                                            "⌫" -> onDelete()
-                                            else -> onDigit(key)
-                                        }
-                                    }
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (key.isNotEmpty()) Text(key, fontSize = 22.sp)
-                    }
-                }
-            }
-        }
-    }
+    EcranPin(
+        titre = if (step == 1) "Créez votre code PIN" else "Confirmez votre code PIN",
+        sousTitre = if (step == 1) "4 chiffres pour protéger votre compte." else "Saisissez-le une seconde fois.",
+        saisis = currentInput.length,
+        erreur = errorMessage ?: (uiState as? AuthUiState.Error)?.message,
+        numeroErreur = numeroErreur,
+        enCours = uiState is AuthUiState.Loading,
+        onChiffre = { onDigit(it) },
+        onEffacer = { if (currentInput.isNotEmpty()) currentInput = currentInput.dropLast(1) }
+    )
 }
