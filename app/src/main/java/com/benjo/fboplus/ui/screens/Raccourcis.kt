@@ -177,14 +177,14 @@ fun TuileVentes(icone: ImageVector, titre: String, modifier: Modifier, onClick: 
             .background(BlackCard)
             .border(1.dp, BlackBorder, forme)
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 6.dp),
+            .padding(vertical = 14.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(Modifier.size(38.dp).clip(CircleShape).background(GoldFaint), contentAlignment = Alignment.Center) {
             Icon(icone, null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.height(8.dp))
-        Text(titre, color = WhitePrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(titre, color = WhitePrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
     }
 }
 
