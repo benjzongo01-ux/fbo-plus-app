@@ -61,7 +61,7 @@ private fun publierBoutique(uid: String, profil: Profil) {
 }
 
 @Composable
-fun BoutiqueScreen(profilViewModel: ProfilViewModel, onRetour: () -> Unit) {
+fun BoutiqueScreen(profilViewModel: ProfilViewModel, onRetour: () -> Unit, avecEnTete: Boolean = true) {
     val context = LocalContext.current
     val presse = LocalClipboardManager.current
     val profil by profilViewModel.profil.collectAsState()
@@ -74,7 +74,7 @@ fun BoutiqueScreen(profilViewModel: ProfilViewModel, onRetour: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(BlackDeep).verticalScroll(rememberScrollState())) {
-        EnTeteSimple("Ma boutique", onRetour)
+        if (avecEnTete) EnTeteSimple("Ma boutique", onRetour)
         Column(
             Modifier.fillMaxWidth().padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally

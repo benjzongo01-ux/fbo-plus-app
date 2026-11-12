@@ -10,7 +10,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -35,7 +39,11 @@ fun VentesScreen(
     ventesViewModel: VentesViewModel,
     onNouvelleCommande: () -> Unit,
     onModifierCommande: () -> Unit,
-    profilViewModel: ProfilViewModel
+    profilViewModel: ProfilViewModel,
+    onCommandes: () -> Unit = {},
+    onValidations: () -> Unit = {},
+    onClients: () -> Unit = {},
+    onBoutique: () -> Unit = {}
 ) {
     val commandesDuJour by ventesViewModel.commandesDuJour.collectAsState()
     val suggererCloture by ventesViewModel.suggererClotureMois.collectAsState()
@@ -86,6 +94,16 @@ fun VentesScreen(
                         fontSize = 12.sp,
                         color = WhiteFaint
                     )
+                }
+            }
+
+            // ── Raccourcis : tout le suivi des ventes au même endroit ──
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TuileVentes(Icons.AutoMirrored.Filled.ReceiptLong, "Commandes", Modifier.weight(1f), onCommandes)
+                    TuileVentes(Icons.Filled.Verified, "Validations", Modifier.weight(1f), onValidations)
+                    TuileVentes(Icons.Filled.Groups, "Clients", Modifier.weight(1f), onClients)
+                    TuileVentes(Icons.Filled.Storefront, "Boutique", Modifier.weight(1f), onBoutique)
                 }
             }
 

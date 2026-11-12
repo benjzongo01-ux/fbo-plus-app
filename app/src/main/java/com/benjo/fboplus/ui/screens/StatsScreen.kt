@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -44,7 +45,15 @@ fun nomMois(moisAnnee: String): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(ventesViewModel: VentesViewModel) {
+fun StatsScreen(ventesViewModel: VentesViewModel, onEquipe: () -> Unit = {}) {
+    val contexte = androidx.compose.ui.platform.LocalContext.current
+    val commandesDuJourStats by ventesViewModel.commandesDuJour.collectAsState()
+    val duMois = remember(commandesDuJourStats) {
+        com.benjo.fboplus.data.VentesRepository.getCommandesDuMois(contexte, com.benjo.fboplus.data.VentesRepository.moisAnneeAujourdhui())
+    }
+    val beneficeMois = remember(commandesDuJourStats) {
+        com.benjo.fboplus.data.VentesRepository.getStatMoisActuel(contexte).benefice
+    }
 
     val toutesCommandes = remember { ventesViewModel.getToutesCommandes() }
 
@@ -175,6 +184,20 @@ fun StatsScreen(ventesViewModel: VentesViewModel) {
                         fontSize = 11.sp,
                         color = WhiteSub
                     )
+                }
+            }
+
+            // ── PERFORMANCE DU MOIS ET ÉQUIPE ──
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Performance · ${moisEnCours()}", color = WhitePrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    CartePerformance(
+                        ca = duMois.sumOf { it.caTotal },
+                        cc = duMois.sumOf { it.ccTotal },
+                        benefice = beneficeMois,
+                        commandes = duMois.size
+                    )
+                    LigneLien(Icons.Filled.Groups, "Mon équipe et rapports", "Filleuls, CC, export Excel ou PDF", onEquipe)
                 }
             }
 
