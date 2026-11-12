@@ -229,6 +229,25 @@ service cloud.firestore {
       allow read: if estSuperAdmin();
     }
 
+    // Wallet : le titulaire voit son solde et ses mouvements, l'administration de son pays aussi.
+    // Aucune écriture client : seul le serveur crédite et débite.
+    function estAdminDuPays(pays) {
+      return estSuperAdmin() || (role() == 'admin' && request.auth.token.get('pays', '') == pays);
+    }
+    match /wallets/{uid} {
+      allow read: if moi(uid) || estAdminDuPays(resource.data.get('pays', ''));
+      match /mouvements/{id} {
+        allow read: if moi(uid)
+          || estAdminDuPays(get(/databases/$(database)/documents/wallets/$(uid)).data.get('pays', ''));
+      }
+    }
+    match /depots/{id} {
+      allow read: if (connecte() && resource.data.uid == request.auth.uid) || estAdminDuPays(resource.data.pays);
+    }
+    match /retraits/{id} {
+      allow read: if (connecte() && resource.data.uid == request.auth.uid) || estAdminDuPays(resource.data.pays);
+    }
+
     match /auditLogs/{id} {
       allow read: if estSuperAdmin();
     }

@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 132 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 141 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -156,6 +156,13 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - le super administrateur l'active dans Paramètres, avec un message et une durée prévue ;
 - FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
 - le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
+
+## FBO+ Wallet, première partie (2026-11-12)
+
+- Serveur (`firebase/functions/src/wallet.ts`) : `wallets/{uid}` (solde, montant bloqué) et `mouvements` inscrits par le serveur seul ; `demarrerDepot`, `confirmerDepotSimule`, `demanderRetrait`, `deciderRetrait` (administration du pays), `ajusterWallet` (super administrateur, motif, journal). Idempotence, limites de débit, moyens de paiement et numéros vérifiés par pays. Réglages dans `parametres/wallet` (dépôt 500 à 1 000 000, retrait 5 000 à 500 000 FCFA par défaut).
+- Paiements simulés sur les émulateurs seulement ; en production, les dépôts restent fermés tant qu'aucun agrégateur n'est branché.
+- Écrans : « Mon wallet » dans FBO+ (Profil), onglet « Wallet » dans Delivery (même fichier `WalletScreen.kt`), page « Wallet » dans l'admin (retraits à traiter, soldes, ajustement).
+- Reste à décider : règles de répartition automatique (parts FBO, livreur, plateforme), agrégateur et agrément.
 
 ## Connexion par code email et nouvel écran (2026-11-10)
 

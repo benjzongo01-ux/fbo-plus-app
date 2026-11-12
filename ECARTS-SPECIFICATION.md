@@ -8,7 +8,7 @@ Légende : ✅ fait · 🟡 partiel · ❌ à faire · 💳 demande un compte ou
 | # | Module | État | Ce qui existe | Ce qui manque |
 |---|---|---|---|---|
 | 1 | Identity | ✅ | Comptes, connexion Google ou email, PIN, biométrie, rôles côté serveur, invitations, suspension, suppression, KYC des livreurs | « Déconnecter tous mes appareils » |
-| 2 | Wallet | ❌ 💳 | — | Wallet, dépôts, retraits, historique, abonnements, répartition automatique, Wave, Orange Money, MTN, Moov, Ecobank |
+| 2 | Wallet | 🟡 💳 | Solde, mouvements, dépôts et retraits (paiement simulé), validation des retraits par l'administration, ajustement journalisé | Wallet, dépôts, retraits, historique, abonnements, répartition automatique, Wave, Orange Money, MTN, Moov, Ecobank |
 | 3 | Logistics | ✅ | Commandes, validation sur ID, stock, préparation, expédition, livraison, retour, multi-pays | Demande de réapprovisionnement entre entrepôts |
 | 4 | Operations | ✅ | Centre d'appel, confirmation, modification, attribution, suivi, contrôle qualité, messagerie | Note de satisfaction après livraison |
 | 5 | Delivery Management | ✅ | GPS en continu, itinéraire, historique, confirmation, signature, photo, encaissement, affectation intelligente et automatique | — |

@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Payments
@@ -25,7 +26,8 @@ import com.google.firebase.auth.FirebaseAuth
 private enum class Onglet(val titre: String, val icone: ImageVector) {
     MISSIONS("Missions", Icons.Filled.LocalShipping),
     HISTORIQUE("Historique", Icons.Filled.History),
-    REVENUS("Revenus", Icons.Filled.Payments)
+    REVENUS("Revenus", Icons.Filled.Payments),
+    WALLET("Wallet", Icons.Filled.AccountBalanceWallet)
 }
 
 class MainActivity : ComponentActivity() {
@@ -112,6 +114,7 @@ private fun Accueil(onDeconnexion: () -> Unit) {
                 Onglet.MISSIONS -> MissionsEcran(missions, onOuvrir = { ouverte = it }, onDeconnexion)
                 Onglet.HISTORIQUE -> HistoriqueEcran(missions)
                 Onglet.REVENUS -> RevenusEcran(missions)
+                Onglet.WALLET -> WalletScreen()
             }
         }
     }

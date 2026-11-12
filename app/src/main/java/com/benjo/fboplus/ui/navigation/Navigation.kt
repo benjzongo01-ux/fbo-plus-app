@@ -65,6 +65,7 @@ import com.benjo.fboplus.viewmodel.VentesViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.benjo.fboplus.auth.SecureTokenStorage
 import com.benjo.fboplus.ui.screens.ConnexionScreen
+import com.benjo.fboplus.ui.screens.WalletScreen
 import com.benjo.fboplus.ui.screens.CompleteProfileScreen
 import com.benjo.fboplus.ui.screens.PinCreationScreen
 import com.benjo.fboplus.ui.screens.BiometricSuggestionScreen
@@ -389,6 +390,7 @@ fun FBONavigation() {
                     onMessagerie = { navController.navigate("messagerie") },
                     onFormations = { navController.navigate("formations") },
                     onEquipe = { navController.navigate("equipe") },
+                    onWallet = { navController.navigate("wallet") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -396,6 +398,9 @@ fun FBONavigation() {
                         }
                     }
                 )
+            }
+            composable("wallet") {
+                WalletScreen(onRetour = { navController.popBackStack() })
             }
             composable("formations") {
                 val profil by profilViewModel.profil.collectAsState()

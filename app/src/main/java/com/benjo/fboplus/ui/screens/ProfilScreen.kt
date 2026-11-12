@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Storefront
@@ -106,7 +107,8 @@ fun ProfilScreen(
     onCommandesBoutique: () -> Unit,
     onMessagerie: () -> Unit,
     onFormations: () -> Unit,
-    onEquipe: () -> Unit
+    onEquipe: () -> Unit,
+    onWallet: () -> Unit = {}
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -180,6 +182,10 @@ fun ProfilScreen(
 
             Section("Mon activité") {
                 Column(Modifier.carte()) {
+                    LigneOption(Icons.Filled.AccountBalanceWallet, "Mon wallet", sousTitre = "Solde, dépôts et retraits", onClick = onWallet) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
+                    }
+                    Separateur()
                     val nonLues = NotificationsRepository.notifications.collectAsState().value.count { !it.lu }
                     LigneOption(
                         Icons.Filled.Notifications,

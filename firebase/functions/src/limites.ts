@@ -45,6 +45,12 @@ export const LIMITES: Record<string, Limite> = {
   avancerCommande: { max: 60, fenetreS: 60 },
   ajusterStock: { max: 60, fenetreS: 60 },
   inviterPersonnel: { max: 20, fenetreS: 600 },
+  // Wallet : l'argent attire les abus, les limites sont serrées.
+  demarrerDepot: { max: 10, fenetreS: 600 },
+  confirmerDepotSimule: { max: 20, fenetreS: 600 },
+  demanderRetrait: { max: 5, fenetreS: 600 },
+  deciderRetrait: { max: 60, fenetreS: 60 },
+  ajusterWallet: { max: 20, fenetreS: 600 },
 };
 
 interface Compteur {

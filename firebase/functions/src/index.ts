@@ -20,6 +20,7 @@ export { affectationAutomatique, affecterMeilleurLivreur, proposerLivreurs } fro
 export { alimenterValidation, envoyerReserveEnValidation, validerLotSiege } from "./validationSiege.js";
 export { definirPin, verifierPin } from "./pin.js";
 export { demanderCodeEmail, verifierCodeEmail } from "./codeEmail.js";
+export { ajusterWallet, confirmerDepotSimule, deciderRetrait, demanderRetrait, demarrerDepot } from "./wallet.js";
 export {
   ajusterStock,
   annulerCommande,

@@ -392,3 +392,35 @@ describe("Cloud Storage", () => {
     );
   });
 });
+
+describe("wallet", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore();
+      await setDoc(doc(d, "wallets/fbo1"), { uid: "fbo1", solde: 5000, bloque: 0, pays: "Burkina Faso" });
+      await setDoc(doc(d, "wallets/fbo1/mouvements/m1"), { type: "depot", montant: 5000 });
+      await setDoc(doc(d, "retraits/r1"), { uid: "fbo1", montant: 1000, pays: "Burkina Faso", statut: "en_attente" });
+      await setDoc(doc(d, "depots/d1"), { uid: "fbo1", montant: 5000, pays: "Burkina Faso", statut: "confirme" });
+    });
+  });
+
+  it("le titulaire lit son wallet mais n'écrit jamais son solde", async () => {
+    const moi = db("fbo1", "fbo");
+    await assertSucceeds(getDoc(doc(moi, "wallets/fbo1")));
+    await assertSucceeds(getDoc(doc(moi, "wallets/fbo1/mouvements/m1")));
+    await assertSucceeds(getDoc(doc(moi, "retraits/r1")));
+    await assertSucceeds(getDoc(doc(moi, "depots/d1")));
+    await assertFails(updateDoc(doc(moi, "wallets/fbo1"), { solde: 999999 }));
+    await assertFails(setDoc(doc(moi, "wallets/fbo1/mouvements/m2"), { type: "depot", montant: 999999 }));
+    await assertFails(updateDoc(doc(moi, "retraits/r1"), { statut: "paye" }));
+  });
+
+  it("seule l'administration du pays voit les wallets des autres", async () => {
+    await assertFails(getDoc(doc(db("fbo2", "fbo"), "wallets/fbo1")));
+    await assertFails(getDoc(doc(db("op", "operateur"), "wallets/fbo1")));
+    await assertFails(getDoc(doc(db("aci", "admin", "Côte d'Ivoire"), "retraits/r1")));
+    await assertSucceeds(getDoc(doc(db("abf", "admin"), "wallets/fbo1/mouvements/m1")));
+    await assertSucceeds(getDoc(doc(db("abf", "admin"), "retraits/r1")));
+    await assertFails(updateDoc(doc(db("abf", "admin"), "wallets/fbo1"), { solde: 0 }));
+  });
+});
