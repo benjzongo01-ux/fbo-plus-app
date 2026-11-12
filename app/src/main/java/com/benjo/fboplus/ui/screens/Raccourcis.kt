@@ -66,6 +66,55 @@ fun IconeEntete(icone: ImageVector, description: String, pastille: Int, onClick:
     }
 }
 
+/**
+ * Accueil : avatar aux initiales, salutation selon l'heure et ID Forever.
+ * Toucher l'avatar ouvre le profil ; toucher l'ID le copie.
+ */
+@Composable
+fun Bienvenue(profil: com.benjo.fboplus.data.Profil, onProfil: () -> Unit, modifier: Modifier = Modifier) {
+    val contexte = androidx.compose.ui.platform.LocalContext.current
+    val presse = androidx.compose.ui.platform.LocalClipboardManager.current
+    val heure = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val salut = if (heure in 5..17) "Bonjour" else "Bonsoir"
+    val prenom = profil.prenom.trim().split(" ").firstOrNull().orEmpty()
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(GoldLight, GoldPrimary, GoldDark)))
+                .padding(2.dp)
+                .clip(CircleShape)
+                .background(BlackCard)
+                .clickable(onClick = onProfil),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(profil.initiales().ifBlank { "FBO" }.take(2), color = GoldPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(
+                if (prenom.isNotBlank()) "$salut, $prenom" else "Bienvenue sur FBO+",
+                color = WhitePrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
+            )
+            if (profil.idDistributeur.isNotBlank()) {
+                Text(
+                    "ID ${profil.idDistributeur}",
+                    color = WhiteSub,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    modifier = Modifier.clickable {
+                        presse.setText(androidx.compose.ui.text.AnnotatedString(profil.idDistributeur))
+                        android.widget.Toast.makeText(contexte, "ID Forever copié", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                )
+            } else {
+                Text(profil.gradeApplique, color = WhiteSub, fontSize = 12.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
 /** Accueil : solde du wallet et formation, côte à côte. */
 @Composable
 fun CartesAccueil(onWallet: () -> Unit, onFormations: () -> Unit, margeLaterale: androidx.compose.ui.unit.Dp = 20.dp) {

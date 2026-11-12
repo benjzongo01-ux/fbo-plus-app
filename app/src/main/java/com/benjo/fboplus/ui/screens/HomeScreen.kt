@@ -60,7 +60,9 @@ fun HomeScreen(
     onNotifications: () -> Unit = {},
     onMessagerie: () -> Unit = {},
     onWallet: () -> Unit = {},
-    onFormations: () -> Unit = {}
+    onFormations: () -> Unit = {},
+    profil: com.benjo.fboplus.data.Profil = com.benjo.fboplus.data.Profil(),
+    onProfil: () -> Unit = {}
 ) {
     val notificationsNonLues = com.benjo.fboplus.data.NotificationsRepository.notifications
         .collectAsState().value.count { !it.lu }
@@ -104,14 +106,17 @@ fun HomeScreen(
                         .background(
                             Brush.verticalGradient(colors = listOf(BlackCard, BlackDeep))
                         )
-                        .padding(top = 44.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
+                        .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
                 ) {
                     Column {
                         // Centre d'appel et notifications : toujours à portée de main.
                         Row(
-                            Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+                            Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Qui est connecté : avatar, salutation et ID Forever (copiable).
+                            Bienvenue(profil, onProfil, Modifier.weight(1f))
                             IconeEntete(Icons.Filled.Chat, "Centre d'appel", 0, onMessagerie)
                             IconeEntete(Icons.Filled.Notifications, "Notifications", notificationsNonLues, onNotifications)
                         }

@@ -339,7 +339,15 @@ fun FBONavigation() {
                     onNotifications = { navController.navigate("notifications") },
                     onMessagerie = { navController.navigate("messagerie") },
                     onWallet = { navController.navigate("wallet") },
-                    onFormations = { navController.navigate("formations") }
+                    onFormations = { navController.navigate("formations") },
+                    profil = profilViewModel.profil.collectAsState().value,
+                    onProfil = {
+                        navController.navigate("profil") {
+                            popUpTo("catalogue") { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("pathologies") {

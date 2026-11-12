@@ -82,7 +82,7 @@ private fun Modifier.carte(): Modifier = this
 
 private fun Profil.nomComplet(): String = listOf(prenom, nom).filter { it.isNotBlank() }.joinToString(" ")
 
-private fun Profil.initiales(): String =
+internal fun Profil.initiales(): String =
     listOf(prenom, nom).mapNotNull { it.trim().firstOrNull()?.uppercaseChar() }.joinToString("")
 
 private fun Profil.lieu(): String = listOf(ville, pays).filter { it.isNotBlank() }.joinToString(", ")
