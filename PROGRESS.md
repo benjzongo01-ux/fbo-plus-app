@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 151 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 153 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -159,7 +159,8 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 
 ## Répartition automatique de l'argent (2026-11-12)
 
-- Le distributeur indique **ce que paie le client** (au lieu d'une réduction) et qui paie la livraison ; il confirme le montant avant l'envoi. Le serveur refuse un prix au-dessus du prix public ou sous le prix de validation du grade.
+- Le distributeur indique librement **ce que paie le client** et qui paie la livraison, puis confirme le montant. Si ce prix ne couvre pas la validation, la livraison (non facturée au client) et la commission, le **complément est pris sur son wallet** à la commande ; sans solde suffisant, la commande est refusée. L'excédent éventuel revient au bénéfice à la répartition.
+- Validation sur l'ID : le distributeur demande l'annulation ou la modification ; l'administration accepte (wallet remboursé ou ajusté) ou refuse avec un motif (`deciderDemande`). Validée au siège : ni annulable, ni modifiable, ni remboursable.
 - À la livraison : paiement **mobile money** (QR code ou demande sur le téléphone du client ; simulé sur les émulateurs) ou **espèces** (réparties quand l'administration confirme la remise par le livreur). Plus de signature du client ; plus de liste de contrôle qualité.
 - Répartition (`functions/src/repartition.ts`), une seule fois par commande, somme vérifiée : réserve de validation (prix appris des factures, sinon prix remisé × coefficient du pays), commission du livreur, part livraison de la plateforme, commission FBO+ (réglable : `commissionPlateformeFixe`, `commissionPlateformePct`, `margeSecuritePct` dans `tarifsPays`), bénéfice du distributeur. Bénéfice négatif : dette, réglée en priorité par les entrées suivantes.
 - Validation au siège : montant réel de la facture (et prix unitaires facultatifs). Surplus rendu, déficit prélevé, prix retenus par pays et par grade, sinon coefficient du pays ajusté.

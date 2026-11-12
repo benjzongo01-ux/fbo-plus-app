@@ -290,7 +290,12 @@ object VentesRepository {
             clientTelephone2 = client?.get("telephone2") as? String ?: "",
             villeExpedition = expedition?.get("ville") as? String ?: "",
             compagnie = expedition?.get("compagnie") as? String ?: "",
-            numeroColis = expedition?.get("numeroColis") as? String ?: ""
+            numeroColis = expedition?.get("numeroColis") as? String ?: "",
+            demandeType = (doc.get("demande") as? Map<*, *>)?.get("type") as? String ?: "",
+            demandeStatut = (doc.get("demande") as? Map<*, *>)?.get("statut") as? String ?: "",
+            demandeReponse = (doc.get("demande") as? Map<*, *>)?.get("reponse") as? String ?: "",
+            prisSurWallet = ((doc.get("paiement") as? Map<*, *>)?.takeIf { it["mode"] == "wallet" }?.get("montant") as? Number)?.toInt()
+                ?: doc.getLong("complementWallet")?.toInt() ?: 0
         )
     }
 

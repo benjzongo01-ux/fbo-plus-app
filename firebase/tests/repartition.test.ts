@@ -23,8 +23,9 @@ const wallet = async (uid: string) => (await adminDb().doc(`wallets/${uid}`).get
 const commande = async (id: string) => (await adminDb().doc(`orders/${id}`).get()).data()!;
 
 /** Commande d'un Manager (48 %) pour 2 × 22 000, livrée au Sénégal, payée par mobile money ou en espèces. */
-async function livrer(options: { prixClient?: number; clientPaieLivraison?: boolean; mobile: boolean }) {
+async function livrer(options: { prixClient?: number; clientPaieLivraison?: boolean; mobile: boolean; wallet?: number }) {
   const u = await compte("fbo", { grade: "Manager (M)", idDistributeur: `221${Date.now() % 1e9}`, prenom: "Awa", nom: "Diop", pays: SN });
+  if (options.wallet) await adminDb().doc(`wallets/${u.uid}`).set({ uid: u.uid, solde: options.wallet, bloque: 0, dette: 0, pays: SN });
   const operateur = await compte("operateur", { pays: SN });
   const stock = await compte("gestionnaire_stock", { pays: SN });
   const livreur = await compte("livreur", { pays: SN });
@@ -60,7 +61,7 @@ async function livrer(options: { prixClient?: number; clientPaieLivraison?: bool
 }
 
 describe("prix payé par le client", () => {
-  it("le distributeur indique le prix du client : refusé seulement sous son prix de validation", async () => {
+  it("le distributeur indique librement le prix du client ; trop bas sans wallet, refusé", async () => {
     const u = await compte("fbo", { grade: "Manager (M)", idDistributeur: "221000555666", pays: SN });
     const base = { cleIdempotence: cle(), lignes: [{ produitId: produit, quantite: 2 }], pays: SN, pourQui: "moi", mode: "livraison", clientNom: "X", clientTelephone: "+221770000001", clientQuartier: "Q" };
     const { id } = await u.appeler("creerCommande", { ...base, prixClient: 40000, clientPaieLivraison: false });
@@ -68,7 +69,8 @@ describe("prix payé par le client", () => {
     // Au-dessus du prix public : permis, le surplus revient au distributeur.
     const { id: au } = await u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 47000, clientPaieLivraison: false });
     expect(await commande(au)).toMatchObject({ reduction: -3000, prixClient: 47000, total: 47000 });
-    expect(await codeErreur(u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 22000 }))).toBe("functions/invalid-argument");
+    // Sous le prix de validation, sans wallet pour compléter : refusé.
+    expect(await codeErreur(u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 22000 }))).toBe("functions/failed-precondition");
   });
 });
 
@@ -97,10 +99,20 @@ describe("répartition automatique", () => {
     expect((await wallet(livreur.uid)).solde).toBe(1000);
   });
 
-  it("un déficit devient une dette, réglée en priorité par le prochain dépôt", async () => {
-    const { u, operateur, id } = await livrer({ mobile: false, prixClient: 22880, clientPaieLivraison: false });
+  it("prix trop bas : le complément est pris sur le wallet à la commande, l'excédent revient au bénéfice", async () => {
+    const { u, operateur, id } = await livrer({ mobile: false, prixClient: 22880, clientPaieLivraison: false, wallet: 3000 });
+    // Seuil estimé : 22 880 de validation + 2 000 de livraison au plus (fourchette du pays).
+    expect((await commande(id)).complementWallet).toBe(2000);
+    expect((await wallet(u.uid)).solde).toBe(1000);
     await operateur.appeler("confirmerRemiseEspeces", { id });
-    expect(await wallet(u.uid)).toMatchObject({ solde: 0, dette: 1500 });
+    // Encaissé 22 880 + 2 000 de complément ; livraison réelle 1 500 : 500 reviennent.
+    expect((await commande(id)).repartition).toMatchObject({ encaisse: 24880, complementWallet: 2000, benefice: 500 });
+    expect((await wallet(u.uid)).solde).toBe(1500);
+  });
+
+  it("une dette est réglée en priorité par le prochain dépôt", async () => {
+    const u = await compte("fbo", { pays: SN });
+    await adminDb().doc(`wallets/${u.uid}`).set({ uid: u.uid, solde: 0, bloque: 0, dette: 1500 });
     const { id: depot } = await u.appeler("demarrerDepot", { cleIdempotence: cle(), montant: 2000, operateur: "Wave", numero: "771234567" });
     await u.appeler("confirmerDepotSimule", { id: depot, succes: true });
     expect(await wallet(u.uid)).toMatchObject({ solde: 500, dette: 0 });

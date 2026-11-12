@@ -57,7 +57,13 @@ data class Commande(
     val clientTelephone2: String = "",
     val villeExpedition: String = "",
     val compagnie: String = "",
-    val numeroColis: String = ""
+    val numeroColis: String = "",
+    // Demande d'annulation ou de modification envoyée à l'administration : type et état.
+    val demandeType: String = "",
+    val demandeStatut: String = "",
+    val demandeReponse: String = "",
+    // Argent pris sur le wallet : validation entière ou complément d'un prix trop bas.
+    val prisSurWallet: Int = 0
 ) {
     // CA = prix public total (somme des lignes au prix public)
     val caTotal: Int get() = lignes.sumOf { it.montantTotal }

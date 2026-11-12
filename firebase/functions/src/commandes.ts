@@ -1,7 +1,8 @@
 import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { onAppel } from "./limites.js";
-import { preparerPaiementValidation, preparerRemboursementValidation, preparerRepartition } from "./repartition.js";
-import { FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
+import { besoinWallet, preparerMouvementWallet, preparerRepartition } from "./repartition.js";
+import { notifier } from "./notifications.js";
+import { DocumentReference, FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
 import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 
 export const ENTREPOT_DEFAUT = "principal";
@@ -236,13 +237,8 @@ function calculerMontants(
   const margeBrute = Math.floor((sousTotal * remiseGrade) / 100);
   const validation = mode === "validation";
   const reduction = validation ? 0 : reductionDemandee;
-  // Réduction négative : le distributeur vend au-dessus du prix public, c'est permis.
-  if (reduction > margeBrute) {
-    throw new HttpsError(
-      "invalid-argument",
-      `Le client ne peut pas payer moins que votre prix de validation (${sousTotal - margeBrute} FCFA).`,
-    );
-  }
+  // Prix du client libre (au-dessus ou au-dessous du prix public) ; trop bas, le wallet complète.
+  if (reduction > sousTotal) throw new HttpsError("invalid-argument", "Prix du client invalide.");
   const prixValidation = sousTotal - margeBrute;
   // Livraison non facturée au client : les frais restent dus, ils sont pris sur le bénéfice.
   const fraisClient = validation || clientPaieLivraison ? frais : 0;
@@ -453,16 +449,28 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       clientPaieLivraison(d),
     );
 
-    // Validation : payée tout de suite par le wallet du distributeur (pas de client).
-    const paiementWallet =
-      mode === "validation"
-        ? await preparerPaiementValidation(tx, uid, pays, montants.remiseGrade, lignes, frais)
-        : null;
+    // Argent pris sur le wallet : toute la validation, ou le complément d'un prix client trop bas.
+    const fraisEstime = mode === "validation" ? 0 : (zone?.frais ?? envoi?.expedition.frais ?? 0) || tarifs.fraisMax;
+    const besoin = await besoinWallet(tx, {
+      mode, pays, remise: montants.remiseGrade, lignes, prixClient: montants.prixClient,
+      clientPaieLivraison: montants.clientPaieLivraison, fraisEstime, fraisValidation: frais,
+    });
+    const prendre = await preparerMouvementWallet(tx, uid, 0, besoin.montant, {
+      type: mode === "validation" ? "validation" : "complement",
+      libelle: mode === "validation" ? `Validation N° ${numero}` : `Complément de prix, commande N° ${numero}`,
+      reference: ref.id,
+      manque: (m) =>
+        mode === "validation"
+          ? `Solde du wallet insuffisant : rechargez au moins ${m} FCFA pour cette validation.`
+          : `Le prix du client ne couvre pas la validation, la livraison et la commission : rechargez au moins ${m} FCFA, ou augmentez le prix.`,
+    }, uid);
 
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
     const reserver = await preparerReservations(tx, entrepotId, ecarts);
     reserver(uid, ref.id);
-    const paye = paiementWallet?.ecrire(ref, `N° ${numero}`);
+    prendre();
+    const paye = argentWallet(mode, besoin, frais, uid);
+    comptesWallet(tx, pays, mode, besoin.montant, besoin.reserve, frais, 1);
     if (nouvelleFiche && client) {
       tx.create(nouvelleFiche, {
         ownerId: uid,
@@ -511,6 +519,62 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
   return { id: resultat.id, total: resultat.total };
 });
 
+/** Modifie dans la transaction : prix recalculés, stock ajusté, différence prise ou rendue sur le wallet. */
+async function executerModification(
+  tx: Transaction,
+  ref: DocumentReference,
+  commande: FirebaseFirestore.DocumentData,
+  uid: string,
+  demandes: LigneDemandee[],
+  d: Record<string, unknown>,
+) {
+  exigerPasValideeAuSiege(commande);
+  const lignes = await lignesAuPrixOfficiel(tx, demandes);
+  const montants = calculerMontants(
+    lignes,
+    commande.remiseGrade,
+    commande.mode === "validation" ? 0 : reductionDemandee(d, lignes),
+    commande.fraisLivraison,
+    commande.mode,
+    clientPaieLivraison(d, commande.clientPaieLivraison !== false),
+  );
+  const tarifs = await tarifsDuPays(tx, commande.pays);
+  const fraisValidation = Number(commande.repartition?.fraisValidation ?? commande.fraisLivraison ?? 0);
+  const besoin = await besoinWallet(tx, {
+    mode: commande.mode, pays: commande.pays || PAYS_DEFAUT, remise: commande.remiseGrade, lignes,
+    prixClient: montants.prixClient, clientPaieLivraison: montants.clientPaieLivraison,
+    fraisEstime: commande.fraisAFixer ? tarifs.fraisMax : Number(commande.fraisLivraison ?? 0),
+    fraisValidation,
+  });
+  const ancien = prisSurWallet(commande);
+  const ajuster = await preparerMouvementWallet(tx, String(commande.fboId), ancien, besoin.montant, {
+    type: commande.mode === "validation" ? "validation" : "complement",
+    libelle: `Commande modifiée, ${commande.titre ?? ""}`.trim(),
+    reference: ref.id,
+    manque: (m) => `Solde du wallet insuffisant : il faut ${m} FCFA de plus pour cette modification.`,
+  }, uid);
+
+  const ecarts = new Map<string, number>();
+  for (const l of commande.lignes as LigneCommande[]) ecarts.set(l.produitId, -l.quantite);
+  for (const l of lignes) ecarts.set(l.produitId, (ecarts.get(l.produitId) ?? 0) + l.quantite);
+  const reserver = await preparerReservations(tx, commande.entrepotId, ecarts);
+  reserver(uid, ref.id);
+  ajuster();
+  if (commande.mode === "validation") {
+    comptesWallet(tx, commande.pays, "validation", ancien, Number(commande.repartition?.reserveValidation ?? 0), fraisValidation, -1);
+  } else {
+    comptesWallet(tx, commande.pays, commande.mode, ancien, 0, 0, -1);
+  }
+  comptesWallet(tx, commande.pays, commande.mode, besoin.montant, besoin.reserve, fraisValidation, 1);
+  tx.update(ref, {
+    lignes,
+    ...montants,
+    ...argentWallet(commande.mode, besoin, fraisValidation, uid),
+    adresse: d.adresse === undefined ? commande.adresse : texte(d.adresse),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const role = roleDe(req);
@@ -519,7 +583,7 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
   const demandes = lireLignes(d.lignes);
   const ref = db.doc(`orders/${id}`);
 
-  await db.runTransaction(async (tx) => {
+  const demande = await db.runTransaction(async (tx) => {
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
 
@@ -529,41 +593,119 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
       throw new HttpsError("permission-denied", "Cette commande ne vous appartient pas.");
     }
     if (!estProprietaire) exigerMemePays(req, commande.pays);
-    if (commande.paiement?.mode === "wallet") {
-      throw new HttpsError("failed-precondition", "Validation déjà payée par le wallet : annulez-la (remboursée) et refaites-la.");
+    exigerPasValideeAuSiege(commande);
+
+    // Validation payée par le wallet : le distributeur demande, l'administration décide.
+    if (estProprietaire && commande.mode === "validation") {
+      if (!["nouvelle", "confirmee", "en_preparation", "prete"].includes(commande.statut)) {
+        throw new HttpsError("failed-precondition", "Cette validation ne peut plus être modifiée.");
+      }
+      tx.update(ref, {
+        demande: { type: "modification", lignes: demandes, statut: "en_attente", motif: texte(d.motif), le: Timestamp.now(), par: uid },
+      });
+      return true;
     }
     const statuts = estCentreAppel ? ["nouvelle", "confirmee"] : ["nouvelle"];
     if (!statuts.includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "Cette commande ne peut plus être modifiée.");
     }
-
-    const lignes = await lignesAuPrixOfficiel(tx, demandes);
-    const montants = calculerMontants(
-      lignes,
-      commande.remiseGrade,
-      reductionDemandee(d, lignes),
-      commande.fraisLivraison,
-      commande.mode,
-      clientPaieLivraison(d, commande.clientPaieLivraison !== false),
-    );
-
-    const ecarts = new Map<string, number>();
-    for (const l of commande.lignes as LigneCommande[]) ecarts.set(l.produitId, -l.quantite);
-    for (const l of lignes) ecarts.set(l.produitId, (ecarts.get(l.produitId) ?? 0) + l.quantite);
-    const reserver = await preparerReservations(tx, commande.entrepotId, ecarts);
-    reserver(uid, id);
-
-    tx.update(ref, {
-      lignes,
-      ...montants,
-      adresse: d.adresse === undefined ? commande.adresse : texte(d.adresse),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    await executerModification(tx, ref, commande, uid, demandes, d);
+    return false;
   });
 
-  await journaliser("commande_modifiee", uid, id);
-  return { id };
+  await journaliser(demande ? "modification_demandee" : "commande_modifiee", uid, id);
+  return { id, demande };
 });
+
+/** L'administration accepte ou refuse la demande d'annulation ou de modification d'un distributeur. */
+export const deciderDemande = onAppel("deciderDemande", OPTIONS_APPEL, async (req) => {
+  const uid = exigerRole(req, ["operateur", ...ROLES_ADMIN]);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const id = texte(d.id, 200);
+  const accepter = d.accepter === true;
+  const motif = texte(d.motif);
+  const ref = db.doc(`orders/${id}`);
+
+  const resultat = await db.runTransaction(async (tx) => {
+    const commande = (await tx.get(ref)).data();
+    if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
+    exigerMemePays(req, commande.pays);
+    const demande = commande.demande;
+    if (!demande || demande.statut !== "en_attente") throw new HttpsError("failed-precondition", "Aucune demande en attente.");
+    if (!accepter) {
+      if (!motif) throw new HttpsError("invalid-argument", "Indiquez le motif du refus.");
+      tx.update(ref, { "demande.statut": "refusee", "demande.reponse": motif, "demande.decidePar": uid, updatedAt: FieldValue.serverTimestamp() });
+      return { type: demande.type, statut: "refusee", fboId: commande.fboId };
+    }
+    if (demande.type === "annulation") {
+      await executerAnnulation(tx, ref, commande, uid, demande.motif || "Demande du distributeur");
+    } else {
+      await executerModification(tx, ref, commande, uid, demande.lignes as LigneDemandee[], {});
+    }
+    tx.update(ref, { "demande.statut": "acceptee", "demande.decidePar": uid });
+    return { type: demande.type, statut: "acceptee", fboId: commande.fboId };
+  });
+
+  await journaliser(`demande_${resultat.type}_${resultat.statut}`, uid, id, motif ? { motif } : {});
+  await notifier(
+    String(resultat.fboId),
+    resultat.statut === "acceptee" ? "Demande acceptée" : "Demande refusée",
+    resultat.type === "annulation"
+      ? resultat.statut === "acceptee" ? "Votre validation est annulée et remboursée dans votre wallet." : `Annulation refusée : ${motif}`
+      : resultat.statut === "acceptee" ? "Votre validation a été modifiée ; le wallet est ajusté." : `Modification refusée : ${motif}`,
+    id,
+    `demande_${Date.now()}`,
+  ).catch(() => {});
+  return { statut: resultat.statut };
+});
+
+/** Champs d'une commande liés au wallet du distributeur. */
+function argentWallet(mode: string, besoin: { montant: number; reserve: number; estimation: number }, fraisValidation: number, uid: string) {
+  if (mode !== "validation") return { complementWallet: besoin.montant };
+  return {
+    total: besoin.montant,
+    paiement: { mode: "wallet", statut: "confirme", montant: besoin.montant },
+    repartition: {
+      encaisse: besoin.montant,
+      reserveValidation: besoin.reserve,
+      estimationSiege: besoin.estimation,
+      fraisLivraison: 0,
+      fraisValidation,
+      commissionLivreur: 0,
+      partLivraisonPlateforme: 0,
+      commissionPlateforme: fraisValidation,
+      benefice: 0,
+      livreurId: null,
+      le: FieldValue.serverTimestamp(),
+      par: uid,
+    },
+  };
+}
+
+/** Comptes de la plateforme : `sens` vaut 1 (argent pris) ou -1 (rendu). */
+function comptesWallet(tx: Transaction, pays: string, mode: string, montant: number, reserve: number, fraisValidation: number, sens: 1 | -1) {
+  if (montant === 0) return;
+  const champs =
+    mode === "validation"
+      ? { encaisse: sens * montant, reserveValidation: sens * reserve, commissions: sens * fraisValidation }
+      : { complements: sens * montant };
+  tx.set(
+    db.doc(`comptesPlateforme/${pays || PAYS_DEFAUT}`),
+    { pays: pays || PAYS_DEFAUT, ...Object.fromEntries(Object.entries(champs).map(([k, v]) => [k, FieldValue.increment(v)])), majLe: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+}
+
+/** Argent déjà pris sur le wallet pour cette commande. */
+const prisSurWallet = (c: FirebaseFirestore.DocumentData) =>
+  c.paiement?.mode === "wallet" ? Number(c.paiement.montant ?? 0) : Number(c.complementWallet ?? 0);
+
+/** Validée au siège : plus rien ne s'annule, ne se modifie ni ne se rembourse. */
+function exigerPasValideeAuSiege(c: FirebaseFirestore.DocumentData) {
+  if (c.valideeAuSiege || c.regularisation) {
+    throw new HttpsError("failed-precondition", "Déjà validée au siège : elle ne peut plus être annulée, modifiée ni remboursée.");
+  }
+}
 
 /** Rend au stock disponible tout ce qui était réservé pour la commande. */
 async function libererStock(tx: Transaction, commande: FirebaseFirestore.DocumentData) {
@@ -573,14 +715,47 @@ async function libererStock(tx: Transaction, commande: FirebaseFirestore.Documen
   return preparerReservations(tx, commande.entrepotId, ecarts);
 }
 
+/** Annule dans la transaction : stock libéré, argent pris sur le wallet rendu. Lectures puis écritures. */
+async function executerAnnulation(tx: Transaction, ref: DocumentReference, commande: FirebaseFirestore.DocumentData, uid: string, motif: string) {
+  exigerPasValideeAuSiege(commande);
+  const liberer = await libererStock(tx, commande);
+  const pris = commande.rembourse ? 0 : prisSurWallet(commande);
+  const rendre = pris > 0
+    ? await preparerMouvementWallet(tx, String(commande.fboId), pris, 0, {
+        type: "remboursement",
+        libelle: `Commande annulée, ${commande.titre ?? ""} : montant rendu`.trim(),
+        reference: ref.id,
+        manque: () => "",
+      }, uid)
+    : null;
+  liberer(uid, ref.id);
+  if (rendre) {
+    rendre();
+    comptesWallet(tx, commande.pays, commande.mode, pris, Number(commande.repartition?.reserveValidation ?? 0), Number(commande.repartition?.fraisValidation ?? 0), -1);
+  }
+  tx.update(ref, {
+    statut: "annulee",
+    motifAnnulation: motif,
+    ...(pris > 0 ? { rembourse: true } : {}),
+    historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("annulee", uid)),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  if (commande.statut === "assignee") {
+    tx.update(db.doc(`deliveries/${ref.id}`), { statut: "annulee", updatedAt: FieldValue.serverTimestamp() });
+  }
+}
+
+const STATUTS_ANNULABLES_CENTRE = ["nouvelle", "confirmee", "en_preparation", "prete", "assignee"];
+
 export const annulerCommande = onAppel("annulerCommande", OPTIONS_APPEL, async (req) => {
   const uid = exigerConnexion(req);
   const role = roleDe(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
+  const motif = texte(d.motif);
   const ref = db.doc(`orders/${id}`);
 
-  await db.runTransaction(async (tx) => {
+  const demande = await db.runTransaction(async (tx) => {
     const commande = (await tx.get(ref)).data();
     if (!commande) throw new HttpsError("not-found", "Commande introuvable.");
 
@@ -590,33 +765,26 @@ export const annulerCommande = onAppel("annulerCommande", OPTIONS_APPEL, async (
       throw new HttpsError("permission-denied", "Cette commande ne vous appartient pas.");
     }
     if (!estProprietaire) exigerMemePays(req, commande.pays);
-    const statuts = estCentreAppel
-      ? ["nouvelle", "confirmee", "en_preparation", "prete", "assignee"]
-      : ["nouvelle", "confirmee"];
+    exigerPasValideeAuSiege(commande);
+
+    // Validation payée par le wallet : le distributeur demande, l'administration décide.
+    if (estProprietaire && commande.mode === "validation") {
+      if (!STATUTS_ANNULABLES_CENTRE.includes(commande.statut)) {
+        throw new HttpsError("failed-precondition", "Cette validation ne peut plus être annulée.");
+      }
+      tx.update(ref, { demande: { type: "annulation", motif, statut: "en_attente", le: Timestamp.now(), par: uid } });
+      return true;
+    }
+    const statuts = estCentreAppel ? STATUTS_ANNULABLES_CENTRE : ["nouvelle", "confirmee"];
     if (!statuts.includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "Cette commande ne peut plus être annulée.");
     }
-
-    const liberer = await libererStock(tx, commande);
-    const rembourser = await preparerRemboursementValidation(tx, ref, commande, uid);
-    liberer(uid, id);
-    rembourser?.();
-    tx.update(ref, {
-      statut: "annulee",
-      motifAnnulation: texte(d.motif),
-      historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("annulee", uid)),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    if (commande.statut === "assignee") {
-      tx.update(db.doc(`deliveries/${id}`), {
-        statut: "annulee",
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    }
+    await executerAnnulation(tx, ref, commande, uid, motif);
+    return false;
   });
 
-  await journaliser("commande_annulee", uid, id, { motif: texte(d.motif) });
-  return { id };
+  await journaliser(demande ? "annulation_demandee" : "commande_annulee", uid, id, { motif });
+  return { id, demande };
 });
 
 const TRANSITIONS: Record<string, { vers: string; roles: string[] }> = {
