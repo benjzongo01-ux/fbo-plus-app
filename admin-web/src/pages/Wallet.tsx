@@ -12,7 +12,9 @@ const STATUTS: Record<string, string> = { en_attente: "En attente", paye: "Payé
  */
 export default function Wallet() {
   const { role, pays } = useSession();
-  const [onglet, setOnglet] = useState<"retraits" | "soldes" | "historique">("retraits");
+  const [onglet, setOnglet] = useState<"retraits" | "especes" | "soldes" | "historique" | "comptes">("retraits");
+  const especes = useCollection("deliveries", ...filtrePays(role, pays), where("especesRemises", "==", false));
+  const comptes = useCollection("comptesPlateforme", ...(role === "super_admin" ? [] : [where("pays", "==", pays)]));
   const enAttente = useCollection("retraits", ...filtrePays(role, pays), where("statut", "==", "en_attente"));
   const tous = useCollection("retraits", ...filtrePays(role, pays));
   const wallets = useCollection("wallets", ...filtrePays(role, pays));
@@ -38,7 +40,9 @@ export default function Wallet() {
       </div>
       <div className="onglets">
         <button className={onglet === "retraits" ? "actif" : ""} onClick={() => setOnglet("retraits")}>Retraits à traiter</button>
+        <button className={onglet === "especes" ? "actif" : ""} onClick={() => setOnglet("especes")}>Espèces à recevoir{especes.docs?.length ? ` (${especes.docs.length})` : ""}</button>
         <button className={onglet === "soldes" ? "actif" : ""} onClick={() => setOnglet("soldes")}>Soldes</button>
+        <button className={onglet === "comptes" ? "actif" : ""} onClick={() => setOnglet("comptes")}>Comptes FBO+</button>
         <button className={onglet === "historique" ? "actif" : ""} onClick={() => setOnglet("historique")}>Retraits traités</button>
       </div>
 
@@ -49,6 +53,46 @@ export default function Wallet() {
             <table>
               <thead><tr><th>Demandé le</th><th>Titulaire</th><th>Vers</th><th className="droite">Montant</th><th /></tr></thead>
               <tbody>{aTraiter.map((r) => <LigneRetrait key={r.id} retrait={r} />)}</tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      {onglet === "especes" && (
+        <>
+          <p className="discret">Livraisons payées en espèces : confirmez quand le livreur a remis l'argent. La répartition se fait alors automatiquement.</p>
+          <Etat docs={especes.docs} erreur={especes.erreur} vide="Aucune espèce en attente." />
+          {especes.docs && especes.docs.length > 0 && (
+            <table>
+              <thead><tr><th>Livrée le</th><th>Client</th><th className="droite">Montant</th><th /></tr></thead>
+              <tbody>{especes.docs.map((l) => <LigneEspeces key={l.id} livraison={l} />)}</tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      {onglet === "comptes" && (
+        <>
+          <p className="discret">
+            Argent tenu par la plateforme, par pays : la réserve de validation sert à payer le siège ; l'écart avec les
+            factures est rendu ou prélevé aux distributeurs.
+          </p>
+          <Etat docs={comptes.docs} erreur={comptes.erreur} vide="Aucune commande répartie pour l'instant." />
+          {comptes.docs && comptes.docs.length > 0 && (
+            <table>
+              <thead><tr><th>Pays</th><th className="droite">Encaissé</th><th className="droite">Réserve de validation</th><th className="droite">Payé au siège</th><th className="droite">Livraison</th><th className="droite">Commissions</th></tr></thead>
+              <tbody>
+                {comptes.docs.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.pays ?? c.id}</td>
+                    <td className="droite">{fcfa(c.encaisse)}</td>
+                    <td className="droite">{fcfa(c.reserveValidation)}</td>
+                    <td className="droite">{fcfa(c.payeSiege)}</td>
+                    <td className="droite">{fcfa(c.livraison)}</td>
+                    <td className="droite">{fcfa(c.commissions)}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           )}
         </>
@@ -100,7 +144,10 @@ function LigneRetrait({ retrait }: { retrait: Doc }) {
     <tr>
       <td>{dateCourte(retrait.creeLe)}</td>
       <td>{retrait.nom || "—"} <span className="discret">· {LIBELLES_ROLES[retrait.role] ?? retrait.role}</span></td>
-      <td>{retrait.operateur} · {retrait.numero}</td>
+      <td>
+        {retrait.operateur} · {retrait.numero}
+        {retrait.nouveauNumero && <div className="alerte">Nouveau numéro : vérifiez qu'il appartient bien au titulaire</div>}
+      </td>
       <td className="droite"><strong>{fcfa(retrait.montant)}</strong></td>
       <td className="droite">
         <button
@@ -123,6 +170,31 @@ function LigneRetrait({ retrait }: { retrait: Doc }) {
           }}
         >
           Refuser
+        </button>
+        {erreur && <div className="erreur">{erreur}</div>}
+      </td>
+    </tr>
+  );
+}
+
+function LigneEspeces({ livraison }: { livraison: Doc }) {
+  const { enCours, erreur, lancer } = useAction();
+  return (
+    <tr>
+      <td>{dateCourte(livraison.livreeAt)}</td>
+      <td>{livraison.client?.nom ?? "—"}</td>
+      <td className="droite"><strong>{fcfa(livraison.montantEncaisse)}</strong></td>
+      <td className="droite">
+        <button
+          className="principal"
+          disabled={enCours}
+          onClick={() => {
+            if (window.confirm(`Confirmer avoir reçu ${fcfa(livraison.montantEncaisse)} en espèces du livreur ?`)) {
+              lancer(() => appeler("confirmerRemiseEspeces", { id: livraison.id }));
+            }
+          }}
+        >
+          Espèces reçues
         </button>
         {erreur && <div className="erreur">{erreur}</div>}
       </td>

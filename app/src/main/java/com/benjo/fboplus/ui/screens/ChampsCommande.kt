@@ -107,12 +107,15 @@ fun DetailsCommandeEcran(
     var tentative by remember { mutableStateOf(false) }
     var choixClient by remember { mutableStateOf(false) }
 
-    // Réduction : facultative, demandée par une question (« Non » = 0).
-    var aReduction by remember { mutableStateOf(reduction > 0) }
     val validation = details.mode == "validation"
     // Validation : prix public moins la remise du grade, plus les frais de validation (pas de réduction).
     val prixValidation = sousTotal - reductionMax
-    val totalEstime = if (validation) prixValidation + FRAIS_VALIDATION else sousTotal - reduction
+    // Le distributeur indique ce que paie le client ; la réduction en découle (prix public − prix client).
+    var prixClientTexte by remember(sousTotal) { mutableStateOf((sousTotal - reduction).toString()) }
+    val prixClient = prixClientTexte.toIntOrNull() ?: 0
+    LaunchedEffect(prixClient, sousTotal) { if (!validation) ventesViewModel.setReduction(sousTotal - prixClient) }
+    var confirmerPrix by remember { mutableStateOf(false) }
+    val totalEstime = if (validation) prixValidation + FRAIS_VALIDATION else prixClient
     var choixPays by remember { mutableStateOf(false) }
 
     // Le pays du profil est proposé par défaut, s'il fait partie des pays ouverts.
@@ -122,9 +125,12 @@ fun DetailsCommandeEcran(
         }
     }
 
-    val erreur = details.erreur(profil.idDistributeur) ?: if (!validation && reduction > reductionMax) {
-        "La réduction dépasse votre marge sur cette commande."
-    } else null
+    val erreur = details.erreur(profil.idDistributeur) ?: when {
+        validation -> null
+        prixClient > sousTotal -> "Le prix du client ne peut pas dépasser le prix public (${fcfa(sousTotal)})."
+        prixClient < prixValidation -> "Le client ne peut pas payer moins que votre prix de validation (${fcfa(prixValidation)})."
+        else -> null
+    }
 
     BackHandler(onBack = onRetour)
 
@@ -266,25 +272,32 @@ fun DetailsCommandeEcran(
                 }
             }
 
-            Section(if (validation) "4. Note" else "4. Réduction et note") {
+            Section(if (validation) "4. Note" else "4. Prix du client et note") {
                 if (!validation) {
-                    Text("Avez-vous fait une réduction au client ?", color = WhitePrimary, fontSize = 14.sp)
-                    Choix(
-                        gauche = "Non",
-                        droite = "Oui",
-                        droiteChoisie = aReduction,
-                        onChoix = { oui ->
-                            aReduction = oui
-                            if (!oui) ventesViewModel.setReduction(0)
-                        }
-                    )
-                    if (aReduction) {
-                        Champ(
-                            "Montant de la réduction en FCFA (max ${"%,d".format(Locale.FRANCE, reductionMax)})",
-                            if (reduction == 0) "" else reduction.toString(),
-                            clavier = KeyboardType.Number
-                        ) { v -> ventesViewModel.setReduction(v.filter(Char::isDigit).take(9).toIntOrNull() ?: 0) }
+                    Ligne("Prix public", fcfa(sousTotal))
+                    Ligne("Votre prix de validation (grade)", fcfa(prixValidation))
+                    Champ("Le client paie (FCFA)", prixClientTexte, clavier = KeyboardType.Number) { v ->
+                        prixClientTexte = v.filter(Char::isDigit).take(9)
                     }
+                    if (prixClient in prixValidation until sousTotal) {
+                        Aide("Réduction accordée au client : ${fcfa(sousTotal - prixClient)}.")
+                    }
+                    Text("La livraison est payée par", color = WhitePrimary, fontSize = 14.sp)
+                    Choix(
+                        gauche = "Le client",
+                        droite = "Moi",
+                        droiteChoisie = !details.clientPaieLivraison,
+                        onChoix = { moi -> ventesViewModel.modifierDetails { it.copy(clientPaieLivraison = !moi) } }
+                    )
+                    Aide(
+                        if (details.clientPaieLivraison) "Les frais fixés par l'administration seront ajoutés à ce que paie le client."
+                        else "Les frais de livraison seront pris sur votre bénéfice."
+                    )
+                    Ligne(
+                        if (details.clientPaieLivraison) "Votre bénéfice estimé" else "Votre bénéfice estimé, avant livraison",
+                        fcfa((prixClient - prixValidation).coerceAtLeast(0)),
+                        fort = true
+                    )
                 }
                 OutlinedTextField(
                     value = details.note,
@@ -311,7 +324,7 @@ fun DetailsCommandeEcran(
                 Text(
                     when (details.mode) {
                         "validation" -> "À payer (frais de validation compris)"
-                        else -> "Total, hors frais à fixer par l'administration"
+                        else -> if (details.clientPaieLivraison) "Le client paie, plus la livraison" else "Le client paie (livraison comprise)"
                     },
                     color = WhiteSub,
                     fontSize = 13.sp,
@@ -323,7 +336,10 @@ fun DetailsCommandeEcran(
             Button(
                 onClick = {
                     tentative = true
-                    if (erreur == null) ventesViewModel.validerCommande()
+                    // Livraison ou expédition : le distributeur confirme le montant annoncé au client.
+                    if (erreur == null) {
+                        if (validation) ventesViewModel.validerCommande() else confirmerPrix = true
+                    }
                 },
                 enabled = envoi != EnvoiCommande.EnCours,
                 shape = Forme,
@@ -341,6 +357,31 @@ fun DetailsCommandeEcran(
                 )
             }
         }
+    }
+
+    if (confirmerPrix) {
+        AlertDialog(
+            onDismissRequest = { confirmerPrix = false },
+            containerColor = BlackCard,
+            title = { Text("Vérifiez le montant", color = WhitePrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Le client paiera ${fcfa(prixClient)} pour les produits" +
+                        (if (details.clientPaieLivraison) ", plus les frais de livraison fixés par l'administration."
+                        else ". La livraison sera prise sur votre bénéfice.") +
+                        "\n\nC'est ce montant que le livreur encaissera. Est-il exact ?",
+                    color = WhiteSub,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmerPrix = false; ventesViewModel.validerCommande() }) {
+                    Text("C'est exact, envoyer", color = GoldPrimary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmerPrix = false }) { Text("Corriger", color = WhiteSub) } }
+        )
     }
 
     if (choixPays) {

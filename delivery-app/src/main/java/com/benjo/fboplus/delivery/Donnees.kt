@@ -94,21 +94,14 @@ class Depot {
     }
 
     /** Le nom est unique : une preuve déposée ne peut pas être remplacée, donc un nouvel essai crée un autre fichier. */
-    suspend fun terminer(id: String, montant: Int, photo: ByteArray, signature: ByteArray) {
+    /** Plus de signature du client : la photo de la remise suffit. Payé par mobile money : montant 0. */
+    suspend fun terminer(id: String, montant: Int, photo: ByteArray) {
         val livreur = uid ?: error("Session expirée")
-        val horodatage = System.currentTimeMillis()
-        val cheminPhoto = "deliveries/$id/$livreur/photo-$horodatage.jpg"
-        val cheminSignature = "deliveries/$id/$livreur/signature-$horodatage.png"
+        val cheminPhoto = "deliveries/$id/$livreur/photo-${System.currentTimeMillis()}.jpg"
         envoyer(cheminPhoto, photo, "image/jpeg")
-        envoyer(cheminSignature, signature, "image/png")
         appeler(
             "terminerLivraison",
-            mapOf(
-                "id" to id,
-                "montantEncaisse" to montant,
-                "preuvePhoto" to cheminPhoto,
-                "signature" to cheminSignature
-            )
+            mapOf("id" to id, "montantEncaisse" to montant, "preuvePhoto" to cheminPhoto)
         )
     }
 

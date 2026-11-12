@@ -168,8 +168,8 @@ class MissionsViewModel : ViewModel() {
     fun signalerRetour(id: String, motif: String, apres: () -> Unit) =
         executer(apres) { depot.signalerRetour(id, motif) }
 
-    fun terminer(id: String, montant: Int, photo: () -> ByteArray, signature: ByteArray, apres: () -> Unit) =
-        executer(apres) { depot.terminer(id, montant, photo(), signature) }
+    fun terminer(id: String, montant: Int, photo: () -> ByteArray, apres: () -> Unit) =
+        executer(apres) { depot.terminer(id, montant, photo()) }
 
     fun enregistrerPosition(id: String, lat: Double, lng: Double) =
         depot.enregistrerPosition(id, lat, lng)

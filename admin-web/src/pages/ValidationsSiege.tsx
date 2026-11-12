@@ -61,6 +61,12 @@ export default function ValidationsSiege() {
 
 function Lot({ lot }: { lot: Doc }) {
   const { enCours, erreur, lancer } = useAction();
+  // Facture du siège : le surplus est rendu au distributeur, le déficit prélevé ; les prix sont retenus.
+  const [facture, setFacture] = useState("");
+  const [reference, setReference] = useState("");
+  const [prix, setPrix] = useState<Record<string, string>>({});
+  const montantFacture = Number(facture);
+  const factureValide = Number.isInteger(montantFacture) && montantFacture > 0;
   return (
     <section className="carte lot">
       <div className="entete-lot">
@@ -75,7 +81,7 @@ function Lot({ lot }: { lot: Doc }) {
         </div>
       </div>
       <table>
-        <thead><tr><th>Réf.</th><th>Produit</th><th className="droite">Qté</th><th className="droite">CC</th></tr></thead>
+        <thead><tr><th>Réf.</th><th>Produit</th><th className="droite">Qté</th><th className="droite">CC</th>{lot.statut !== "valide" && <th className="droite non-imprime">Prix unitaire facturé</th>}</tr></thead>
         <tbody>
           {regrouper(lot.lignes).map((l) => (
             <tr key={l.produitId}>
@@ -83,20 +89,47 @@ function Lot({ lot }: { lot: Doc }) {
               <td>{l.nom}</td>
               <td className="droite">{l.quantite}</td>
               <td className="droite">{Math.round(l.cc * l.quantite * 1000) / 1000}</td>
+              {lot.statut !== "valide" && (
+                <td className="droite non-imprime">
+                  <input
+                    className="court"
+                    inputMode="numeric"
+                    placeholder="facultatif"
+                    aria-label={`Prix unitaire facturé pour ${l.nom}`}
+                    value={prix[l.produitId] ?? ""}
+                    onChange={(e) => setPrix({ ...prix, [l.produitId]: e.target.value.replace(/\D/g, "") })}
+                  />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
       {lot.statut === "valide" ? (
-        <p className="succes">Validé le {dateCourte(lot.valideLe)}{lot.reference ? ` · reçu ${lot.reference}` : ""}</p>
+        <p className="succes">
+          Validé le {dateCourte(lot.valideLe)}{lot.reference ? ` · reçu ${lot.reference}` : ""}
+          {lot.montantFacture ? ` · facture ${fcfa(lot.montantFacture)}` : ""}
+        </p>
       ) : (
         <div className="actions non-imprime">
+          <input
+            inputMode="numeric"
+            placeholder="Montant payé au siège (FCFA)"
+            aria-label="Montant réellement payé au siège"
+            value={facture}
+            onChange={(e) => setFacture(e.target.value.replace(/\D/g, ""))}
+          />
+          <input placeholder="Référence du reçu (facultatif)" aria-label="Référence du reçu" value={reference} onChange={(e) => setReference(e.target.value)} />
           <button
             className="principal"
-            disabled={enCours}
+            disabled={enCours || !factureValide}
             onClick={() => {
-              const reference = window.prompt("Référence du reçu de validation au siège (facultatif) :", "");
-              if (reference !== null) lancer(() => appeler("validerLotSiege", { id: lot.id, reference }));
+              const prixFactures = Object.fromEntries(
+                Object.entries(prix).filter(([, v]) => Number(v) > 0).map(([k, v]) => [k, Number(v)]),
+              );
+              if (window.confirm(`Facture du siège : ${fcfa(montantFacture)}. L'écart avec la réserve sera rendu ou prélevé au distributeur. Confirmer ?`)) {
+                lancer(() => appeler("validerLotSiege", { id: lot.id, reference, montantFacture, prixFactures }));
+              }
             }}
           >
             Marquer validé au siège

@@ -110,13 +110,6 @@ function Propositions({ commandeId, statut }: { commandeId: string; statut: stri
   );
 }
 
-const POINTS_CONTROLE: [string, string][] = [
-  ["produits", "Bons produits"],
-  ["quantites", "Bonnes quantités"],
-  ["peremption", "Dates de péremption vérifiées"],
-  ["emballage", "Emballage en bon état"],
-];
-
 const nomBeneficiaire = (c: Doc) =>
   [c.beneficiaire?.prenom, c.beneficiaire?.nom].filter(Boolean).join(" ");
 
@@ -141,9 +134,6 @@ function DetailCommande({ commande }: { commande: Doc }) {
   const [numeroColis, setNumeroColis] = useState("");
   const [livreurId, setLivreurId] = useState("");
   const [motif, setMotif] = useState<string | null>(null);
-  // Contrôle qualité exigé par le serveur avant « prête ».
-  const [controle, setControle] = useState<Record<string, boolean>>({});
-  const controleComplet = POINTS_CONTROLE.every(([cle]) => controle[cle]);
 
   const centreAppel = ["operateur", ...ADMIN].includes(role);
   const modifiable = centreAppel && ["nouvelle", "confirmee"].includes(commande.statut);
@@ -223,33 +213,38 @@ function DetailCommande({ commande }: { commande: Doc }) {
         </tbody>
       </table>
       <p className="droite">
-        {commande.reduction > 0 && <>Réduction : -{fcfa(commande.reduction)}<br /></>}
+        {!validation && <>Le client paie (annoncé par le distributeur) : <strong>{fcfa(commande.prixClient ?? commande.sousTotal - (commande.reduction ?? 0))}</strong><br /></>}
+        {commande.reduction > 0 && <>Réduction accordée : -{fcfa(commande.reduction)}<br /></>}
+        {!validation && commande.clientPaieLivraison === false && <><span className="discret">Livraison prise sur le bénéfice du distributeur</span><br /></>}
         {commande.fraisAFixer && <><span className="alerte">Frais de {expedition ? "l'expédition" : "livraison"} à fixer selon le lieu</span><br /></>}
         {commande.fraisLivraison > 0 && <>{validation ? "Frais de validation" : expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
         {validation && commande.prixValidation > 0 && <>Prix de validation : {fcfa(commande.prixValidation)}<br /></>}
-        <strong>Total : {fcfa(commande.total)}</strong>
+        <strong>{validation ? "Total" : "À encaisser"} : {fcfa(commande.total)}</strong>
       </p>
+      {commande.repartition && (
+        <div className="encadre">
+          <div className="discret">Répartition automatique{commande.paiement?.mode === "mobile_money" ? " · payé par mobile money" : " · espèces remises"}</div>
+          <table>
+            <tbody>
+              <tr><td>Encaissé</td><td className="droite">{fcfa(commande.repartition.encaisse)}</td></tr>
+              <tr><td>Réserve de validation (siège)</td><td className="droite">{fcfa(commande.repartition.reserveValidation)}</td></tr>
+              <tr><td>Livraison (livreur {fcfa(commande.repartition.commissionLivreur)})</td><td className="droite">{fcfa(commande.repartition.fraisLivraison)}</td></tr>
+              <tr><td>Commission FBO+</td><td className="droite">{fcfa(commande.repartition.commissionPlateforme)}</td></tr>
+              <tr><td><strong>Bénéfice du distributeur</strong></td><td className="droite"><strong>{fcfa(commande.repartition.benefice)}</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {erreur && <p className="erreur">{erreur}</p>}
 
       <div className="actions">
         {change && <button className="principal" disabled={enCours} onClick={enregistrer}>Enregistrer les quantités</button>}
-        {!change && etape?.roles.includes(role) && commande.statut === "en_preparation" && (
-          <div className="encadre controle">
-            <div className="discret">Contrôle qualité avant de marquer prête</div>
-            {POINTS_CONTROLE.map(([cle, libelle]) => (
-              <label key={cle} className="case">
-                <input type="checkbox" checked={!!controle[cle]} onChange={(e) => setControle({ ...controle, [cle]: e.target.checked })} />
-                {libelle}
-              </label>
-            ))}
-          </div>
-        )}
         {!change && etape?.roles.includes(role) && (
           <button
             className="principal"
-            disabled={enCours || (commande.statut === "en_preparation" && !controleComplet) || (commande.statut === "nouvelle" && commande.fraisAFixer)}
-            onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id, controle }))}
+            disabled={enCours || (commande.statut === "nouvelle" && commande.fraisAFixer)}
+            onClick={() => lancer(() => appeler("avancerCommande", { id: commande.id }))}
           >
             {etape.libelle}
           </button>

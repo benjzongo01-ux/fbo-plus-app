@@ -131,7 +131,7 @@ internal fun couleursChamp() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-private fun BoutonPrincipal(texte: String, actif: Boolean = true, onClick: () -> Unit) {
+internal fun BoutonPrincipal(texte: String, actif: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = actif,
@@ -304,21 +304,6 @@ private fun SuiviPosition(mission: Mission, @Suppress("UNUSED_PARAMETER") vm: Mi
     }
 }
 
-private fun signatureEnPng(traits: List<List<Offset>>, largeur: Int, hauteur: Int): ByteArray {
-    val image = Bitmap.createBitmap(largeur, hauteur, Bitmap.Config.ARGB_8888)
-    val toile = Canvas(image).apply { drawColor(android.graphics.Color.WHITE) }
-    val crayon = Paint().apply {
-        color = android.graphics.Color.BLACK
-        strokeWidth = 5f
-        style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
-        isAntiAlias = true
-    }
-    traits.forEach { trait ->
-        trait.zipWithNext { a, b -> toile.drawLine(a.x, a.y, b.x, b.y, crayon) }
-    }
-    return ByteArrayOutputStream().also { image.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
-}
 
 @Composable
 fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
@@ -328,12 +313,10 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
     val erreur by vm.erreur.collectAsState()
     val mission = missions?.find { it.id == id }
 
-    var encaisse by remember { mutableStateOf(false) }
+    var payeMobile by remember { mutableStateOf(false) }
+    var especes by remember { mutableStateOf(false) }
     var photo by remember { mutableStateOf<Uri?>(null) }
     var photoEnAttente by remember { mutableStateOf<Uri?>(null) }
-    val traits = remember { mutableStateListOf<List<Offset>>() }
-    var trait by remember { mutableStateOf<List<Offset>>(emptyList()) }
-    var taille by remember { mutableStateOf(0 to 0) }
     var saisieRetour by remember { mutableStateOf(false) }
     var motif by remember { mutableStateOf("") }
     val defilement = rememberScrollState()
@@ -383,11 +366,10 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
             if (!mission.enCours) onRetour()
         }
 
-        // Le geste de signature ne doit pas faire défiler la page.
         Column(
             Modifier
                 .weight(1f)
-                .verticalScroll(defilement, enabled = trait.isEmpty())
+                .verticalScroll(defilement)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -430,16 +412,9 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
             }
 
             if (mission.statut == "en_livraison") {
-                Row(
-                    Modifier.fillMaxWidth().clickable { encaisse = !encaisse },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = encaisse,
-                        onCheckedChange = { encaisse = it },
-                        colors = CheckboxDefaults.colors(checkedColor = Or, checkmarkColor = Fond)
-                    )
-                    Text("J'ai encaissé ${fcfa(mission.montant)}", color = Texte, fontSize = 15.sp)
+                EncaissementClient(id, mission.montant) { mobile, cash ->
+                    payeMobile = mobile
+                    especes = cash
                 }
 
                 OutlinedButton(
@@ -454,44 +429,6 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(if (photo == null) "Prendre la photo de preuve" else "Photo prise, reprendre", color = Or)
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Signature du client", color = TexteDoux, fontSize = 13.sp)
-                    TextButton(onClick = { traits.clear() }) { Text("Effacer", color = Or) }
-                }
-                CanvasCompose(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .pointerInput(Unit) {
-                            taille = size.width to size.height
-                            detectDragGestures(
-                                onDragStart = { trait = listOf(it) },
-                                onDragEnd = {
-                                    traits.add(trait)
-                                    trait = emptyList()
-                                },
-                                onDrag = { change, _ ->
-                                    change.consume()
-                                    trait = trait + change.position
-                                }
-                            )
-                        }
-                ) {
-                    (traits + listOf(trait)).filter { it.size > 1 }.forEach { t ->
-                        val chemin = Path().apply {
-                            moveTo(t.first().x, t.first().y)
-                            t.drop(1).forEach { lineTo(it.x, it.y) }
-                        }
-                        drawPath(chemin, Color.Black, style = Stroke(width = 5f, cap = StrokeCap.Round))
-                    }
                 }
 
                 if (saisieRetour) {
@@ -519,14 +456,13 @@ fun MissionEcran(id: String, vm: MissionsViewModel, onRetour: () -> Unit) {
                 else -> {
                     BoutonPrincipal(
                         "Valider la livraison",
-                        encaisse && photo != null && traits.isNotEmpty()
+                        (payeMobile || especes) && photo != null
                     ) {
                         val uri = photo!!
                         vm.terminer(
                             id = id,
-                            montant = mission.montant,
+                            montant = if (payeMobile) 0 else mission.montant,
                             photo = { photoCompressee(context, uri) },
-                            signature = signatureEnPng(traits.toList(), taille.first, taille.second),
                             apres = onRetour
                         )
                     }

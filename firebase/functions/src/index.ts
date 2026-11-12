@@ -21,6 +21,7 @@ export { alimenterValidation, envoyerReserveEnValidation, validerLotSiege } from
 export { definirPin, verifierPin } from "./pin.js";
 export { demanderCodeEmail, verifierCodeEmail } from "./codeEmail.js";
 export { ajusterWallet, confirmerDepotSimule, deciderRetrait, demanderRetrait, demarrerDepot } from "./wallet.js";
+export { confirmerPaiementSimule, confirmerRemiseEspeces, demanderPaiementLivraison } from "./repartition.js";
 export {
   ajusterStock,
   annulerCommande,

@@ -89,7 +89,7 @@ private fun fcfa(n: Long) = "%,d FCFA".format(Locale.FRANCE, n).replace(' ', '
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WalletScreen(onRetour: (() -> Unit)? = null) {
+fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
     val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
     val db = remember { FirebaseFirestore.getInstance() }
     val fonctions = remember { FirebaseFunctions.getInstance(REGION_FUNCTIONS) }
@@ -187,15 +187,17 @@ fun WalletScreen(onRetour: (() -> Unit)? = null) {
             disponible = solde,
             operateurs = OPERATEURS_PAYS[pays] ?: emptyList(),
             indicatif = INDICATIFS[pays] ?: "",
+            demanderPin = demanderPin && type == "retrait",
             onFermer = { feuille = null },
-            onValider = { montant, operateur, numero, surErreur ->
+            onValider = { montant, operateur, numero, pin, surErreur ->
                 portee.launch {
                     try {
                         val donnees = mapOf(
                             "cleIdempotence" to UUID.randomUUID().toString(),
                             "montant" to montant,
                             "operateur" to operateur,
-                            "numero" to numero
+                            "numero" to numero,
+                            "pin" to pin
                         )
                         if (type == "depot") {
                             val r = fonctions.getHttpsCallable("demarrerDepot").call(donnees).await().getData() as Map<*, *>
@@ -362,16 +364,19 @@ private fun FeuilleOperation(
     disponible: Long,
     operateurs: List<String>,
     indicatif: String,
+    demanderPin: Boolean,
     onFermer: () -> Unit,
-    onValider: (montant: Long, operateur: String, numero: String, surErreur: (String) -> Unit) -> Unit
+    onValider: (montant: Long, operateur: String, numero: String, pin: String, surErreur: (String) -> Unit) -> Unit
 ) {
+    var pin by remember { mutableStateOf("") }
     var montant by remember { mutableStateOf("") }
     var operateur by remember { mutableStateOf(operateurs.firstOrNull() ?: "") }
     var numero by remember { mutableStateOf("") }
     var erreur by remember { mutableStateOf<String?>(null) }
     var enCours by remember { mutableStateOf(false) }
     val valeur = montant.toLongOrNull() ?: 0L
-    val valide = valeur > 0 && numero.count(Char::isDigit) >= 8 && operateur.isNotBlank() && (depot || valeur <= disponible)
+    val valide = valeur > 0 && numero.count(Char::isDigit) >= 8 && operateur.isNotBlank() && (depot || valeur <= disponible) &&
+        (!demanderPin || pin.length == 4)
 
     ModalBottomSheet(onDismissRequest = onFermer, containerColor = WSurface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding()) {
@@ -410,13 +415,32 @@ private fun FeuilleOperation(
             }
             Spacer(Modifier.height(16.dp))
             Champ(numero, { numero = it.filter { c -> c.isDigit() || c == ' ' || c == '+' }.take(20) }, "Numéro $operateur ($indicatif)", KeyboardType.Phone)
+            if (demanderPin) {
+                Spacer(Modifier.height(16.dp))
+                // Chaque retrait est confirmé par le code PIN, vérifié par le serveur.
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { pin = it.filter(Char::isDigit).take(4) },
+                    label = { Text("Votre code PIN") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = WOr, unfocusedBorderColor = WTrait,
+                        focusedLabelColor = WOr, unfocusedLabelColor = WGris,
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = WOr
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             erreur?.let { Text(it, color = WRouge, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 10.dp)) }
             Spacer(Modifier.height(20.dp))
             Button(
                 onClick = {
                     erreur = null
                     enCours = true
-                    onValider(valeur, operateur, numero) { e -> erreur = e; enCours = false }
+                    onValider(valeur, operateur, numero, pin) { e -> erreur = e; enCours = false }
                 },
                 enabled = valide && !enCours,
                 shape = RoundedCornerShape(16.dp),
