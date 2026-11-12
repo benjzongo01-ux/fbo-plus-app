@@ -155,6 +155,111 @@ export async function preparerRepartition(tx: Transaction, refCommande: Document
   };
 }
 
+// ───────────────────────── Validation sur l'ID, payée par le wallet ─────────────────────────
+
+/**
+ * Une validation n'a pas de client : le distributeur la paie avec son wallet, rechargé au préalable.
+ * Prélèvement = ce que le siège facturera (prix public moins la remise du grade, prix appris des
+ * factures) plus les frais de validation. Refusé si le solde ne suffit pas : pas de dette ici.
+ * Lectures maintenant, écritures dans la fonction rendue.
+ */
+export async function preparerPaiementValidation(
+  tx: Transaction,
+  uid: string,
+  pays: string,
+  remise: number,
+  lignes: Ligne[],
+  fraisValidation: number,
+) {
+  const f = await finances(tx, pays);
+  const estimation = await estimerValidation(tx, pays, remise, lignes, f.coefValidation);
+  const reserve = estimation + Math.ceil((estimation * f.margeSecuritePct) / 100);
+  const debit = reserve + fraisValidation;
+  const wallet = await lireWallet(tx, uid);
+  const identite = await identiteDe(tx, uid);
+  if (wallet.solde < debit) {
+    const manque = (debit - wallet.solde).toLocaleString("fr-FR").replace(/\u202f/g, " ");
+    throw new HttpsError("failed-precondition", `Solde du wallet insuffisant : rechargez au moins ${manque} FCFA pour cette validation.`);
+  }
+  return {
+    debit,
+    reserve,
+    ecrire(refCommande: DocumentReference, numero: string) {
+      mouvementSysteme(tx, uid, wallet, identite, {
+        montant: -debit,
+        type: "validation",
+        libelle: `Validation ${numero}`,
+        reference: refCommande.id,
+        auteurId: uid,
+      });
+      const compte = db.doc(`comptesPlateforme/${pays}`);
+      tx.set(
+        compte,
+        {
+          pays,
+          encaisse: FieldValue.increment(debit),
+          reserveValidation: FieldValue.increment(reserve),
+          commissions: FieldValue.increment(fraisValidation),
+          majLe: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      tx.create(compte.collection("ecritures").doc(), {
+        type: "validation_wallet", commandeId: refCommande.id, fboId: uid, debit, reserveValidation: reserve, fraisValidation, le: FieldValue.serverTimestamp(),
+      });
+      return {
+        total: debit,
+        paiement: { mode: "wallet", statut: "confirme", montant: debit },
+        repartition: {
+          encaisse: debit,
+          reserveValidation: reserve,
+          estimationSiege: estimation,
+          fraisLivraison: 0,
+          fraisValidation,
+          commissionLivreur: 0,
+          partLivraisonPlateforme: 0,
+          commissionPlateforme: fraisValidation,
+          benefice: 0,
+          livreurId: null,
+          le: FieldValue.serverTimestamp(),
+          par: uid,
+        },
+      };
+    },
+  };
+}
+
+/** Annulation d'une validation payée par le wallet : tout est rendu (lectures, puis écriture). */
+export async function preparerRemboursementValidation(tx: Transaction, refCommande: DocumentReference, commande: Record<string, any>, auteurId: string) {
+  if (commande.paiement?.mode !== "wallet" || commande.regularisation || commande.rembourse) return null;
+  const uid = String(commande.fboId);
+  const pays = String(commande.pays || PAYS_DEFAUT);
+  const wallet = await lireWallet(tx, uid);
+  const identite = await identiteDe(tx, uid);
+  const debit = Number(commande.paiement.montant);
+  const reserve = Number(commande.repartition?.reserveValidation ?? 0);
+  return () => {
+    mouvementSysteme(tx, uid, wallet, identite, {
+      montant: debit,
+      type: "remboursement",
+      libelle: `Validation annulée, ${commande.titre ?? ""}`.trim(),
+      reference: refCommande.id,
+      auteurId,
+    });
+    tx.set(
+      db.doc(`comptesPlateforme/${pays}`),
+      {
+        encaisse: FieldValue.increment(-debit),
+        reserveValidation: FieldValue.increment(-reserve),
+        commissions: FieldValue.increment(-(debit - reserve)),
+        majLe: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    tx.update(refCommande, { rembourse: true });
+  };
+}
+
 // ───────────────────────── Paiement à la livraison ─────────────────────────
 
 /**

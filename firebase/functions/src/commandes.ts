@@ -1,6 +1,6 @@
 import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { onAppel } from "./limites.js";
-import { preparerRepartition } from "./repartition.js";
+import { preparerPaiementValidation, preparerRemboursementValidation, preparerRepartition } from "./repartition.js";
 import { FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
 import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 
@@ -453,9 +453,16 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       clientPaieLivraison(d),
     );
 
+    // Validation : payée tout de suite par le wallet du distributeur (pas de client).
+    const paiementWallet =
+      mode === "validation"
+        ? await preparerPaiementValidation(tx, uid, pays, montants.remiseGrade, lignes, frais)
+        : null;
+
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
     const reserver = await preparerReservations(tx, entrepotId, ecarts);
     reserver(uid, ref.id);
+    const paye = paiementWallet?.ecrire(ref, `N° ${numero}`);
     if (nouvelleFiche && client) {
       tx.create(nouvelleFiche, {
         ownerId: uid,
@@ -489,6 +496,7 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
           : "",
       lignes,
       ...montants,
+      ...(paye ?? {}),
       entrepotId,
       statut: "nouvelle",
       historiqueStatuts: [etapeHistorique("nouvelle", uid)],
@@ -496,7 +504,7 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return { id: ref.id, total: montants.total, cree: true };
+    return { id: ref.id, total: paye?.total ?? montants.total, cree: true };
   });
 
   if (resultat.cree) await journaliser("commande_creee", uid, resultat.id, { total: resultat.total });
@@ -521,6 +529,9 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
       throw new HttpsError("permission-denied", "Cette commande ne vous appartient pas.");
     }
     if (!estProprietaire) exigerMemePays(req, commande.pays);
+    if (commande.paiement?.mode === "wallet") {
+      throw new HttpsError("failed-precondition", "Validation déjà payée par le wallet : annulez-la (remboursée) et refaites-la.");
+    }
     const statuts = estCentreAppel ? ["nouvelle", "confirmee"] : ["nouvelle"];
     if (!statuts.includes(commande.statut)) {
       throw new HttpsError("failed-precondition", "Cette commande ne peut plus être modifiée.");
@@ -587,7 +598,9 @@ export const annulerCommande = onAppel("annulerCommande", OPTIONS_APPEL, async (
     }
 
     const liberer = await libererStock(tx, commande);
+    const rembourser = await preparerRemboursementValidation(tx, ref, commande, uid);
     liberer(uid, id);
+    rembourser?.();
     tx.update(ref, {
       statut: "annulee",
       motifAnnulation: texte(d.motif),
