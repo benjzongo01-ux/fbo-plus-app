@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 153 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 159 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -156,6 +156,15 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - le super administrateur l'active dans Paramètres, avec un message et une durée prévue ;
 - FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
 - le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
+
+## Paiements sur les numéros de dépôt de FBO+, sans agrégateur (2026-11-12)
+
+- Le super administrateur saisit les numéros marchands par pays et par opérateur (Admin > Paramètres > Numéros de dépôt ; `parametres/numerosDepot`).
+- Livraison : le client envoie le montant sur un numéro de FBO+ ; le livreur déclare l'opérateur et la référence du SMS (capture facultative) et peut terminer la livraison. Recharge de wallet : même chemin depuis « Déposer ».
+- L'administration du pays vérifie dans le compte marchand (Admin > Wallet > Paiements à vérifier) : « Reçu » déclenche la répartition automatique ou crédite le wallet ; « Refuser » (motif) ne crédite rien, et une livraison déjà remise repasse en argent à récupérer.
+- Sécurité (`functions/src/declarations.ts`) : montant de commande fixé par le serveur, référence utilisable une seule fois par opérateur (verrou illisible par les clients), seule l'administration du pays décide, une seule décision, journal et notification.
+- Retraits : sélection, export par opérateur pour le paiement de masse, « Marquer la sélection payée ».
+- Plus tard : agrégateur (FeexPay en priorité) quand le volume le justifie ; les paiements simulés restent pour les tests.
 
 ## Répartition automatique de l'argent (2026-11-12)
 

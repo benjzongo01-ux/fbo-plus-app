@@ -6,7 +6,7 @@ export type Doc = { id: string } & Record<string, any>;
 
 export const ROLES_PERSONNEL = ["operateur", "gestionnaire_stock", "admin", "super_admin"];
 
-export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal"];
+export const PAYS = ["Burkina Faso", "Côte d'Ivoire", "Sénégal", "Guinée"];
 
 /** Filtre « mon pays » : le super administrateur voit tous les pays. */
 export const filtrePays = (role: string, pays: string): QueryConstraint[] =>

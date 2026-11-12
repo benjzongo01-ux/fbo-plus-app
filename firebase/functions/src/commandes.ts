@@ -977,12 +977,13 @@ export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, asy
       throw new HttpsError("failed-precondition", "Cette mission n'est pas en cours.");
     }
     const commande = (await tx.get(refCommande)).data()!;
-    // Payé par mobile money : rien à encaisser en main propre, et l'argent est réparti tout de suite.
-    const payeMobile = commande.paiement?.statut === "confirme";
+    // Payé par mobile money (confirmé, ou déclaré et en vérification) : rien à encaisser en main propre.
+    // Confirmé : l'argent est réparti tout de suite ; en vérification : à la confirmation de l'administration.
+    const payeMobile = ["confirme", "a_verifier"].includes(commande.paiement?.statut);
     if (!payeMobile && montant !== livraison.montantAEncaisser) {
       throw new HttpsError("invalid-argument", `Montant attendu : ${livraison.montantAEncaisser} FCFA.`);
     }
-    const repartir = payeMobile ? await preparerRepartition(tx, refCommande, uid) : null;
+    const repartir = commande.paiement?.statut === "confirme" ? await preparerRepartition(tx, refCommande, uid) : null;
     const stocks = await tx.getAll(
       ...(commande.lignes as LigneCommande[]).map((l) =>
         db.doc(`stock/${commande.entrepotId}_${l.produitId}`),
