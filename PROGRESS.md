@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 149 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 151 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -164,6 +164,7 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - Répartition (`functions/src/repartition.ts`), une seule fois par commande, somme vérifiée : réserve de validation (prix appris des factures, sinon prix remisé × coefficient du pays), commission du livreur, part livraison de la plateforme, commission FBO+ (réglable : `commissionPlateformeFixe`, `commissionPlateformePct`, `margeSecuritePct` dans `tarifsPays`), bénéfice du distributeur. Bénéfice négatif : dette, réglée en priorité par les entrées suivantes.
 - Validation au siège : montant réel de la facture (et prix unitaires facultatifs). Surplus rendu, déficit prélevé, prix retenus par pays et par grade, sinon coefficient du pays ajusté.
 - Sécurité : montants calculés par le serveur seulement, PIN exigé pour chaque retrait d'un distributeur, plafond de 500 000 FCFA de retraits par 24 h, nouveau numéro signalé à l'administration, comptes de la plateforme lisibles par l'administration du pays seulement.
+- Validation sur l'ID : payée par le wallet du distributeur (prix de validation du grade + frais de validation), refusée si le solde ne suffit pas, remboursée si annulée, régularisée avec la facture du siège.
 - À décider : commission FBO+, part du livreur sur les frais, taux de taxes de départ, marge de sécurité (tout est à 0 % ou à la commission actuelle du livreur par défaut).
 
 ## FBO+ Wallet, première partie (2026-11-12)

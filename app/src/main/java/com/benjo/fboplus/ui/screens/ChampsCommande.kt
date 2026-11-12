@@ -223,12 +223,13 @@ fun DetailsCommandeEcran(
                         }
                 }
                 if (details.mode == "validation") {
-                    Aide("Pas de livraison : les produits sont seulement validés sur l'ID. Aucune information client n'est demandée.")
+                    Aide("Pas de livraison : les produits sont validés sur l'ID. Le montant est prélevé sur votre wallet à l'envoi.")
                     Ligne("Prix public", fcfa(sousTotal))
                     Ligne("Remise de votre grade", "− " + fcfa(reductionMax))
                     Ligne("Prix de validation", fcfa(prixValidation))
                     Ligne("Frais de validation", fcfa(FRAIS_VALIDATION))
-                    Ligne("À payer", fcfa(prixValidation + FRAIS_VALIDATION), fort = true)
+                    Ligne("Prélevé sur votre wallet", fcfa(prixValidation + FRAIS_VALIDATION), fort = true)
+                    SoldeWallet(prixValidation + FRAIS_VALIDATION)
                 } else if (details.mode == "expedition") {
                     Aide("Le colis part de l'entrepôt du pays vers la ville indiquée. Les frais d'expédition sont fixés par l'administration.")
                     Champ("Ville, province ou village de destination", details.villeSaisie, majuscules = true) { v ->
@@ -324,7 +325,7 @@ fun DetailsCommandeEcran(
             ) {
                 Text(
                     when (details.mode) {
-                        "validation" -> "À payer (frais de validation compris)"
+                        "validation" -> "Prélevé sur votre wallet (frais compris)"
                         else -> if (details.clientPaieLivraison) "Le client paie, plus la livraison" else "Le client paie (livraison comprise)"
                     },
                     color = WhiteSub,
@@ -555,5 +556,28 @@ fun SuiviEnvoi(ventesViewModel: VentesViewModel, onReussi: () -> Unit) {
             modifier = Modifier.padding(bottom = 8.dp)
         )
         else -> {}
+    }
+}
+
+
+/** Solde du wallet face au montant d'une validation : invite à recharger s'il ne suffit pas. */
+@Composable
+private fun SoldeWallet(aPrelever: Int) {
+    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+    var solde by remember { mutableStateOf<Long?>(null) }
+    DisposableEffect(uid) {
+        if (uid == null) return@DisposableEffect onDispose {}
+        val ecoute = com.google.firebase.firestore.FirebaseFirestore.getInstance().document("wallets/$uid")
+            .addSnapshotListener { d, _ -> solde = d?.getLong("solde") ?: 0L }
+        onDispose { ecoute.remove() }
+    }
+    val s = solde ?: return
+    Ligne("Solde de votre wallet", fcfa(s.toInt()))
+    if (s < aPrelever) {
+        Text(
+            "Solde insuffisant : rechargez au moins ${fcfa(aPrelever - s.toInt())} dans Mon wallet avant d'envoyer.",
+            color = RedAlert,
+            fontSize = 13.sp
+        )
     }
 }

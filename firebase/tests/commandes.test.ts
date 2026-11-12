@@ -30,6 +30,10 @@ const CONTROLE_OK = { produits: true, quantites: true, peremption: true, emballa
 
 const fbo = () => compte("fbo", { grade: "Manager (M)", idDistributeur: "226000111222", prenom: "Awa", nom: "Test" });
 
+/** Wallet rechargé : une validation se paie avec le wallet du distributeur. */
+const recharger = (uid: string, solde: number) =>
+  adminDb().doc(`wallets/${uid}`).set({ uid, solde, bloque: 0, dette: 0, pays: "Burkina Faso" });
+
 const LIVRAISON = {
   pays: "Burkina Faso",
   pourQui: "moi",
@@ -353,6 +357,7 @@ describe("numéro de commande et prix de validation", () => {
 
   it("une validation coûte le prix de validation du grade plus 2 000 FCFA, sans réduction", async () => {
     const u = await fbo(); // Manager : 48 %
+    await recharger(u.uid, 30000);
     const { id, total } = await u.appeler("creerCommande", {
       cleIdempotence: cle(),
       lignes: [{ produitId: produit, quantite: 2 }],
@@ -363,6 +368,20 @@ describe("numéro de commande et prix de validation", () => {
     });
     expect(total).toBe(44000 - 21120 + 2000);
     expect(await commande(id)).toMatchObject({ reduction: 0, prixValidation: 22880, fraisLivraison: 2000, fraisAFixer: false });
+  });
+
+  it("une validation est prélevée sur le wallet, refusée sans solde suffisant, remboursée si annulée", async () => {
+    const u = await fbo();
+    const demande = { lignes: [{ produitId: produit, quantite: 2 }], pays: "Burkina Faso", pourQui: "moi", mode: "validation" };
+    await recharger(u.uid, 20000);
+    expect(await codeErreur(u.appeler("creerCommande", { ...demande, cleIdempotence: cle() }))).toBe("functions/failed-precondition");
+    await recharger(u.uid, 30000);
+    const { id } = await u.appeler("creerCommande", { ...demande, cleIdempotence: cle() });
+    expect((await adminDb().doc(`wallets/${u.uid}`).get()).data()).toMatchObject({ solde: 30000 - 24880 });
+    expect(await commande(id)).toMatchObject({ paiement: { mode: "wallet", montant: 24880 }, repartition: { reserveValidation: 22880 } });
+    expect(await codeErreur(u.appeler("modifierCommande", { id, lignes: [{ produitId: produit, quantite: 1 }] }))).toBe("functions/failed-precondition");
+    await u.appeler("annulerCommande", { id, motif: "Erreur" });
+    expect((await adminDb().doc(`wallets/${u.uid}`).get()).data()).toMatchObject({ solde: 30000 });
   });
 });
 
@@ -410,6 +429,7 @@ describe("pour qui, livraison ou validation", () => {
     const operateur = await compte("operateur");
     const gestionnaire = await compte("gestionnaire_stock");
     const livreur = await compte("livreur");
+    await recharger(u.uid, 30000);
     const { id, total } = await u.appeler("creerCommande", {
       cleIdempotence: cle(),
       lignes: [{ produitId: produit, quantite: 2 }],
