@@ -9,7 +9,8 @@ import { getFirestore } from "firebase-admin/firestore";
 export const PROJET = "demo-fbo-plus";
 const REGION = "europe-west1";
 const applis: ReturnType<typeof initClient>[] = [];
-let numero = 40000000;
+// Point de départ tiré au hasard : chaque fichier de tests a ses propres numéros (sinon doublons).
+let numero = 40000000 + Math.floor(Math.random() * 5999) * 10000;
 
 export function preparerAdmin() {
   if (getApps().length === 0) initializeApp({ projectId: PROJET });

@@ -13,6 +13,7 @@ import Reappro from "./pages/Reappro";
 import Identites from "./pages/Identites";
 import Messages from "./pages/Messages";
 import ValidationsSiege from "./pages/ValidationsSiege";
+import Wallet from "./pages/Wallet";
 import Parametres from "./pages/Parametres";
 import Produits from "./pages/Produits";
 import Stocks from "./pages/Stocks";
@@ -32,6 +33,7 @@ const PAGES = [
   { chemin: "/messages", titre: "Messages", roles: ["operateur", ...ADMIN], page: <Messages /> },
   { chemin: "/livreurs", titre: "Livreurs", roles: ["operateur", ...ADMIN], page: <Livreurs /> },
   { chemin: "/validations", titre: "Validations siège", roles: ["operateur", ...ADMIN], page: <ValidationsSiege /> },
+  { chemin: "/wallet", titre: "Wallet", roles: ADMIN, page: <Wallet /> },
   { chemin: "/identites", titre: "Identités livreurs", roles: SUPER, page: <Identites /> },
   { chemin: "/utilisateurs", titre: "Utilisateurs", roles: SUPER, page: <Utilisateurs /> },
   { chemin: "/parametres", titre: "Paramètres", roles: SUPER, page: <Parametres /> },
