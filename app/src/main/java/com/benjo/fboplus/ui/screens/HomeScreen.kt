@@ -76,10 +76,13 @@ fun HomeScreen(
 
     val context = LocalContext.current
     val moisActuel = remember { VentesRepository.moisAnneeAujourdhui() }
-    val commandesDuMois = remember(commandesDuJour) {
+    val toutesCommandes by VentesRepository.commandes.collectAsState()
+    val commandesDuMois = remember(toutesCommandes) {
         VentesRepository.getCommandesDuMois(context, moisActuel)
     }
     val ccDuMois = commandesDuMois.sumOf { it.ccTotal }
+    val caDuMois = commandesDuMois.sumOf { it.caTotal }
+    // Distributeur actif : 4 CC au moins dans le mois en cours (remis à zéro chaque mois).
     val estActif = ccDuMois >= 4.0
 
     Box(
@@ -156,7 +159,7 @@ fun HomeScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        if (estActif) "ACTIF" else "NON ACTIF: %.3f CC".format(ccDuMois),
+                                        if (estActif) "ACTIF · %.3f CC".format(ccDuMois) else "NON ACTIF · %.3f / 4 CC".format(ccDuMois),
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = if (estActif) Color(0xFF00C853) else Color(0xFFFF1744),
@@ -176,15 +179,15 @@ fun HomeScreen(
                                         .padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text("Aujourd'hui", fontSize = 9.sp, color = WhiteFaint)
+                                        Text("Ce mois", fontSize = 9.sp, color = WhiteFaint)
                                         Text(
-                                            "%,d F".format(caDuJour),
+                                            "%,d F".format(caDuMois),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = GoldPrimary
                                         )
                                         Text(
-                                            "%.3f CC".format(ccDuJour),
+                                            "%.3f CC".format(ccDuMois),
                                             fontSize = 11.sp,
                                             color = GoldLight,
                                             fontWeight = FontWeight.Bold
@@ -195,6 +198,8 @@ fun HomeScreen(
                         }
 
                         Spacer(modifier = Modifier.height(18.dp))
+                        CartesAccueil(onWallet = onWallet, onFormations = onFormations, margeLaterale = 0.dp)
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         Box(
                             modifier = Modifier
@@ -247,9 +252,6 @@ fun HomeScreen(
                     }
                 }
             }
-
-            // ── WALLET ET FORMATION ──
-            item { CartesAccueil(onWallet = onWallet, onFormations = onFormations) }
 
             // ── FILTRES CATÉGORIES ──
             item {

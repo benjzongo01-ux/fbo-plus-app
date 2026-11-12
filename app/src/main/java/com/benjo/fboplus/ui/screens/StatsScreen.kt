@@ -47,7 +47,7 @@ fun nomMois(moisAnnee: String): String {
 @Composable
 fun StatsScreen(ventesViewModel: VentesViewModel, onEquipe: () -> Unit = {}) {
     val contexte = androidx.compose.ui.platform.LocalContext.current
-    val commandesDuJourStats by ventesViewModel.commandesDuJour.collectAsState()
+    val commandesDuJourStats by com.benjo.fboplus.data.VentesRepository.commandes.collectAsState()
     val duMois = remember(commandesDuJourStats) {
         com.benjo.fboplus.data.VentesRepository.getCommandesDuMois(contexte, com.benjo.fboplus.data.VentesRepository.moisAnneeAujourdhui())
     }
