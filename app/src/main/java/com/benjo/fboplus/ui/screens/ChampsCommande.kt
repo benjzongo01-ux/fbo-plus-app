@@ -115,6 +115,12 @@ fun DetailsCommandeEcran(
     val prixClient = prixClientTexte.toIntOrNull() ?: 0
     LaunchedEffect(prixClient, sousTotal) { if (!validation) ventesViewModel.setReduction(sousTotal - prixClient) }
     var confirmerPrix by remember { mutableStateOf(false) }
+    // Seuil sous lequel le wallet complète : validation + livraison (si elle n'est pas facturée au client).
+    var fraisMaxPays by remember { mutableIntStateOf(0) }
+    LaunchedEffect(details.pays) {
+        fraisMaxPays = runCatching { com.benjo.fboplus.data.VentesRepository.fraisLivraison(details.pays).max }.getOrDefault(0)
+    }
+    val seuilWallet = prixValidation + if (details.clientPaieLivraison) 0 else fraisMaxPays
     val totalEstime = if (validation) prixValidation + FRAIS_VALIDATION else prixClient
     var choixPays by remember { mutableStateOf(false) }
 
@@ -127,7 +133,6 @@ fun DetailsCommandeEcran(
 
     val erreur = details.erreur(profil.idDistributeur) ?: when {
         validation -> null
-        prixClient < prixValidation -> "Le client ne peut pas payer moins que votre prix de validation (${fcfa(prixValidation)})."
         else -> null
     }
 
@@ -279,11 +284,6 @@ fun DetailsCommandeEcran(
                     Champ("Le client paie (FCFA)", prixClientTexte, clavier = KeyboardType.Number) { v ->
                         prixClientTexte = v.filter(Char::isDigit).take(9)
                     }
-                    if (prixClient in prixValidation until sousTotal) {
-                        Aide("Réduction accordée au client : ${fcfa(sousTotal - prixClient)}.")
-                    } else if (prixClient > sousTotal) {
-                        Aide("Au-dessus du prix public de ${fcfa(prixClient - sousTotal)} : ce supplément s'ajoute à votre bénéfice.")
-                    }
                     Text("La livraison est payée par", color = WhitePrimary, fontSize = 14.sp)
                     Choix(
                         gauche = "Le client",
@@ -295,11 +295,22 @@ fun DetailsCommandeEcran(
                         if (details.clientPaieLivraison) "Les frais fixés par l'administration seront ajoutés à ce que paie le client."
                         else "Les frais de livraison seront pris sur votre bénéfice."
                     )
-                    Ligne(
-                        if (details.clientPaieLivraison) "Votre bénéfice estimé" else "Votre bénéfice estimé, avant livraison",
-                        fcfa((prixClient - prixValidation).coerceAtLeast(0)),
-                        fort = true
-                    )
+                    if (prixClient < seuilWallet) {
+                        // Prix trop bas : la différence est prise sur le wallet (sinon la commande est refusée).
+                        Text(
+                            "Ce prix ne couvre pas la validation" + (if (details.clientPaieLivraison) "" else " et la livraison") +
+                                " : environ ${fcfa(seuilWallet - prixClient)} seront pris sur votre wallet.",
+                            color = RedAlert,
+                            fontSize = 13.sp
+                        )
+                        SoldeWallet(seuilWallet - prixClient)
+                    } else {
+                        Ligne(
+                            if (details.clientPaieLivraison) "Votre bénéfice estimé" else "Votre bénéfice estimé, avant livraison",
+                            fcfa(prixClient - prixValidation),
+                            fort = true
+                        )
+                    }
                 }
                 OutlinedTextField(
                     value = details.note,
@@ -371,7 +382,7 @@ fun DetailsCommandeEcran(
                     "Le client paiera ${fcfa(prixClient)} pour les produits" +
                         (if (details.clientPaieLivraison) ", plus les frais de livraison fixés par l'administration."
                         else ". La livraison sera prise sur votre bénéfice.") +
-                        (if (prixClient > sousTotal) "\n\nAttention : c'est ${fcfa(prixClient - sousTotal)} de plus que le prix public." else "") +
+                        (if (prixClient < seuilWallet) "\n\nEnviron ${fcfa(seuilWallet - prixClient)} seront pris sur votre wallet pour compléter." else "") +
                         "\n\nC'est ce montant que le livreur encaissera. Est-il exact ?",
                     color = WhiteSub,
                     fontSize = 14.sp,

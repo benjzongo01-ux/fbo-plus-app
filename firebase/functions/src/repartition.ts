@@ -77,7 +77,9 @@ export async function preparerRepartition(tx: Transaction, refCommande: Document
   const remise = Number(commande.remiseGrade ?? 0);
   const lignes = (commande.lignes ?? []) as Ligne[];
 
-  const encaisse = Number(commande.total);
+  // Encaissé = ce que paie le client + le complément pris sur le wallet (prix client trop bas).
+  const complement = Number(commande.complementWallet ?? 0);
+  const encaisse = Number(commande.total) + complement;
   const frais = Number(commande.fraisLivraison ?? 0);
   const commissionLivreur = livraison?.livreurId ? Math.min(Number(livraison.commission ?? 0), frais) : 0;
   const estimation = await estimerValidation(tx, pays, remise, lignes, f.coefValidation);
@@ -105,6 +107,7 @@ export async function preparerRepartition(tx: Transaction, refCommande: Document
   return () => {
     const repartition = {
       encaisse,
+      complementWallet: complement,
       reserveValidation: reserve,
       estimationSiege: estimation,
       fraisLivraison: frais,
@@ -139,6 +142,7 @@ export async function preparerRepartition(tx: Transaction, refCommande: Document
       {
         pays,
         encaisse: FieldValue.increment(encaisse),
+        ...(complement > 0 ? { complements: FieldValue.increment(-complement) } : {}),
         reserveValidation: FieldValue.increment(reserve),
         livraison: FieldValue.increment(partLivraisonPlateforme),
         commissions: FieldValue.increment(commissionPlateforme),
@@ -155,108 +159,52 @@ export async function preparerRepartition(tx: Transaction, refCommande: Document
   };
 }
 
-// ───────────────────────── Validation sur l'ID, payée par le wallet ─────────────────────────
+// ───────────────────────── Argent pris sur le wallet du distributeur ─────────────────────────
 
-/**
- * Une validation n'a pas de client : le distributeur la paie avec son wallet, rechargé au préalable.
- * Prélèvement = ce que le siège facturera (prix public moins la remise du grade, prix appris des
- * factures) plus les frais de validation. Refusé si le solde ne suffit pas : pas de dette ici.
- * Lectures maintenant, écritures dans la fonction rendue.
- */
-export async function preparerPaiementValidation(
-  tx: Transaction,
-  uid: string,
-  pays: string,
-  remise: number,
-  lignes: Ligne[],
-  fraisValidation: number,
-) {
+/** Ce que le siège devrait facturer (réserve) et la commission fixe de la plateforme. Lectures seules. */
+export async function estimationSiege(tx: Transaction, pays: string, remise: number, lignes: Ligne[]) {
   const f = await finances(tx, pays);
   const estimation = await estimerValidation(tx, pays, remise, lignes, f.coefValidation);
-  const reserve = estimation + Math.ceil((estimation * f.margeSecuritePct) / 100);
-  const debit = reserve + fraisValidation;
-  const wallet = await lireWallet(tx, uid);
-  const identite = await identiteDe(tx, uid);
-  if (wallet.solde < debit) {
-    const manque = (debit - wallet.solde).toLocaleString("fr-FR").replace(/\u202f/g, " ");
-    throw new HttpsError("failed-precondition", `Solde du wallet insuffisant : rechargez au moins ${manque} FCFA pour cette validation.`);
-  }
-  return {
-    debit,
-    reserve,
-    ecrire(refCommande: DocumentReference, numero: string) {
-      mouvementSysteme(tx, uid, wallet, identite, {
-        montant: -debit,
-        type: "validation",
-        libelle: `Validation ${numero}`,
-        reference: refCommande.id,
-        auteurId: uid,
-      });
-      const compte = db.doc(`comptesPlateforme/${pays}`);
-      tx.set(
-        compte,
-        {
-          pays,
-          encaisse: FieldValue.increment(debit),
-          reserveValidation: FieldValue.increment(reserve),
-          commissions: FieldValue.increment(fraisValidation),
-          majLe: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-      tx.create(compte.collection("ecritures").doc(), {
-        type: "validation_wallet", commandeId: refCommande.id, fboId: uid, debit, reserveValidation: reserve, fraisValidation, le: FieldValue.serverTimestamp(),
-      });
-      return {
-        total: debit,
-        paiement: { mode: "wallet", statut: "confirme", montant: debit },
-        repartition: {
-          encaisse: debit,
-          reserveValidation: reserve,
-          estimationSiege: estimation,
-          fraisLivraison: 0,
-          fraisValidation,
-          commissionLivreur: 0,
-          partLivraisonPlateforme: 0,
-          commissionPlateforme: fraisValidation,
-          benefice: 0,
-          livreurId: null,
-          le: FieldValue.serverTimestamp(),
-          par: uid,
-        },
-      };
-    },
-  };
+  return { estimation, reserve: estimation + Math.ceil((estimation * f.margeSecuritePct) / 100), commissionFixe: f.commissionPlateformeFixe };
 }
 
-/** Annulation d'une validation payée par le wallet : tout est rendu (lectures, puis écriture). */
-export async function preparerRemboursementValidation(tx: Transaction, refCommande: DocumentReference, commande: Record<string, any>, auteurId: string) {
-  if (commande.paiement?.mode !== "wallet" || commande.regularisation || commande.rembourse) return null;
-  const uid = String(commande.fboId);
-  const pays = String(commande.pays || PAYS_DEFAUT);
+/**
+ * Montant que le wallet du distributeur doit fournir pour une commande :
+ * - validation sur l'ID : tout (réserve de validation + frais de validation), il n'y a pas de client ;
+ * - livraison ou expédition : seulement si le prix du client ne couvre pas la validation, la livraison
+ *   (quand elle n'est pas facturée au client) et la commission : c'est le complément.
+ */
+export async function besoinWallet(
+  tx: Transaction,
+  c: { mode: string; pays: string; remise: number; lignes: Ligne[]; prixClient: number; clientPaieLivraison: boolean; fraisEstime: number; fraisValidation: number },
+) {
+  const e = await estimationSiege(tx, c.pays, c.remise, c.lignes);
+  if (c.mode === "validation") return { montant: e.reserve + c.fraisValidation, reserve: e.reserve, estimation: e.estimation };
+  const seuil = e.reserve + (c.clientPaieLivraison ? 0 : c.fraisEstime) + e.commissionFixe;
+  return { montant: Math.max(0, seuil - c.prixClient), reserve: e.reserve, estimation: e.estimation, seuil };
+}
+
+/**
+ * Fait passer ce qui est pris sur le wallet de `ancien` à `nouveau` (création, modification,
+ * annulation). Une hausse exige le solde disponible : jamais de dette ici. Lectures maintenant.
+ */
+export async function preparerMouvementWallet(
+  tx: Transaction,
+  uid: string,
+  ancien: number,
+  nouveau: number,
+  m: { type: string; libelle: string; reference: string; manque: (montant: string) => string },
+  auteurId: string,
+) {
+  const delta = nouveau - ancien;
+  if (delta === 0) return () => {};
   const wallet = await lireWallet(tx, uid);
   const identite = await identiteDe(tx, uid);
-  const debit = Number(commande.paiement.montant);
-  const reserve = Number(commande.repartition?.reserveValidation ?? 0);
+  if (delta > 0 && wallet.solde < delta) {
+    throw new HttpsError("failed-precondition", m.manque((delta - wallet.solde).toLocaleString("fr-FR").replace(/\u202f/g, " ")));
+  }
   return () => {
-    mouvementSysteme(tx, uid, wallet, identite, {
-      montant: debit,
-      type: "remboursement",
-      libelle: `Validation annulée, ${commande.titre ?? ""}`.trim(),
-      reference: refCommande.id,
-      auteurId,
-    });
-    tx.set(
-      db.doc(`comptesPlateforme/${pays}`),
-      {
-        encaisse: FieldValue.increment(-debit),
-        reserveValidation: FieldValue.increment(-reserve),
-        commissions: FieldValue.increment(-(debit - reserve)),
-        majLe: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-    tx.update(refCommande, { rembourse: true });
+    mouvementSysteme(tx, uid, wallet, identite, { montant: -delta, type: delta > 0 ? m.type : "remboursement", libelle: m.libelle, reference: m.reference, auteurId });
   };
 }
 

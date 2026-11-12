@@ -116,6 +116,46 @@ const nomBeneficiaire = (c: Doc) =>
 const nomCommande = (c: Doc) =>
   [c.numero ? `N° ${c.numero}` : "", c.client?.nom || nomBeneficiaire(c) || (c.numero ? "" : c.titre)].filter(Boolean).join(" · ");
 
+/** Demande d'annulation ou de modification d'un distributeur : l'administration décide. */
+function Demande({ commande }: { commande: Doc }) {
+  const { enCours, erreur, lancer } = useAction();
+  const d = commande.demande;
+  const annulation = d.type === "annulation";
+  return (
+    <div className="encadre">
+      <strong className="alerte">{annulation ? "Demande d'annulation" : "Demande de modification"}</strong>
+      {d.motif && <div>Motif : {d.motif}</div>}
+      {!annulation && (
+        <div className="discret">
+          Nouvelles quantités : {(d.lignes ?? []).map((l: Doc) => {
+            const nom = commande.lignes.find((x: Doc) => x.produitId === l.produitId)?.nom ?? l.produitId;
+            return `${nom} × ${l.quantite}`;
+          }).join(", ")}
+        </div>
+      )}
+      <div className="discret">
+        {annulation ? "Acceptée, la commande est annulée et l'argent rendu au wallet." : "Acceptée, la différence est prise ou rendue sur le wallet."}
+      </div>
+      <div className="actions">
+        <button className="principal" disabled={enCours} onClick={() => lancer(() => appeler("deciderDemande", { id: commande.id, accepter: true }))}>
+          Accepter
+        </button>
+        <button
+          className="secondaire"
+          disabled={enCours}
+          onClick={() => {
+            const motif = window.prompt("Motif du refus :");
+            if (motif && motif.trim()) lancer(() => appeler("deciderDemande", { id: commande.id, accepter: false, motif }));
+          }}
+        >
+          Refuser
+        </button>
+      </div>
+      {erreur && <p className="erreur">{erreur}</p>}
+    </div>
+  );
+}
+
 function DetailCommande({ commande }: { commande: Doc }) {
   const { role } = useSession();
   const { enCours, erreur, lancer } = useAction();
@@ -214,8 +254,8 @@ function DetailCommande({ commande }: { commande: Doc }) {
       </table>
       <p className="droite">
         {!validation && <>Le client paie (annoncé par le distributeur) : <strong>{fcfa(commande.prixClient ?? commande.sousTotal - (commande.reduction ?? 0))}</strong><br /></>}
-        {commande.reduction > 0 && <>Réduction accordée : -{fcfa(commande.reduction)}<br /></>}
-        {commande.reduction < 0 && <>Au-dessus du prix public : +{fcfa(-commande.reduction)}<br /></>}
+        {commande.complementWallet > 0 && <><span className="discret">Complément pris sur le wallet du distributeur : {fcfa(commande.complementWallet)}</span><br /></>}
+        {commande.paiement?.mode === "wallet" && <><span className="discret">Payée par le wallet du distributeur</span><br /></>}
         {!validation && commande.clientPaieLivraison === false && <><span className="discret">Livraison prise sur le bénéfice du distributeur</span><br /></>}
         {commande.fraisAFixer && <><span className="alerte">Frais de {expedition ? "l'expédition" : "livraison"} à fixer selon le lieu</span><br /></>}
         {commande.fraisLivraison > 0 && <>{validation ? "Frais de validation" : expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
@@ -236,6 +276,8 @@ function DetailCommande({ commande }: { commande: Doc }) {
           </table>
         </div>
       )}
+
+      {commande.demande?.statut === "en_attente" && <Demande commande={commande} />}
 
       {erreur && <p className="erreur">{erreur}</p>}
 

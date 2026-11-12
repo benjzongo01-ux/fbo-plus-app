@@ -197,6 +197,7 @@ fun CommandeDetailScreen(
                 if (commande.motif.isNotBlank()) Ligne("Motif", commande.motif)
             }
 
+            BandeauDemande(commande)
             TimelineStatuts(commande)
 
             OutlinedButton(
@@ -273,6 +274,19 @@ private fun Ligne(libelle: String, valeur: String, gras: Boolean = false) {
             fontWeight = if (gras) FontWeight.Bold else FontWeight.Normal
         )
     }
+}
+
+/** Demande d'annulation ou de modification : en attente, acceptée ou refusée par l'administration. */
+@Composable
+fun BandeauDemande(commande: Commande) {
+    if (commande.demandeType.isBlank()) return
+    val quoi = if (commande.demandeType == "annulation") "d'annulation" else "de modification"
+    val (texte, couleur) = when (commande.demandeStatut) {
+        "en_attente" -> "Demande $quoi envoyée : l'administration va la traiter." to GoldPrimary
+        "acceptee" -> "Demande $quoi acceptée." to GreenPrimary
+        else -> "Demande $quoi refusée${if (commande.demandeReponse.isNotBlank()) " : ${commande.demandeReponse}" else "."}" to RedAlert
+    }
+    Text(texte, color = couleur, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clip(FormeCarte).background(BlackCard).padding(12.dp))
 }
 
 @Composable

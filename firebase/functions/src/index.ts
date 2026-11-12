@@ -36,4 +36,5 @@ export {
   validerSurId,
   fixerFraisExpedition,
   expedierCommande,
+  deciderDemande,
 } from "./commandes.js";
