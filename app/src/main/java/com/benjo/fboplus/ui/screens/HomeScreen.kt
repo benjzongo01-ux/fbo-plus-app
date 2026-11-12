@@ -14,7 +14,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -54,8 +56,14 @@ fun HomeScreen(
     viewModel: ProductViewModel = viewModel(),
     ventesViewModel: VentesViewModel,
     onNouvelleCommande: () -> Unit = {},
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    onNotifications: () -> Unit = {},
+    onMessagerie: () -> Unit = {},
+    onWallet: () -> Unit = {},
+    onFormations: () -> Unit = {}
 ) {
+    val notificationsNonLues = com.benjo.fboplus.data.NotificationsRepository.notifications
+        .collectAsState().value.count { !it.lu }
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedCategorie by viewModel.selectedCategorie.collectAsState()
@@ -93,9 +101,17 @@ fun HomeScreen(
                         .background(
                             Brush.verticalGradient(colors = listOf(BlackCard, BlackDeep))
                         )
-                        .padding(top = 52.dp, start = 20.dp, end = 20.dp, bottom = 24.dp)
+                        .padding(top = 44.dp, start = 20.dp, end = 20.dp, bottom = 16.dp)
                 ) {
                     Column {
+                        // Centre d'appel et notifications : toujours à portée de main.
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+                        ) {
+                            IconeEntete(Icons.Filled.Chat, "Centre d'appel", 0, onMessagerie)
+                            IconeEntete(Icons.Filled.Notifications, "Notifications", notificationsNonLues, onNotifications)
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -231,6 +247,9 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // ── WALLET ET FORMATION ──
+            item { CartesAccueil(onWallet = onWallet, onFormations = onFormations) }
 
             // ── FILTRES CATÉGORIES ──
             item {

@@ -98,17 +98,7 @@ fun ProfilScreen(
     ventesViewModel: VentesViewModel,
     onModifierProfil: () -> Unit,
     onSecurite: () -> Unit,
-    onDeconnexion: () -> Unit,
-    onCommandes: () -> Unit,
-    onClients: () -> Unit,
-    onBoutique: () -> Unit,
-    onNotifications: () -> Unit,
-    onValidations: () -> Unit,
-    onCommandesBoutique: () -> Unit,
-    onMessagerie: () -> Unit,
-    onFormations: () -> Unit,
-    onEquipe: () -> Unit,
-    onWallet: () -> Unit = {}
+    onDeconnexion: () -> Unit
 ) {
     val profil by profilViewModel.profil.collectAsState()
     val context = LocalContext.current
@@ -126,12 +116,11 @@ fun ProfilScreen(
     val ccDuMois = commandesDuMois.sumOf { it.ccTotal }
 
     var editionObjectifs by remember { mutableStateOf(false) }
-    var choixHeure by remember { mutableStateOf(false) }
     var confirmationDeconnexion by remember { mutableStateOf(false) }
 
-    fun enregistrerRappel(actif: Boolean, heure: String) {
-        profilViewModel.sauvegarderProfil(profil.copy(rappelActif = actif, heureRappel = heure))
-        RappelScheduler.appliquer(context, actif, heure)
+    fun activerAlertes(actif: Boolean) {
+        profilViewModel.sauvegarderProfil(profil.copy(rappelActif = actif))
+        RappelScheduler.appliquer(context, actif)
     }
 
     Column(
@@ -148,15 +137,6 @@ fun ProfilScreen(
         ) {
             if (profil.completion() < 1f) {
                 CarteCompletion(progression = profil.completion(), onCompleter = onModifierProfil)
-            }
-
-            Section("Performance · ${moisEnCours()}") {
-                CartePerformance(
-                    ca = caDuMois,
-                    cc = ccDuMois,
-                    benefice = beneficeDuMois,
-                    commandes = commandesDuMois.size
-                )
             }
 
             Section(
@@ -178,56 +158,6 @@ fun ProfilScreen(
                     cc = ccDuMois,
                     onDefinir = { editionObjectifs = true }
                 )
-            }
-
-            Section("Mon activité") {
-                Column(Modifier.carte()) {
-                    LigneOption(Icons.Filled.AccountBalanceWallet, "Mon wallet", sousTitre = "Solde, dépôts et retraits", onClick = onWallet) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    val nonLues = NotificationsRepository.notifications.collectAsState().value.count { !it.lu }
-                    LigneOption(
-                        Icons.Filled.Notifications,
-                        "Notifications",
-                        sousTitre = if (nonLues > 0) "$nonLues non lue(s)" else "À jour",
-                        onClick = onNotifications
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.AutoMirrored.Filled.ReceiptLong, "Mes commandes", sousTitre = "Suivi en temps réel", onClick = onCommandes) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Groups, "Mon équipe et rapports", sousTitre = "Filleuls, CC, export Excel ou PDF", onClick = onEquipe) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Verified, "Formations", sousTitre = "Plan de progression, cours et certificats", onClick = onFormations) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Notifications, "Centre d'appel", sousTitre = "Messagerie", onClick = onMessagerie) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Verified, "Validations au siège", sousTitre = "Achat minimum et CC", onClick = onValidations) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Groups, "Mes clients", sousTitre = "Fiches et historique", onClick = onClients) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Storefront, "Commandes de ma boutique", sousTitre = "Reçues en ligne", onClick = onCommandesBoutique) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                    Separateur()
-                    LigneOption(Icons.Filled.Storefront, "Ma boutique", sousTitre = "Lien et QR code", onClick = onBoutique) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = WhiteFaint)
-                    }
-                }
             }
 
             Section("Informations professionnelles") {
@@ -284,12 +214,12 @@ fun ProfilScreen(
                     Separateur()
                     LigneOption(
                         icone = Icons.Filled.Notifications,
-                        titre = "Rappel quotidien",
-                        sousTitre = if (profil.rappelActif) "Chaque jour à ${profil.heureRappel}" else "Désactivé"
+                        titre = "Alertes d'objectif",
+                        sousTitre = if (profil.rappelActif) "À mi-mois et avant la fin du mois, si vous êtes en retard" else "Désactivées"
                     ) {
                         Switch(
                             checked = profil.rappelActif,
-                            onCheckedChange = { enregistrerRappel(it, profil.heureRappel) },
+                            onCheckedChange = { activerAlertes(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = BlackDeep,
                                 checkedTrackColor = GoldPrimary,
@@ -298,23 +228,6 @@ fun ProfilScreen(
                                 uncheckedBorderColor = BlackBorder
                             )
                         )
-                    }
-                    AnimatedVisibility(visible = profil.rappelActif) {
-                        Column {
-                            Separateur()
-                            LigneOption(
-                                icone = Icons.Filled.Schedule,
-                                titre = "Heure du rappel",
-                                onClick = { choixHeure = true }
-                            ) {
-                                Text(
-                                    profil.heureRappel,
-                                    color = GoldPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -348,17 +261,6 @@ fun ProfilScreen(
         )
     }
 
-    if (choixHeure) {
-        DialogueHeure(
-            heure = profil.heureRappel,
-            onAnnuler = { choixHeure = false },
-            onValider = {
-                enregistrerRappel(true, it)
-                choixHeure = false
-            }
-        )
-    }
-
     if (confirmationDeconnexion) {
         AlertDialog(
             onDismissRequest = { confirmationDeconnexion = false },
@@ -387,7 +289,7 @@ fun ProfilScreen(
     }
 }
 
-private fun moisEnCours(): String =
+internal fun moisEnCours(): String =
     SimpleDateFormat("MMMM yyyy", Locale.FRENCH).format(Date())
         .replaceFirstChar { it.uppercaseChar() }
 
@@ -558,7 +460,7 @@ private fun Section(
 }
 
 @Composable
-private fun CartePerformance(ca: Int, cc: Double, benefice: Int, commandes: Int) {
+internal fun CartePerformance(ca: Int, cc: Double, benefice: Int, commandes: Int) {
     Column(Modifier.carte().padding(16.dp)) {
         Text("Chiffre d'affaires", color = WhiteSub, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
@@ -863,45 +765,5 @@ private fun ChampObjectif(
             focusedLabelColor = GoldPrimary,
             unfocusedLabelColor = WhiteSub
         )
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DialogueHeure(heure: String, onAnnuler: () -> Unit, onValider: (String) -> Unit) {
-    val parts = heure.split(":")
-    val etat = rememberTimePickerState(
-        initialHour = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 19,
-        initialMinute = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0,
-        is24Hour = true
-    )
-
-    AlertDialog(
-        onDismissRequest = onAnnuler,
-        containerColor = BlackCard,
-        title = { Text("Heure du rappel", color = WhitePrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            TimePicker(
-                state = etat,
-                colors = TimePickerDefaults.colors(
-                    clockDialColor = BlackSurface,
-                    clockDialSelectedContentColor = BlackDeep,
-                    clockDialUnselectedContentColor = WhitePrimary,
-                    selectorColor = GoldPrimary,
-                    timeSelectorSelectedContainerColor = GoldGlow,
-                    timeSelectorUnselectedContainerColor = BlackSurface,
-                    timeSelectorSelectedContentColor = GoldPrimary,
-                    timeSelectorUnselectedContentColor = WhitePrimary
-                )
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onValider("%02d:%02d".format(etat.hour, etat.minute)) }) {
-                Text("Enregistrer", color = GoldPrimary, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onAnnuler) { Text("Annuler", color = WhiteSub) }
-        }
     )
 }

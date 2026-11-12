@@ -80,7 +80,8 @@ private fun depuis(id: String, d: Map<String, Any?>): CommandeBoutique {
 fun CommandesBoutiqueScreen(
     ventesViewModel: VentesViewModel,
     onPreparer: () -> Unit,
-    onRetour: () -> Unit
+    onRetour: () -> Unit,
+    avecEnTete: Boolean = true
 ) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -106,7 +107,7 @@ fun CommandesBoutiqueScreen(
     }
 
     Column(Modifier.fillMaxSize().background(BlackDeep)) {
-        Row(
+        if (avecEnTete) Row(
             Modifier.fillMaxWidth().padding(top = 40.dp, start = 4.dp, end = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

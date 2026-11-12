@@ -3,6 +3,7 @@
 import com.benjo.fboplus.ui.theme.*
 import com.benjo.fboplus.data.VentesRepository
 import com.benjo.fboplus.ui.screens.BoutiqueScreen
+import com.benjo.fboplus.ui.screens.MaBoutiqueScreen
 import com.benjo.fboplus.ui.screens.ClientDetailScreen
 import com.benjo.fboplus.ui.screens.ClientFormulaireScreen
 import com.benjo.fboplus.ui.screens.ClientsScreen
@@ -334,7 +335,11 @@ fun FBONavigation() {
                     viewModel = productViewModel,
                     ventesViewModel = ventesViewModel,
                     onNouvelleCommande = { navController.navigate("nouvelle_commande") },
-                    listState = homeListState
+                    listState = homeListState,
+                    onNotifications = { navController.navigate("notifications") },
+                    onMessagerie = { navController.navigate("messagerie") },
+                    onWallet = { navController.navigate("wallet") },
+                    onFormations = { navController.navigate("formations") }
                 )
             }
             composable("pathologies") {
@@ -346,7 +351,11 @@ fun FBONavigation() {
                     ventesViewModel = ventesViewModel,
                     onNouvelleCommande = { navController.navigate("nouvelle_commande") },
                     onModifierCommande = { navController.navigate("modifier_commande") },
-                    profilViewModel = profilViewModel
+                    profilViewModel = profilViewModel,
+                    onCommandes = { navController.navigate("commandes") },
+                    onValidations = { navController.navigate("validations") },
+                    onClients = { navController.navigate("clients") },
+                    onBoutique = { navController.navigate("boutique") }
                 )
             }
             composable(route = "nouvelle_commande") {
@@ -373,7 +382,7 @@ fun FBONavigation() {
                 )
             }
             composable("stats") {
-                StatsScreen(ventesViewModel = ventesViewModel)
+                StatsScreen(ventesViewModel = ventesViewModel, onEquipe = { navController.navigate("equipe") })
             }
             composable("profil") {
                 ProfilScreen(
@@ -381,16 +390,6 @@ fun FBONavigation() {
                     ventesViewModel = ventesViewModel,
                     onModifierProfil = { navController.navigate("modifier_profil") },
                     onSecurite = { navController.navigate("securite") },
-                    onCommandes = { navController.navigate("commandes") },
-                    onClients = { navController.navigate("clients") },
-                    onBoutique = { navController.navigate("boutique") },
-                    onNotifications = { navController.navigate("notifications") },
-                    onValidations = { navController.navigate("validations") },
-                    onCommandesBoutique = { navController.navigate("commandes_boutique") },
-                    onMessagerie = { navController.navigate("messagerie") },
-                    onFormations = { navController.navigate("formations") },
-                    onEquipe = { navController.navigate("equipe") },
-                    onWallet = { navController.navigate("wallet") },
                     onDeconnexion = {
                         authViewModel.deconnecter()
                         navController.navigate("connexion") {
@@ -425,8 +424,10 @@ fun FBONavigation() {
                 FichesProduitsScreen(onRetour = { navController.popBackStack() })
             }
             composable("commandes_boutique") {
-                CommandesBoutiqueScreen(
+                MaBoutiqueScreen(
+                    profilViewModel = profilViewModel,
                     ventesViewModel = ventesViewModel,
+                    commandesDabord = true,
                     onPreparer = { navController.navigate("nouvelle_commande") },
                     onRetour = { navController.popBackStack() }
                 )
@@ -504,8 +505,11 @@ fun FBONavigation() {
                 )
             }
             composable("boutique") {
-                BoutiqueScreen(
+                MaBoutiqueScreen(
                     profilViewModel = profilViewModel,
+                    ventesViewModel = ventesViewModel,
+                    commandesDabord = false,
+                    onPreparer = { navController.navigate("nouvelle_commande") },
                     onRetour = { navController.popBackStack() }
                 )
             }
