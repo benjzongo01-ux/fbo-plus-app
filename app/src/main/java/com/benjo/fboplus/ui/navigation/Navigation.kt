@@ -137,7 +137,7 @@ fun FBONavigation() {
         "pin_creation", "biometric_suggestion", "pin_verification",
         "modifier_profil", "securite",
         "nouvelle_commande", "modifier_commande",
-        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}", "formations", "formation/{id}", "fiches_produits", "equipe"
+        "commandes", "commande/{id}", "clients", "client/{id}", "client_formulaire?id={id}", "boutique", "notifications", "validations", "commandes_boutique", "messagerie?commande={commande}", "formations", "formation/{id}", "fiches_produits", "equipe", "wallet"
     )
 
     // Android 13 et plus : sans cet accord, aucune notification ne s'affiche.
