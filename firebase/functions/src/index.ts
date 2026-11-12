@@ -23,6 +23,7 @@ export { demanderCodeEmail, verifierCodeEmail } from "./codeEmail.js";
 export { ajusterWallet, confirmerDepotSimule, deciderRetrait, demanderRetrait, demarrerDepot } from "./wallet.js";
 export { confirmerPaiementSimule, confirmerRemiseEspeces, demanderPaiementLivraison } from "./repartition.js";
 export { declarerPaiement, deciderDeclaration } from "./declarations.js";
+export { deposerLotsAuSiege, lireRecu } from "./siege.js";
 export {
   ajusterStock,
   annulerCommande,

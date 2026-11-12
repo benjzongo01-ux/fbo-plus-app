@@ -6,6 +6,7 @@ import { useSession } from "../session";
 
 const ONGLETS = [
   { cle: "a_valider", libelle: "À valider au siège" },
+  { cle: "au_siege", libelle: "Déposés, reçu attendu" },
   { cle: "valide", libelle: "Validés" },
   { cle: "reserves", libelle: "En réserve (sous le minimum)" },
 ];
