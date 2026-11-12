@@ -236,9 +236,7 @@ function calculerMontants(
   const margeBrute = Math.floor((sousTotal * remiseGrade) / 100);
   const validation = mode === "validation";
   const reduction = validation ? 0 : reductionDemandee;
-  if (reduction < 0) {
-    throw new HttpsError("invalid-argument", "Le prix du client ne peut pas dépasser le prix public.");
-  }
+  // Réduction négative : le distributeur vend au-dessus du prix public, c'est permis.
   if (reduction > margeBrute) {
     throw new HttpsError(
       "invalid-argument",
@@ -268,7 +266,14 @@ function calculerMontants(
  * (« prixClient ») ; l'ancienne saisie d'une réduction reste acceptée.
  */
 function reductionDemandee(d: Record<string, unknown>, lignes: LigneCommande[]): number {
-  if (d.prixClient === undefined || d.prixClient === null || d.prixClient === "") return lireMontant(d.reduction);
+  if (d.prixClient === undefined || d.prixClient === null || d.prixClient === "") {
+    // Réduction négative : prix du client au-dessus du prix public (permis).
+    const r = d.reduction ?? 0;
+    if (!Number.isInteger(r) || Math.abs(r as number) > 100_000_000) throw new HttpsError("invalid-argument", "Montant invalide.");
+    return r as number;
+  }
+  // Plus de 100 millions : faute de frappe certaine, refusée.
+  if (Number(d.prixClient) > 100_000_000) throw new HttpsError("invalid-argument", "Prix du client invalide.");
   const sousTotal = lignes.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
   return sousTotal - lireMontant(d.prixClient);
 }

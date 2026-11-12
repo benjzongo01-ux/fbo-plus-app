@@ -127,7 +127,6 @@ fun DetailsCommandeEcran(
 
     val erreur = details.erreur(profil.idDistributeur) ?: when {
         validation -> null
-        prixClient > sousTotal -> "Le prix du client ne peut pas dépasser le prix public (${fcfa(sousTotal)})."
         prixClient < prixValidation -> "Le client ne peut pas payer moins que votre prix de validation (${fcfa(prixValidation)})."
         else -> null
     }
@@ -281,6 +280,8 @@ fun DetailsCommandeEcran(
                     }
                     if (prixClient in prixValidation until sousTotal) {
                         Aide("Réduction accordée au client : ${fcfa(sousTotal - prixClient)}.")
+                    } else if (prixClient > sousTotal) {
+                        Aide("Au-dessus du prix public de ${fcfa(prixClient - sousTotal)} : ce supplément s'ajoute à votre bénéfice.")
                     }
                     Text("La livraison est payée par", color = WhitePrimary, fontSize = 14.sp)
                     Choix(
@@ -369,6 +370,7 @@ fun DetailsCommandeEcran(
                     "Le client paiera ${fcfa(prixClient)} pour les produits" +
                         (if (details.clientPaieLivraison) ", plus les frais de livraison fixés par l'administration."
                         else ". La livraison sera prise sur votre bénéfice.") +
+                        (if (prixClient > sousTotal) "\n\nAttention : c'est ${fcfa(prixClient - sousTotal)} de plus que le prix public." else "") +
                         "\n\nC'est ce montant que le livreur encaissera. Est-il exact ?",
                     color = WhiteSub,
                     fontSize = 14.sp,

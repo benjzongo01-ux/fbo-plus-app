@@ -215,6 +215,7 @@ function DetailCommande({ commande }: { commande: Doc }) {
       <p className="droite">
         {!validation && <>Le client paie (annoncé par le distributeur) : <strong>{fcfa(commande.prixClient ?? commande.sousTotal - (commande.reduction ?? 0))}</strong><br /></>}
         {commande.reduction > 0 && <>Réduction accordée : -{fcfa(commande.reduction)}<br /></>}
+        {commande.reduction < 0 && <>Au-dessus du prix public : +{fcfa(-commande.reduction)}<br /></>}
         {!validation && commande.clientPaieLivraison === false && <><span className="discret">Livraison prise sur le bénéfice du distributeur</span><br /></>}
         {commande.fraisAFixer && <><span className="alerte">Frais de {expedition ? "l'expédition" : "livraison"} à fixer selon le lieu</span><br /></>}
         {commande.fraisLivraison > 0 && <>{validation ? "Frais de validation" : expedition ? "Expédition" : "Livraison"} : {fcfa(commande.fraisLivraison)}<br /></>}
