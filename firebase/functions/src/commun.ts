@@ -11,6 +11,8 @@ export const ROLES = [
   "livreur",
   "operateur",
   "gestionnaire_stock",
+  // Correspondant au siège Forever : dépose les validations et scanne les reçus (FBO+ Siège).
+  "correspondant",
   "admin",
   "super_admin",
 ] as const;

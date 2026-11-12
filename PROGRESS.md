@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 159 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 162 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -156,6 +156,13 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - le super administrateur l'active dans Paramètres, avec un message et une durée prévue ;
 - FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
 - le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
+
+## FBO+ Siège : application du correspondant (2026-11-12)
+
+- Troisième application Android (`siege-app`, « FBO+ Siège »), rôle `correspondant` invité par le super administrateur, un pays.
+- Lots de validation en direct : « À déposer » (sélection, total d'argent à apporter, « Déposer au siège » → statut `au_siege`) et « Reçus attendus » (lots déposés sans reçu).
+- Scan en direct (CameraX + ML Kit sur le téléphone, sans réseau) : aucune photo enregistrée sur le téléphone. « Lire ce reçu » envoie le texte à `lireRecu` (ID Forever, total, TVA, numéro du reçu, lot correspondant) ; « Valider ce reçu » envoie l'image (en mémoire) dans `recus/{pays}/{lot}/` puis `validerLotSiege` avec la facture : régularisation du wallet et CC validés. Connexion instable : message clair, on réessaie.
+- À régler avec un vrai reçu Forever : la lecture des lignes de produits (prix unitaires) ; aujourd'hui l'ID, le total, la TVA et le numéro sont lus.
 
 ## Paiements sur les numéros de dépôt de FBO+, sans agrégateur (2026-11-12)
 

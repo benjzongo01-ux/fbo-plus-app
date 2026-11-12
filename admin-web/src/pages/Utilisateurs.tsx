@@ -4,7 +4,7 @@ import { deleteDoc, doc } from "firebase/firestore";
 import { appeler, db } from "../firebase";
 import { useSession } from "../session";
 
-const ROLES_INTERNES = ["livreur", "operateur", "gestionnaire_stock", "admin", "super_admin"];
+const ROLES_INTERNES = ["livreur", "operateur", "gestionnaire_stock", "correspondant", "admin", "super_admin"];
 const ROLES_ADMIN = ["admin", "super_admin"];
 const GRADES = [
   "Client Privilégié (CP)",

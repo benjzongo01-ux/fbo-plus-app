@@ -19,7 +19,11 @@ service cloud.firestore {
       return aRole(['operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
     }
     function aUnRole() {
-      return aRole(['fbo', 'livreur', 'operateur', 'gestionnaire_stock', 'admin', 'super_admin']);
+      return aRole(['fbo', 'livreur', 'operateur', 'gestionnaire_stock', 'correspondant', 'admin', 'super_admin']);
+    }
+    // Correspondant au siège : seulement les validations de son pays.
+    function estCorrespondantDu(pays) {
+      return role() == 'correspondant' && request.auth.token.get('pays', '') == pays;
     }
     function moi(uid) { return connecte() && request.auth.uid == uid; }
     // Le personnel ne voit que son pays ; le super administrateur voit tout.
@@ -211,6 +215,7 @@ service cloud.firestore {
     }
     match /lotsValidation/{id} {
       allow read: if voitPays(resource.data.get('pays', 'Burkina Faso'))
+        || estCorrespondantDu(resource.data.get('pays', 'Burkina Faso'))
         || (role() == 'fbo' && resource.data.fboId == request.auth.uid);
     }
 

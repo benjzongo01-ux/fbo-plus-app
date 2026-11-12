@@ -17,6 +17,7 @@ export const LIBELLES_ROLES: Record<string, string> = {
   livreur: "Livreur",
   operateur: "Opérateur",
   gestionnaire_stock: "Gestionnaire de stock",
+  correspondant: "Correspondant au siège",
   admin: "Administrateur",
   super_admin: "Super administrateur",
 };

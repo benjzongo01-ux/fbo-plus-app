@@ -17,7 +17,7 @@ import { regulariserLot } from "./repartition.js";
  */
 export const MINIMUM_VALIDATION_DEFAUT = 36_000;
 const STATUTS_TERMINES = ["livree", "expediee", "validee"];
-const ROLES_VALIDATION = ["operateur", "admin", "super_admin"];
+const ROLES_VALIDATION = ["operateur", "correspondant", "admin", "super_admin"];
 
 interface LigneValidation {
   commandeId: string;
@@ -145,7 +145,9 @@ export const envoyerReserveEnValidation = onAppel("envoyerReserveEnValidation", 
 /** Le correspondant au siège a validé les produits sur l'ID Forever : il le note avec la référence du reçu. */
 export const validerLotSiege = onAppel("validerLotSiege", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ROLES_VALIDATION);
-  const d = (req.data ?? {}) as { id?: unknown; reference?: unknown; montantFacture?: unknown; prixFactures?: unknown };
+  const d = (req.data ?? {}) as { id?: unknown; reference?: unknown; montantFacture?: unknown; prixFactures?: unknown; recu?: unknown };
+  // Reçu scanné (image envoyée sans être gardée sur le téléphone) : archivé avec le lot.
+  const recu = typeof d.recu === "string" && d.recu.startsWith("recus/") ? d.recu.slice(0, 300) : null;
   const id = typeof d.id === "string" ? d.id : "";
   const reference = typeof d.reference === "string" ? d.reference.trim().slice(0, 80) : "";
   // Montant réellement payé au siège (facture) : sert à rendre le surplus ou prélever le déficit.
@@ -165,11 +167,12 @@ export const validerLotSiege = onAppel("validerLotSiege", OPTIONS_APPEL, async (
     const lot = (await tx.get(ref)).data();
     if (!lot) throw new HttpsError("not-found", "Lot introuvable.");
     exigerMemePays(req, lot.pays);
-    if (lot.statut !== "a_valider") throw new HttpsError("failed-precondition", "Ce lot est déjà validé.");
+    if (!["a_valider", "au_siege"].includes(lot.statut)) throw new HttpsError("failed-precondition", "Ce lot est déjà validé.");
     tx.update(ref, {
       statut: "valide",
       reference,
       ...(montantFacture !== null ? { montantFacture } : {}),
+      ...(recu ? { recu } : {}),
       valideLe: FieldValue.serverTimestamp(),
       validePar: uid,
     });

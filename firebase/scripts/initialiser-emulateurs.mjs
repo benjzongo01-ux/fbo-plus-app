@@ -34,6 +34,7 @@ const comptes = [
   { email: "operateur.bf@fboplus.test", telephone: "+22670000012", nom: "Opérateur Burkina Test", role: "operateur", pays: BF },
   { email: "stock.bf@fboplus.test", telephone: "+22670000013", nom: "Gestionnaire Burkina Test", role: "gestionnaire_stock", pays: BF },
   { email: "livreur.bf@fboplus.test", telephone: "+22670000014", nom: "Livreur Burkina Test", role: "livreur", pays: BF },
+  { email: "correspondant.bf@fboplus.test", telephone: "+22670000015", nom: "Correspondant Burkina Test", role: "correspondant", pays: BF },
   { email: "admin.ci@fboplus.test", telephone: "+2250700000011", nom: "Admin Côte d'Ivoire Test", role: "admin", pays: CI },
   { email: "livreur.ci@fboplus.test", telephone: "+2250700000014", nom: "Livreur Côte d'Ivoire Test", role: "livreur", pays: CI },
 ];

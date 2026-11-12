@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "FBO+"
 include(":app")
 include(":delivery-app")
+include(":siege-app")

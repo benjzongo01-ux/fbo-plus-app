@@ -28,6 +28,16 @@ service firebase.storage {
         && image();
     }
 
+    // Reçus de validation scannés au siège : envoyés par le correspondant, lus par l'administration.
+    match /recus/{pays}/{lotId}/{fichier} {
+      allow read: if request.auth != null
+        && request.auth.token.role in ['correspondant', 'admin', 'super_admin'];
+      allow create: if request.auth != null
+        && resource == null
+        && request.auth.token.role in ['correspondant', 'admin', 'super_admin']
+        && image();
+    }
+
     // Captures des paiements déclarés : déposées par leur auteur, lues par lui et l'administration.
     match /declarations/{uid}/{fichier} {
       allow read: if request.auth != null

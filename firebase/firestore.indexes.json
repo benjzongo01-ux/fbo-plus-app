@@ -181,6 +181,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "lotsValidation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pays",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "statut",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
