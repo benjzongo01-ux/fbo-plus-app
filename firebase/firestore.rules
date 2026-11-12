@@ -248,6 +248,13 @@ service cloud.firestore {
       allow read: if (connecte() && resource.data.uid == request.auth.uid) || estAdminDuPays(resource.data.pays);
     }
 
+    // Paiements déclarés sur les numéros de dépôt : le déclarant et le distributeur concerné les voient,
+    // l'administration du pays décide. Les verrous de références (referencesPaiement) restent illisibles.
+    match /declarations/{id} {
+      allow read: if (connecte() && (resource.data.uid == request.auth.uid || resource.data.fboId == request.auth.uid))
+        || estAdminDuPays(resource.data.pays);
+    }
+
     // Paiements à la livraison : le livreur voit les siens, l'administration ceux de son pays.
     match /paiements/{id} {
       allow read: if (connecte() && resource.data.livreurId == request.auth.uid) || estAdminDuPays(resource.data.pays);

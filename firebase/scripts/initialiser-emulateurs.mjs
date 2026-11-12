@@ -49,6 +49,17 @@ const entrepots = [
 const lot = db.bulkWriter();
 for (const { id, ...entrepot } of entrepots) lot.set(db.doc(`warehouses/${id}`), { ...entrepot, actif: true });
 lot.set(db.doc("centres/ouagadougou"), { nom: "Ouagadougou", actif: true });
+// Numéros de dépôt fictifs (émulateurs) : les vrais numéros marchands se saisissent dans Paramètres.
+lot.set(db.doc("parametres/numerosDepot"), {
+  [BF]: [
+    { operateur: "Orange Money", numero: "+226 70 00 00 01", titulaire: "FBO+ Test" },
+    { operateur: "Moov Money", numero: "+226 60 00 00 01", titulaire: "FBO+ Test" },
+  ],
+  [CI]: [
+    { operateur: "Wave", numero: "+225 07 00 00 00 01", titulaire: "FBO+ Test" },
+    { operateur: "Orange Money", numero: "+225 07 00 00 00 02", titulaire: "FBO+ Test" },
+  ],
+}, { merge: true });
 
 // Villes d'expédition fictives et leurs frais, une liste par pays.
 const villes = [

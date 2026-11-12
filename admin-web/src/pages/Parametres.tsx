@@ -169,6 +169,73 @@ function ZonesLivraison() {
   );
 }
 
+/** Moyens de paiement mobile par pays (mêmes listes que le serveur). */
+const OPERATEURS: Record<string, string[]> = {
+  "Burkina Faso": ["Orange Money", "Moov Money"],
+  "Côte d'Ivoire": ["Orange Money", "MTN MoMo", "Moov Money", "Wave"],
+  "Sénégal": ["Orange Money", "Wave", "Free Money"],
+  "Guinée": ["Orange Money", "MTN MoMo"],
+};
+
+interface Numero { operateur: string; numero: string; titulaire: string }
+
+/**
+ * Numéros de dépôt de FBO+ : les clients, distributeurs et livreurs y envoient l'argent puis déclarent
+ * la référence ; l'administration vérifie. Réglés par le super administrateur, pays par pays.
+ */
+function NumerosDepot() {
+  const [pays, setPays] = useState(PAYS[0]);
+  const [tous, setTous] = useState<Record<string, Numero[]>>({});
+  const [lignes, setLignes] = useState<Numero[]>([]);
+  const [enregistre, setEnregistre] = useState(false);
+  const action = useAction();
+
+  useEffect(() => onSnapshot(doc(db, "parametres", "numerosDepot"), (d) => setTous((d.data() ?? {}) as Record<string, Numero[]>)), []);
+  useEffect(() => { setLignes(tous[pays] ?? []); setEnregistre(false); }, [pays, tous]);
+
+  const modifier = (i: number, champ: keyof Numero, valeur: string) =>
+    setLignes(lignes.map((l, j) => (j === i ? { ...l, [champ]: valeur } : l)));
+  const valides = lignes.every((l) => l.operateur && l.numero.replace(/\D/g, "").length >= 8);
+
+  return (
+    <section className="carte marge">
+      <h2>Numéros de dépôt (mobile money)</h2>
+      <p className="discret">Affichés dans les applications pour payer une commande ou recharger un wallet. Un numéro par opérateur.</p>
+      <div className="onglets">
+        {PAYS.map((p) => <button key={p} className={p === pays ? "actif" : ""} onClick={() => setPays(p)}>{p}</button>)}
+      </div>
+      {lignes.map((l, i) => (
+        <div key={i} className="actions">
+          <select aria-label="Opérateur" value={l.operateur} onChange={(e) => modifier(i, "operateur", e.target.value)}>
+            <option value="">Opérateur…</option>
+            {OPERATEURS[pays].map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <input aria-label="Numéro" placeholder="Numéro marchand" value={l.numero} onChange={(e) => modifier(i, "numero", e.target.value)} />
+          <input aria-label="Titulaire" placeholder="Au nom de (facultatif)" value={l.titulaire} onChange={(e) => modifier(i, "titulaire", e.target.value)} />
+          <button className="secondaire" onClick={() => setLignes(lignes.filter((_, j) => j !== i))}>Retirer</button>
+        </div>
+      ))}
+      <div className="actions">
+        <button className="secondaire" onClick={() => setLignes([...lignes, { operateur: "", numero: "", titulaire: "" }])}>Ajouter un numéro</button>
+        <button
+          className="principal"
+          disabled={action.enCours || !valides}
+          onClick={async () => {
+            const ok = await action.lancer(() =>
+              setDoc(doc(db, "parametres", "numerosDepot"), { [pays]: lignes.map((l) => ({ ...l, numero: l.numero.trim(), titulaire: l.titulaire.trim() })) }, { merge: true }),
+            );
+            if (ok) setEnregistre(true);
+          }}
+        >
+          Enregistrer les numéros de {pays}
+        </button>
+        {enregistre && <span className="succes">Enregistré.</span>}
+      </div>
+      {action.erreur && <p className="erreur">{action.erreur}</p>}
+    </section>
+  );
+}
+
 export default function Parametres() {
   const { role, pays } = useSession();
   const superAdmin = role === "super_admin";
@@ -252,6 +319,7 @@ export default function Parametres() {
 
       <PanneauMaintenance />
 
+      {superAdmin && <NumerosDepot />}
       <ZonesLivraison />
 
       <VillesExpedition />

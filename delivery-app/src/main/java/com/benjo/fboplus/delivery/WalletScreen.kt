@@ -100,7 +100,8 @@ fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
     var mouvements by remember { mutableStateOf<List<Mouvement>?>(null) }
     var masque by remember { mutableStateOf(false) }
     var feuille by remember { mutableStateOf<String?>(null) } // "depot" ou "retrait"
-    var depotEnAttente by remember { mutableStateOf<Pair<String, Long>?>(null) }
+    var enVerification by remember { mutableStateOf<List<Triple<String, Long, String>>>(emptyList()) }
+    val contexte = androidx.compose.ui.platform.LocalContext.current
     var message by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(uid) {
@@ -118,6 +119,13 @@ fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
                         it.getString("libelle") ?: "", it.getString("statut") ?: "", it.getTimestamp("creeLe")
                     )
                 } ?: mouvements
+            }
+        // Dépôts déclarés, en attente de la vérification de l'administration.
+        ecoutes += db.collection("declarations").whereEqualTo("uid", uid).whereEqualTo("statut", "en_attente")
+            .addSnapshotListener { docs, _ ->
+                enVerification = docs?.documents?.filter { it.getString("type") == "recharge" }?.map {
+                    Triple(it.getString("operateur") ?: "", it.getLong("montant") ?: 0L, it.getString("reference") ?: "")
+                } ?: enVerification
             }
         ecoutes += db.document("users/$uid").addSnapshotListener { d, _ ->
             d?.getString("pays")?.takeIf { it in OPERATEURS_PAYS }?.let { pays = it }
@@ -161,6 +169,20 @@ fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
                 }
             }
             message?.let { m -> item { Text(m, color = WVert, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp)) } }
+            if (enVerification.isNotEmpty()) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(WSurface).padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("En vérification", color = WOrange, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        enVerification.forEach { (operateur, montant, reference) ->
+                            Text("Dépôt $operateur · ${fcfa(montant)} · réf. $reference", color = Color.White, fontSize = 13.sp)
+                        }
+                        Text("Crédité dès que l'administration a vérifié la réception.", color = WGrisDiscret, fontSize = 12.sp)
+                    }
+                }
+            }
             item {
                 Text("Historique", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
             }
@@ -180,33 +202,55 @@ fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
         }
     }
 
-    feuille?.let { type ->
+    if (feuille == "depot") {
+        FeuilleDepot(
+            pays = pays,
+            onFermer = { feuille = null },
+            onDeclarer = { montant, operateur, reference, capture, surErreur ->
+                portee.launch {
+                    try {
+                        val chemin = capture?.let { envoyerCapture(contexte, it) }
+                        fonctions.getHttpsCallable("declarerPaiement").call(
+                            mapOf(
+                                "type" to "recharge",
+                                "cleIdempotence" to UUID.randomUUID().toString(),
+                                "montant" to montant,
+                                "operateur" to operateur,
+                                "reference" to reference,
+                                "capture" to (chemin ?: "")
+                            )
+                        ).await()
+                        feuille = null
+                        message = "Dépôt déclaré : votre wallet sera crédité dès la vérification par l'administration."
+                    } catch (e: Exception) {
+                        surErreur(e.message ?: "Déclaration impossible pour le moment.")
+                    }
+                }
+            }
+        )
+    }
+    if (feuille == "retrait") {
         FeuilleOperation(
-            depot = type == "depot",
+            depot = false,
             disponible = solde,
             operateurs = OPERATEURS_PAYS[pays] ?: emptyList(),
             indicatif = INDICATIFS[pays] ?: "",
-            demanderPin = demanderPin && type == "retrait",
+            demanderPin = demanderPin,
             onFermer = { feuille = null },
             onValider = { montant, operateur, numero, pin, surErreur ->
                 portee.launch {
                     try {
-                        val donnees = mapOf(
-                            "cleIdempotence" to UUID.randomUUID().toString(),
-                            "montant" to montant,
-                            "operateur" to operateur,
-                            "numero" to numero,
-                            "pin" to pin
-                        )
-                        if (type == "depot") {
-                            val r = fonctions.getHttpsCallable("demarrerDepot").call(donnees).await().getData() as Map<*, *>
-                            feuille = null
-                            depotEnAttente = (r["id"] as String) to montant
-                        } else {
-                            fonctions.getHttpsCallable("demanderRetrait").call(donnees).await()
-                            feuille = null
-                            message = "Demande de retrait envoyée : l'administration la traite rapidement."
-                        }
+                        fonctions.getHttpsCallable("demanderRetrait").call(
+                            mapOf(
+                                "cleIdempotence" to UUID.randomUUID().toString(),
+                                "montant" to montant,
+                                "operateur" to operateur,
+                                "numero" to numero,
+                                "pin" to pin
+                            )
+                        ).await()
+                        feuille = null
+                        message = "Demande de retrait envoyée : l'administration la traite rapidement."
                     } catch (e: Exception) {
                         surErreur(e.message ?: "Opération impossible pour le moment.")
                     }
@@ -214,39 +258,76 @@ fun WalletScreen(onRetour: (() -> Unit)? = null, demanderPin: Boolean = false) {
             }
         )
     }
+}
 
-    // Paiement simulé (émulateurs) : on joue la confirmation que le client ferait sur son téléphone.
-    depotEnAttente?.let { (id, montant) ->
-        var enCours by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = {},
-            containerColor = WSurface,
-            title = { Text("Confirmez le paiement", color = Color.White, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Text(
-                    "Une demande de ${fcfa(montant)} a été envoyée sur votre mobile money.\n\nMode test : aucun argent réel n'est utilisé.",
-                    color = WGris, fontSize = 14.sp, lineHeight = 20.sp
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = !enCours, onClick = {
-                    enCours = true
-                    portee.launch {
-                        runCatching { fonctions.getHttpsCallable("confirmerDepotSimule").call(mapOf("id" to id, "succes" to true)).await() }
-                        depotEnAttente = null
-                        message = "Dépôt de ${fcfa(montant)} crédité."
-                    }
-                }) { Text("Simuler le paiement", color = WOr, fontWeight = FontWeight.SemiBold) }
-            },
-            dismissButton = {
-                TextButton(enabled = !enCours, onClick = {
-                    portee.launch {
-                        runCatching { fonctions.getHttpsCallable("confirmerDepotSimule").call(mapOf("id" to id, "succes" to false)).await() }
-                        depotEnAttente = null
-                    }
-                }) { Text("Annuler", color = WGris) }
+/** Dépôt : envoyer l'argent sur un numéro de FBO+, puis déclarer la référence de la transaction. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FeuilleDepot(
+    pays: String,
+    onFermer: () -> Unit,
+    onDeclarer: (montant: Long, operateur: String, reference: String, capture: android.net.Uri?, surErreur: (String) -> Unit) -> Unit
+) {
+    val numeros = numerosDepot(pays)
+    var montant by remember { mutableStateOf("") }
+    var choisi by remember { mutableStateOf<NumeroDepot?>(null) }
+    var reference by remember { mutableStateOf("") }
+    var capture by remember { mutableStateOf<android.net.Uri?>(null) }
+    var erreur by remember { mutableStateOf<String?>(null) }
+    var enCours by remember { mutableStateOf(false) }
+    LaunchedEffect(numeros) { if (choisi == null || choisi !in numeros) choisi = numeros.firstOrNull() }
+    val valeur = montant.toLongOrNull() ?: 0L
+    val valide = valeur > 0 && choisi != null && reference.trim().length >= 4
+
+    ModalBottomSheet(onDismissRequest = onFermer, containerColor = WSurface) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Déposer", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            if (numeros.isEmpty()) {
+                Text("Aucun numéro de dépôt n'est encore configuré pour $pays. Contactez l'administration.", color = WGris, fontSize = 14.sp)
+                return@Column
             }
-        )
+            Champ(montant, { montant = it.filter(Char::isDigit).take(9) }, "Montant (FCFA)", KeyboardType.Number)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                numeros.forEach { n ->
+                    val actif = n == choisi
+                    Text(
+                        n.operateur,
+                        color = if (actif) WNoir else Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (actif) WOr else Color.Transparent)
+                            .border(1.dp, if (actif) WOr else WTrait, RoundedCornerShape(12.dp))
+                            .clickable { choisi = n }
+                            .padding(horizontal = 12.dp, vertical = 9.dp)
+                    )
+                }
+            }
+            choisi?.let { CarteNumeroDepot(it, if (valeur > 0) fcfa(valeur) else null) }
+            Text("Après l'envoi, recopiez la référence de la transaction indiquée dans le SMS de l'opérateur.", color = WGris, fontSize = 13.sp, lineHeight = 18.sp)
+            Champ(reference, { reference = it.take(40) }, "Référence de la transaction", KeyboardType.Ascii)
+            ChoixCapture(capture) { capture = it }
+            erreur?.let { Text(it, color = WRouge, fontSize = 13.sp, lineHeight = 18.sp) }
+            Button(
+                onClick = {
+                    erreur = null
+                    enCours = true
+                    onDeclarer(valeur, choisi!!.operateur, reference.trim(), capture) { e -> erreur = e; enCours = false }
+                },
+                enabled = valide && !enCours,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = WOr, contentColor = WNoir, disabledContainerColor = Color(0xFF2A2C33)),
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                if (enCours) CircularProgressIndicator(Modifier.size(22.dp), color = WNoir, strokeWidth = 2.dp)
+                else Text("Déclarer le dépôt", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text("Votre wallet est crédité dès que l'administration a vérifié la réception.", color = WGrisDiscret, fontSize = 12.sp)
+        }
     }
 }
 

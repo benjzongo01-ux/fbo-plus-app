@@ -1,7 +1,6 @@
 package com.benjo.fboplus.delivery
 
-import android.graphics.Bitmap
-import androidx.compose.foundation.Image
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,81 +8,71 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-/** Moyens de paiement mobile par pays (le serveur revérifie). */
-private val MOYENS = mapOf(
-    "Burkina Faso" to listOf("Orange Money", "Moov Money"),
-    "Côte d'Ivoire" to listOf("Orange Money", "MTN MoMo", "Moov Money", "Wave"),
-    "Sénégal" to listOf("Orange Money", "Wave", "Free Money"),
-    "Guinée" to listOf("Orange Money", "MTN MoMo")
-)
-
-private fun qr(contenu: String, taille: Int = 600): Bitmap {
-    val matrice = QRCodeWriter().encode(contenu, BarcodeFormat.QR_CODE, taille, taille)
-    return Bitmap.createBitmap(taille, taille, Bitmap.Config.RGB_565).apply {
-        for (x in 0 until taille) for (y in 0 until taille) setPixel(x, y, if (matrice[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-    }
-}
-
 /**
- * Encaissement chez le client. Par mobile money (recommandé) : le client scanne le QR code ou
- * confirme sur son téléphone ; l'argent arrive directement sur la plateforme et se répartit seul.
- * En espèces si c'est obligé : le livreur les remet ensuite au centre, qui confirme la remise.
+ * Encaissement chez le client.
+ * Mobile money (recommandé) : le client envoie le montant sur un numéro de FBO+, le livreur
+ * déclare la référence du SMS (et une capture s'il veut). L'administration vérifie la réception ;
+ * la répartition se fait alors toute seule. Le livreur peut terminer la livraison dès la déclaration.
+ * Espèces si c'est obligé : remises ensuite au centre, qui confirme.
  *
- * @param onEtat (payé par mobile money, espèces encaissées)
+ * @param onEtat (payé ou déclaré par mobile money, espèces encaissées)
  */
 @Composable
 fun EncaissementClient(id: String, montant: Int, onEtat: (Boolean, Boolean) -> Unit) {
     val uid = FirebaseAuth.getInstance().currentUser?.uid
+    val contexte = LocalContext.current
     val fonctions = remember { FirebaseFunctions.getInstance(REGION_FUNCTIONS) }
     val portee = rememberCoroutineScope()
     var mode by remember { mutableStateOf("mobile") }
     var pays by remember { mutableStateOf("Burkina Faso") }
-    var operateur by remember { mutableStateOf("") }
-    var numero by remember { mutableStateOf("") }
     var statut by remember { mutableStateOf<String?>(null) }
+    var motifRefus by remember { mutableStateOf("") }
+    var referenceDeclaree by remember { mutableStateOf("") }
     var reference by remember { mutableStateOf("") }
-    var lien by remember { mutableStateOf("") }
+    var capture by remember { mutableStateOf<Uri?>(null) }
+    var choisi by remember { mutableStateOf<NumeroDepot?>(null) }
     var especes by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
     var enCours by remember { mutableStateOf(false) }
+    val numeros = numerosDepot(pays)
+    LaunchedEffect(numeros) { if (choisi == null || choisi !in numeros) choisi = numeros.firstOrNull() }
 
     DisposableEffect(id) {
         val db = FirebaseFirestore.getInstance()
         val ecoutes = listOfNotNull(
-            uid?.let { db.document("users/$it").addSnapshotListener { d, _ -> d?.getString("pays")?.takeIf { p -> p in MOYENS }?.let { p -> pays = p } } },
-            db.document("paiements/$id").addSnapshotListener { d, _ ->
-                if (d != null && d.exists()) {
-                    statut = d.getString("statut")
-                    reference = d.getString("reference").orEmpty()
-                }
+            uid?.let { db.document("users/$it").addSnapshotListener { d, _ -> d?.getString("pays")?.let { p -> if (p.isNotBlank()) pays = p } } },
+            db.document("orders/$id").addSnapshotListener { d, _ ->
+                val p = d?.get("paiement") as? Map<*, *>
+                statut = p?.get("statut") as? String
+                referenceDeclaree = p?.get("reference") as? String ?: ""
+                motifRefus = p?.get("motif") as? String ?: ""
             }
         )
         onDispose { ecoutes.forEach { it.remove() } }
     }
-    LaunchedEffect(pays) { if (operateur !in (MOYENS[pays] ?: emptyList())) operateur = MOYENS[pays]?.first().orEmpty() }
-    val payeMobile = statut == "confirme"
+    val payeMobile = statut == "confirme" || statut == "a_verifier"
     LaunchedEffect(payeMobile, especes, mode) { onEtat(payeMobile, mode == "especes" && especes) }
 
     Column(
@@ -95,11 +84,22 @@ fun EncaissementClient(id: String, montant: Int, onEtat: (Boolean, Boolean) -> U
 
         if (payeMobile) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.CheckCircle, null, tint = Vert, modifier = Modifier.size(22.dp))
+                Icon(
+                    if (statut == "confirme") Icons.Filled.CheckCircle else Icons.Filled.HourglassTop, null,
+                    tint = if (statut == "confirme") Vert else Or, modifier = Modifier.size(22.dp)
+                )
                 Spacer(Modifier.width(8.dp))
-                Text("Payé par mobile money · $reference", color = Vert, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (statut == "confirme") "Paiement confirmé · réf. $referenceDeclaree"
+                    else "Paiement déclaré · réf. $referenceDeclaree · en vérification",
+                    color = if (statut == "confirme") Vert else Or, fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                )
             }
+            if (statut == "a_verifier") Text("Vous pouvez terminer la livraison : le centre vérifie la réception.", color = TexteDoux, fontSize = 12.sp)
             return@Column
+        }
+        if (statut == "refuse") {
+            Text("Paiement non retrouvé${if (motifRefus.isNotBlank()) " : $motifRefus" else ""}. Déclarez à nouveau, ou encaissez en espèces.", color = Rouge, fontSize = 13.sp)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -108,46 +108,39 @@ fun EncaissementClient(id: String, montant: Int, onEtat: (Boolean, Boolean) -> U
         }
 
         if (mode == "mobile") {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (MOYENS[pays] ?: emptyList()).forEach { o -> Puce(o, o == operateur) { operateur = o } }
-            }
-            if (statut != "en_attente") {
+            if (numeros.isEmpty()) {
+                Text("Aucun numéro de dépôt FBO+ n'est configuré pour $pays : encaissez en espèces.", color = TexteDoux, fontSize = 13.sp)
+            } else {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    numeros.forEach { n -> Puce(n.operateur, n == choisi) { choisi = n } }
+                }
+                choisi?.let { CarteNumeroDepot(it, montantFcfa(montant)) }
+                Text("Le client envoie le montant sur ce numéro, puis vous recopiez la référence de son SMS.", color = TexteDoux, fontSize = 13.sp)
                 OutlinedTextField(
-                    value = numero,
-                    onValueChange = { numero = it.filter { c -> c.isDigit() || c == ' ' || c == '+' }.take(20) },
-                    label = { Text("Numéro du client (facultatif)") },
+                    value = reference,
+                    onValueChange = { reference = it.take(40) },
+                    label = { Text("Référence de la transaction") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, capitalization = KeyboardCapitalization.Characters),
                     colors = couleursChamp(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                BoutonPrincipal("Demander le paiement", !enCours) {
+                ChoixCapture(capture) { capture = it }
+                BoutonPrincipal("Déclarer le paiement", !enCours && choisi != null && reference.trim().length >= 4) {
                     erreur = null
                     enCours = true
                     portee.launch {
                         try {
-                            val r = fonctions.getHttpsCallable("demanderPaiementLivraison")
-                                .call(mapOf("id" to id, "operateur" to operateur, "numero" to numero)).await().getData() as Map<*, *>
-                            lien = r["qr"] as? String ?: ""
+                            val chemin = capture?.let { envoyerCapture(contexte, it) }
+                            fonctions.getHttpsCallable("declarerPaiement").call(
+                                mapOf("type" to "commande", "id" to id, "operateur" to choisi!!.operateur, "reference" to reference.trim(), "capture" to (chemin ?: ""))
+                            ).await()
                         } catch (e: Exception) {
-                            erreur = e.message ?: "Paiement impossible pour le moment."
+                            erreur = e.message ?: "Déclaration impossible pour le moment."
                         }
                         enCours = false
                     }
                 }
-            } else {
-                Text("Le client scanne ce code, ou confirme la demande reçue sur son téléphone.", color = TexteDoux, fontSize = 13.sp)
-                val image = remember(lien, reference) { qr(lien.ifBlank { "https://pay.fboplus.app/p/$reference" }).asImageBitmap() }
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Image(image, "QR code de paiement", Modifier.size(200.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp))
-                }
-                Text("Référence $reference · en attente du client…", color = TexteDoux, fontSize = 13.sp)
-                // Émulateurs : on joue la confirmation du client (l'agrégateur le fera au lancement).
-                TextButton(onClick = {
-                    portee.launch {
-                        runCatching { fonctions.getHttpsCallable("confirmerPaiementSimule").call(mapOf("id" to id, "succes" to true)).await() }
-                    }
-                }) { Text("Mode test : simuler le paiement du client", color = Or) }
             }
         } else {
             Row(Modifier.fillMaxWidth().clickable { especes = !especes }, verticalAlignment = Alignment.CenterVertically) {
