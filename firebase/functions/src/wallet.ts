@@ -2,6 +2,7 @@ import { FieldValue, Transaction } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { db, exigerAdmin, exigerConnexion, exigerMemePays, exigerSuperAdmin, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 import { onAppel } from "./limites.js";
+import { exigerPinValide, OPTIONS_PIN } from "./pin.js";
 
 /**
  * FBO+ Wallet : le portefeuille de chaque distributeur et de chaque livreur.
@@ -38,7 +39,7 @@ const NUMEROS: Record<string, { indicatif: string; chiffres: number }> = {
 const ROLES_WALLET = ["fbo", "livreur"];
 
 /** Le paiement simulé n'existe que sur les émulateurs : jamais d'argent fictif en production. */
-const paiementSimule = () => process.env.FUNCTIONS_EMULATOR === "true";
+export const paiementSimule = () => process.env.FUNCTIONS_EMULATOR === "true";
 
 function texte(valeur: unknown, longueurMax = 200): string {
   return typeof valeur === "string" ? valeur.trim().slice(0, longueurMax) : "";
@@ -58,7 +59,7 @@ function cleIdempotence(valeur: unknown): string {
 }
 
 /** Numéro mobile money au format international (+226XXXXXXXX). */
-function numeroMobile(valeur: unknown, pays: string): string {
+export function numeroMobile(valeur: unknown, pays: string): string {
   const regle = NUMEROS[pays];
   let chiffres = texte(valeur, 30).replace(/\D/g, "");
   if (chiffres.startsWith("00")) chiffres = chiffres.slice(2);
@@ -71,7 +72,7 @@ function numeroMobile(valeur: unknown, pays: string): string {
   return `+${regle.indicatif}${chiffres}`;
 }
 
-function operateur(valeur: unknown, pays: string): string {
+export function operateurDuPays(valeur: unknown, pays: string): string {
   const choix = texte(valeur, 40);
   if (!OPERATEURS[pays]?.includes(choix)) {
     throw new HttpsError("invalid-argument", `Moyen de paiement non disponible : ${OPERATEURS[pays]?.join(", ")}.`);
@@ -87,6 +88,8 @@ async function reglages(tx: Transaction) {
     depotMax: Number(p.depotMax ?? 1_000_000),
     retraitMin: Number(p.retraitMin ?? 5000),
     retraitMax: Number(p.retraitMax ?? 500_000),
+    // Plafond cumulé des retraits sur 24 heures, par titulaire.
+    retraitMaxJour: Number(p.retraitMaxJour ?? 500_000),
   };
 }
 
@@ -103,15 +106,68 @@ async function titulaire(tx: Transaction, uid: string, role: unknown) {
   return { pays, nom, role: String(role) };
 }
 
-interface EtatWallet {
+export interface EtatWallet {
   solde: number;
   bloque: number;
+  /** Ce que le titulaire doit (déficit de validation, retour) : réglé en priorité par ses prochaines entrées. */
+  dette: number;
   existe: boolean;
 }
 
-async function lireWallet(tx: Transaction, uid: string): Promise<EtatWallet> {
+export async function lireWallet(tx: Transaction, uid: string): Promise<EtatWallet> {
   const d = (await tx.get(db.doc(`wallets/${uid}`))).data();
-  return { solde: Number(d?.solde ?? 0), bloque: Number(d?.bloque ?? 0), existe: !!d };
+  return { solde: Number(d?.solde ?? 0), bloque: Number(d?.bloque ?? 0), dette: Number(d?.dette ?? 0), existe: !!d };
+}
+
+export type Identite = { pays: string; nom: string; role: string };
+
+/** Identité d'un titulaire lue dans son profil (pour un mouvement fait par le serveur). */
+export async function identiteDe(tx: Transaction, uid: string): Promise<Identite> {
+  const profil = (await tx.get(db.doc(`users/${uid}`))).data() ?? {};
+  const pays = NUMEROS[String(profil.pays)] ? String(profil.pays) : PAYS_DEFAUT;
+  const nom = [profil.prenom, profil.nom].filter(Boolean).join(" ") || String(profil.email ?? "");
+  return { pays, nom, role: String(profil.role ?? "") };
+}
+
+/**
+ * Mouvement décidé par le serveur (gain, dépôt confirmé, régularisation) : jamais un montant venu
+ * d'une application. Une entrée règle d'abord la dette ; une sortie que le solde ne couvre pas
+ * devient une dette (pour ne jamais perdre l'argent dû, sans rendre le solde négatif).
+ */
+export function mouvementSysteme(
+  tx: Transaction,
+  uid: string,
+  wallet: EtatWallet,
+  identite: Identite | null,
+  m: { montant: number; type: string; libelle: string; reference: string; auteurId: string },
+) {
+  if (!Number.isInteger(m.montant)) throw new HttpsError("internal", "Montant non entier.");
+  if (m.montant >= 0) {
+    const regle = Math.min(wallet.dette, m.montant);
+    return inscrire(tx, uid, wallet, identite, {
+      delta: m.montant - regle,
+      deltaDette: -regle,
+      montantAffiche: m.montant,
+      type: m.type,
+      libelle: regle > 0 ? `${m.libelle} (dont ${fcfa(regle)} pour régler la dette)` : m.libelle,
+      reference: m.reference,
+      statut: "termine",
+      auteurId: m.auteurId,
+    });
+  }
+  const debit = -m.montant;
+  const pris = Math.min(wallet.solde, debit);
+  const reste = debit - pris;
+  return inscrire(tx, uid, wallet, identite, {
+    delta: -pris,
+    deltaDette: reste,
+    montantAffiche: m.montant,
+    type: m.type,
+    libelle: reste > 0 ? `${m.libelle} (${fcfa(reste)} restent dus)` : m.libelle,
+    reference: m.reference,
+    statut: "termine",
+    auteurId: m.auteurId,
+  });
 }
 
 /**
@@ -122,12 +178,23 @@ function inscrire(
   tx: Transaction,
   uid: string,
   wallet: EtatWallet,
-  identite: { pays: string; nom: string; role: string } | null,
-  m: { delta: number; deltaBloque?: number; type: string; libelle: string; reference: string; statut: string; auteurId: string },
+  identite: Identite | null,
+  m: {
+    delta: number;
+    deltaBloque?: number;
+    deltaDette?: number;
+    montantAffiche?: number;
+    type: string;
+    libelle: string;
+    reference: string;
+    statut: string;
+    auteurId: string;
+  },
 ) {
   const solde = wallet.solde + m.delta;
   const bloque = wallet.bloque + (m.deltaBloque ?? 0);
-  if (solde < 0 || bloque < 0) throw new HttpsError("failed-precondition", "Solde insuffisant.");
+  const dette = wallet.dette + (m.deltaDette ?? 0);
+  if (solde < 0 || bloque < 0 || dette < 0) throw new HttpsError("failed-precondition", "Solde insuffisant.");
   const ref = db.doc(`wallets/${uid}`);
   tx.set(
     ref,
@@ -135,6 +202,7 @@ function inscrire(
       uid,
       solde,
       bloque,
+      dette,
       ...(identite ? { pays: identite.pays, nom: identite.nom, role: identite.role } : {}),
       ...(m.delta > 0 ? { totalEntrees: FieldValue.increment(m.delta) } : {}),
       ...(m.delta < 0 && m.type !== "retrait" ? { totalSorties: FieldValue.increment(-m.delta) } : {}),
@@ -146,8 +214,9 @@ function inscrire(
   const mouvement = ref.collection("mouvements").doc();
   tx.create(mouvement, {
     type: m.type,
-    montant: m.delta,
+    montant: m.montantAffiche ?? m.delta,
     soldeApres: solde,
+    detteApres: dette,
     libelle: m.libelle,
     reference: m.reference,
     statut: m.statut,
@@ -156,6 +225,7 @@ function inscrire(
   });
   wallet.solde = solde;
   wallet.bloque = bloque;
+  wallet.dette = dette;
   wallet.existe = true;
   return mouvement.id;
 }
@@ -185,7 +255,7 @@ export const demarrerDepot = onAppel("demarrerDepot", OPTIONS_APPEL, async (req)
       nom: qui.nom,
       pays: qui.pays,
       montant,
-      operateur: operateur(d.operateur, qui.pays),
+      operateur: operateurDuPays(d.operateur, qui.pays),
       numero: numeroMobile(d.numero, qui.pays),
       statut: "en_attente",
       fournisseur: "simule",
@@ -215,12 +285,11 @@ export const confirmerDepotSimule = onAppel("confirmerDepotSimule", OPTIONS_APPE
     }
     const wallet = await lireWallet(tx, uid);
     const qui = await titulaire(tx, uid, req.auth?.token.role);
-    inscrire(tx, uid, wallet, qui, {
-      delta: Number(depot.montant),
+    mouvementSysteme(tx, uid, wallet, qui, {
+      montant: Number(depot.montant),
       type: "depot",
       libelle: `Dépôt ${depot.operateur}`,
       reference: ref.id,
-      statut: "termine",
       auteurId: uid,
     });
     tx.update(ref, { statut: "confirme", termineLe: FieldValue.serverTimestamp() });
@@ -229,11 +298,20 @@ export const confirmerDepotSimule = onAppel("confirmerDepotSimule", OPTIONS_APPE
 });
 
 /** Demande de retrait vers un numéro mobile money : le montant est bloqué jusqu'à la décision. */
-export const demanderRetrait = onAppel("demanderRetrait", OPTIONS_APPEL, async (req) => {
+export const demanderRetrait = onAppel("demanderRetrait", OPTIONS_PIN, async (req) => {
   const uid = exigerConnexion(req);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const cle = cleIdempotence(d.cleIdempotence);
   const ref = db.doc(`retraits/${uid}_${cle}`);
+  // Le distributeur confirme chaque retrait avec son code PIN : un téléphone volé et déverrouillé
+  // ne suffit pas à vider le wallet.
+  if (req.auth?.token.role === "fbo" && !(await ref.get()).exists) await exigerPinValide(uid, d.pin);
+  const depuis = new Date(Date.now() - 24 * 3600 * 1000);
+  const recents = await db.collection("retraits").where("uid", "==", uid).where("creeLe", ">=", depuis).get();
+  const dejaRetire = recents.docs.filter((r) => r.data().statut !== "refuse").reduce((s, r) => s + Number(r.data().montant ?? 0), 0);
+  const numerosConnus = new Set(
+    (await db.collection("retraits").where("uid", "==", uid).where("statut", "==", "paye").limit(50).get()).docs.map((r) => r.data().numero),
+  );
 
   return db.runTransaction(async (tx) => {
     const deja = await tx.get(ref);
@@ -248,7 +326,10 @@ export const demanderRetrait = onAppel("demanderRetrait", OPTIONS_APPEL, async (
     if (montant > wallet.solde) {
       throw new HttpsError("failed-precondition", `Solde insuffisant : ${fcfa(wallet.solde)} disponibles.`);
     }
-    const choix = operateur(d.operateur, qui.pays);
+    if (dejaRetire + montant > r.retraitMaxJour) {
+      throw new HttpsError("failed-precondition", `Plafond de ${fcfa(r.retraitMaxJour)} de retraits par 24 heures.`);
+    }
+    const choix = operateurDuPays(d.operateur, qui.pays);
     const numero = numeroMobile(d.numero, qui.pays);
     const mouvementId = inscrire(tx, uid, wallet, qui, {
       delta: -montant,
@@ -267,6 +348,8 @@ export const demanderRetrait = onAppel("demanderRetrait", OPTIONS_APPEL, async (
       montant,
       operateur: choix,
       numero,
+      // Signalé à l'administration : première fois que ce numéro reçoit un retrait.
+      nouveauNumero: !numerosConnus.has(numero),
       statut: "en_attente",
       mouvementId,
       creeLe: FieldValue.serverTimestamp(),
@@ -339,12 +422,14 @@ export const ajusterWallet = onAppel("ajusterWallet", OPTIONS_APPEL, async (req)
     const wallet = await lireWallet(tx, uid);
     const pays = NUMEROS[String(profil.pays)] ? String(profil.pays) : PAYS_DEFAUT;
     const nom = [profil.prenom, profil.nom].filter(Boolean).join(" ") || String(profil.email ?? "");
-    inscrire(tx, uid, wallet, { pays, nom, role: String(profil.role) }, {
-      delta: montant as number,
+    if ((montant as number) < 0 && -(montant as number) > wallet.solde) {
+      throw new HttpsError("failed-precondition", "Solde insuffisant pour ce retrait manuel.");
+    }
+    mouvementSysteme(tx, uid, wallet, { pays, nom, role: String(profil.role) }, {
+      montant: montant as number,
       type: "ajustement",
       libelle: motif,
       reference: "",
-      statut: "termine",
       auteurId: sa.uid,
     });
     return wallet.solde;

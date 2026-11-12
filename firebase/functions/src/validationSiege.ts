@@ -5,6 +5,7 @@ import { exigerRole } from "./commandes.js";
 import { db, exigerMemePays, journaliser, MAX_INSTANCES, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 import { onAppel } from "./limites.js";
 import { notifier } from "./notifications.js";
+import { regulariserLot } from "./repartition.js";
 
 /**
  * Validation au siège Forever : c'est elle qui crédite les CC sur l'ID Forever.
@@ -144,9 +145,20 @@ export const envoyerReserveEnValidation = onAppel("envoyerReserveEnValidation", 
 /** Le correspondant au siège a validé les produits sur l'ID Forever : il le note avec la référence du reçu. */
 export const validerLotSiege = onAppel("validerLotSiege", OPTIONS_APPEL, async (req) => {
   const uid = exigerRole(req, ROLES_VALIDATION);
-  const d = (req.data ?? {}) as { id?: unknown; reference?: unknown };
+  const d = (req.data ?? {}) as { id?: unknown; reference?: unknown; montantFacture?: unknown; prixFactures?: unknown };
   const id = typeof d.id === "string" ? d.id : "";
   const reference = typeof d.reference === "string" ? d.reference.trim().slice(0, 80) : "";
+  // Montant réellement payé au siège (facture) : sert à rendre le surplus ou prélever le déficit.
+  const montantFacture = d.montantFacture === undefined || d.montantFacture === null ? null : Number(d.montantFacture);
+  if (montantFacture !== null && (!Number.isInteger(montantFacture) || montantFacture <= 0 || montantFacture > 100_000_000)) {
+    throw new HttpsError("invalid-argument", "Montant de la facture invalide.");
+  }
+  const prixFactures: Record<string, number> = {};
+  if (d.prixFactures && typeof d.prixFactures === "object") {
+    for (const [produitId, prix] of Object.entries(d.prixFactures as Record<string, unknown>).slice(0, 200)) {
+      if (/^[\w-]{1,128}$/.test(produitId) && Number.isInteger(prix) && (prix as number) > 0) prixFactures[produitId] = prix as number;
+    }
+  }
   const ref = db.doc(`lotsValidation/${id}`);
 
   const lot = await db.runTransaction(async (tx) => {
@@ -154,14 +166,21 @@ export const validerLotSiege = onAppel("validerLotSiege", OPTIONS_APPEL, async (
     if (!lot) throw new HttpsError("not-found", "Lot introuvable.");
     exigerMemePays(req, lot.pays);
     if (lot.statut !== "a_valider") throw new HttpsError("failed-precondition", "Ce lot est déjà validé.");
-    tx.update(ref, { statut: "valide", reference, valideLe: FieldValue.serverTimestamp(), validePar: uid });
+    tx.update(ref, {
+      statut: "valide",
+      reference,
+      ...(montantFacture !== null ? { montantFacture } : {}),
+      valideLe: FieldValue.serverTimestamp(),
+      validePar: uid,
+    });
     for (const commandeId of lot.commandes as string[]) {
       tx.update(db.doc(`orders/${commandeId}`), { valideeAuSiege: true, lotValidation: id });
     }
     return lot;
   });
 
-  await journaliser("lot_valide_siege", uid, id, { reference, cc: lot.ccTotal });
+  await journaliser("lot_valide_siege", uid, id, { reference, cc: lot.ccTotal, montantFacture });
+  const regularisation = montantFacture !== null ? await regulariserLot(id, lot, montantFacture, prixFactures, uid) : null;
   await notifier(
     lot.fboId,
     "Validation au siège",
@@ -169,5 +188,5 @@ export const validerLotSiege = onAppel("validerLotSiege", OPTIONS_APPEL, async (
     "",
     `lotvalide_${id}`,
   );
-  return { id };
+  return { id, regularisation };
 });

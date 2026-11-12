@@ -6,6 +6,13 @@ afterAll(fermerApplis);
 
 const wallet = async (uid: string) => (await adminDb().doc(`wallets/${uid}`).get()).data() ?? {};
 
+/** Distributeur avec un code PIN : il en a besoin pour confirmer un retrait. */
+async function fboAvecPin() {
+  const u = await compte("fbo");
+  await u.appeler("definirPin", { pin: "4827" });
+  return u;
+}
+
 /** Dépôt simulé confirmé : crédite le wallet. */
 async function deposer(u: Awaited<ReturnType<typeof compte>>, montant: number) {
   const { id } = await u.appeler("demarrerDepot", {
@@ -55,9 +62,9 @@ describe("wallet : dépôts", () => {
 
 describe("wallet : retraits", () => {
   it("bloque le montant, puis l'administration du pays le paie", async () => {
-    const u = await compte("fbo");
+    const u = await fboAvecPin();
     await deposer(u, 20000);
-    const { id } = await u.appeler("demanderRetrait", { cleIdempotence: cle(), montant: 8000, operateur: "Orange Money", numero: "70123456" });
+    const { id } = await u.appeler("demanderRetrait", { cleIdempotence: cle(), montant: 8000, operateur: "Orange Money", numero: "70123456", pin: "4827" });
     expect(await wallet(u.uid)).toMatchObject({ solde: 12000, bloque: 8000 });
 
     const adminCI = await compte("admin", { pays: "Côte d'Ivoire" });
@@ -87,9 +94,9 @@ describe("wallet : retraits", () => {
   });
 
   it("la même demande envoyée deux fois ne retire qu'une fois", async () => {
-    const u = await compte("fbo");
+    const u = await fboAvecPin();
     await deposer(u, 20000);
-    const demande = { cleIdempotence: cle(), montant: 6000, operateur: "Orange Money", numero: "70123456" };
+    const demande = { cleIdempotence: cle(), montant: 6000, operateur: "Orange Money", numero: "70123456", pin: "4827" };
     await u.appeler("demanderRetrait", demande);
     await u.appeler("demanderRetrait", demande);
     expect(await wallet(u.uid)).toMatchObject({ solde: 14000, bloque: 6000 });

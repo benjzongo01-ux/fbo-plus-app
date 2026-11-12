@@ -42,7 +42,9 @@ data class DetailsCommande(
     val note: String = "",
     // Expédition : ville, province ou village saisi, et gare (facultative).
     val villeSaisie: String = "",
-    val gare: String = ""
+    val gare: String = "",
+    // Livraison : payée par le client (ajoutée au prix) ou prise sur le bénéfice du distributeur.
+    val clientPaieLivraison: Boolean = true
 ) {
     /** Mêmes contrôles que le serveur, pour prévenir avant l'envoi. */
     fun erreur(idForeverProfil: String): String? {

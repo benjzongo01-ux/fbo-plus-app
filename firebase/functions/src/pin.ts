@@ -7,7 +7,7 @@ import { onAppel } from "./limites.js";
 import { db, exigerConnexion, journaliser, OPTIONS_APPEL } from "./commun.js";
 
 const PIN_PEPPER = defineSecret("PIN_PEPPER");
-const OPTIONS_PIN = { ...OPTIONS_APPEL, secrets: [PIN_PEPPER] };
+export const OPTIONS_PIN = { ...OPTIONS_APPEL, secrets: [PIN_PEPPER] };
 
 const ESSAIS_MAX = 5;
 const BLOCAGE_MS = 15 * 60 * 1000;
@@ -67,6 +67,20 @@ async function controlerPin(uid: string, pin: string) {
     await journaliser("pin_bloque", uid, uid);
   }
   return resultat;
+}
+
+/** Pour une opération sensible (retrait) : refuse si le PIN est absent ou faux. */
+export async function exigerPinValide(uid: string, valeur: unknown) {
+  if (typeof valeur !== "string" || !/^\d{4}$/.test(valeur)) {
+    throw new HttpsError("permission-denied", "Confirmez avec votre code PIN.");
+  }
+  const r = await controlerPin(uid, valeur);
+  if (!r.valide) {
+    throw new HttpsError(
+      r.essaisRestants === 0 ? "resource-exhausted" : "permission-denied",
+      r.essaisRestants === 0 ? "Trop d'essais. Réessayez dans 15 minutes." : `Code PIN incorrect. Essais restants : ${r.essaisRestants}.`,
+    );
+  }
 }
 
 /** Créer ou remplacer le PIN exige un code SMS de moins de 5 minutes, ou le PIN actuel. */

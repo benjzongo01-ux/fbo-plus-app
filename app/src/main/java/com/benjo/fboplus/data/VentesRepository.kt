@@ -176,7 +176,8 @@ object VentesRepository {
                 "destinataireTelephone" to details.clientTelephone.trim(),
                 "destinataireTelephone2" to details.clientTelephone2.trim(),
                 "compagnie" to details.compagnie.trim(),
-                "reduction" to reduction
+                "reduction" to reduction,
+                "clientPaieLivraison" to details.clientPaieLivraison
             )
         ).await()
     }

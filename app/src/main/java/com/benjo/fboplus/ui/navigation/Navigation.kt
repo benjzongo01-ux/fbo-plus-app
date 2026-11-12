@@ -407,7 +407,7 @@ fun FBONavigation() {
                 )
             }
             composable("wallet") {
-                WalletScreen(onRetour = { navController.popBackStack() })
+                WalletScreen(onRetour = { navController.popBackStack() }, demanderPin = true)
             }
             composable("formations") {
                 val profil by profilViewModel.profil.collectAsState()

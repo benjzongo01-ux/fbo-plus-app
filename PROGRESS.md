@@ -46,7 +46,7 @@ Les données des émulateurs ne suivent pas non plus : après `npm run emulateur
 | 5. Notifications | Terminé | Notifications Firestore testées sur téléphone ; push FCM impossible à tester sur émulateur |
 | 6. Wallet, paiements, IA | Non commencé | Plus tard, comme prévu |
 
-Vérifications automatiques : 141 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
+Vérifications automatiques : 149 tests sur l'émulateur Firebase (`cd firebase && npm test`), `./gradlew assembleDebug` pour les deux applications, `npm run build` pour l'admin.
 
 Les branches `feature/phase-*` et `feature/profil-professionnel` gardent l'historique de chaque phase. Tout est fusionné dans `main` : le travail suivant part de `main`, sur une nouvelle branche.
 
@@ -156,6 +156,15 @@ Mode maintenance (`parametres/maintenance`, réglé par `definirMaintenance`) :
 - le super administrateur l'active dans Paramètres, avec un message et une durée prévue ;
 - FBO+, FBO+ Delivery, l'admin et la boutique publique affichent un écran d'attente poli avec l'heure de retour, puis reprennent seuls à la fin ;
 - le serveur refuse toute action et les règles toute écriture, sauf pour le super administrateur.
+
+## Répartition automatique de l'argent (2026-11-12)
+
+- Le distributeur indique **ce que paie le client** (au lieu d'une réduction) et qui paie la livraison ; il confirme le montant avant l'envoi. Le serveur refuse un prix au-dessus du prix public ou sous le prix de validation du grade.
+- À la livraison : paiement **mobile money** (QR code ou demande sur le téléphone du client ; simulé sur les émulateurs) ou **espèces** (réparties quand l'administration confirme la remise par le livreur). Plus de signature du client ; plus de liste de contrôle qualité.
+- Répartition (`functions/src/repartition.ts`), une seule fois par commande, somme vérifiée : réserve de validation (prix appris des factures, sinon prix remisé × coefficient du pays), commission du livreur, part livraison de la plateforme, commission FBO+ (réglable : `commissionPlateformeFixe`, `commissionPlateformePct`, `margeSecuritePct` dans `tarifsPays`), bénéfice du distributeur. Bénéfice négatif : dette, réglée en priorité par les entrées suivantes.
+- Validation au siège : montant réel de la facture (et prix unitaires facultatifs). Surplus rendu, déficit prélevé, prix retenus par pays et par grade, sinon coefficient du pays ajusté.
+- Sécurité : montants calculés par le serveur seulement, PIN exigé pour chaque retrait d'un distributeur, plafond de 500 000 FCFA de retraits par 24 h, nouveau numéro signalé à l'administration, comptes de la plateforme lisibles par l'administration du pays seulement.
+- À décider : commission FBO+, part du livreur sur les frais, taux de taxes de départ, marge de sécurité (tout est à 0 % ou à la commission actuelle du livreur par défaut).
 
 ## FBO+ Wallet, première partie (2026-11-12)
 

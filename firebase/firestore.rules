@@ -248,6 +248,21 @@ service cloud.firestore {
       allow read: if (connecte() && resource.data.uid == request.auth.uid) || estAdminDuPays(resource.data.pays);
     }
 
+    // Paiements à la livraison : le livreur voit les siens, l'administration ceux de son pays.
+    match /paiements/{id} {
+      allow read: if (connecte() && resource.data.livreurId == request.auth.uid) || estAdminDuPays(resource.data.pays);
+    }
+    // Comptes de la plateforme (réserve de validation, livraison, commissions) et prix appris.
+    match /comptesPlateforme/{pays} {
+      allow read: if estAdminDuPays(pays);
+      match /ecritures/{id} {
+        allow read: if estAdminDuPays(pays);
+      }
+    }
+    match /prixValidation/{id} {
+      allow read: if estAdminDuPays(resource.data.pays);
+    }
+
     match /auditLogs/{id} {
       allow read: if estSuperAdmin();
     }

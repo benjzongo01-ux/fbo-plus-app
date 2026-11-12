@@ -51,6 +51,9 @@ export const LIMITES: Record<string, Limite> = {
   demanderRetrait: { max: 5, fenetreS: 600 },
   deciderRetrait: { max: 60, fenetreS: 60 },
   ajusterWallet: { max: 20, fenetreS: 600 },
+  demanderPaiementLivraison: { max: 10, fenetreS: 600 },
+  confirmerPaiementSimule: { max: 20, fenetreS: 600 },
+  confirmerRemiseEspeces: { max: 60, fenetreS: 60 },
 };
 
 interface Compteur {

@@ -424,3 +424,30 @@ describe("wallet", () => {
     await assertFails(updateDoc(doc(db("abf", "admin"), "wallets/fbo1"), { solde: 0 }));
   });
 });
+
+describe("paiements à la livraison et comptes de la plateforme", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore();
+      await setDoc(doc(d, "paiements/o1"), { livreurId: "liv1", montant: 15000, pays: "Burkina Faso", statut: "en_attente" });
+      await setDoc(doc(d, "comptesPlateforme/Burkina Faso"), { pays: "Burkina Faso", reserveValidation: 1000 });
+      await setDoc(doc(d, "prixValidation/x"), { pays: "Burkina Faso", prix: 11000 });
+    });
+  });
+
+  it("le livreur voit son paiement sans pouvoir le confirmer lui-même", async () => {
+    await assertSucceeds(getDoc(doc(db("liv1", "livreur"), "paiements/o1")));
+    await assertFails(getDoc(doc(db("liv2", "livreur"), "paiements/o1")));
+    await assertFails(updateDoc(doc(db("liv1", "livreur"), "paiements/o1"), { statut: "confirme" }));
+    await assertFails(updateDoc(doc(db("liv1", "livreur"), "deliveries/d1"), { especesRemises: true }));
+  });
+
+  it("seule l'administration du pays voit les comptes et les prix appris ; personne ne les écrit", async () => {
+    await assertFails(getDoc(doc(db("fbo1", "fbo"), "comptesPlateforme/Burkina Faso")));
+    await assertFails(getDoc(doc(db("op", "operateur"), "comptesPlateforme/Burkina Faso")));
+    await assertSucceeds(getDoc(doc(db("abf", "admin"), "comptesPlateforme/Burkina Faso")));
+    await assertSucceeds(getDoc(doc(db("abf", "admin"), "prixValidation/x")));
+    await assertFails(updateDoc(doc(db("abf", "admin"), "comptesPlateforme/Burkina Faso"), { reserveValidation: 0 }));
+    await assertFails(updateDoc(doc(db("fbo1", "fbo"), "orders/o1"), { total: 1 }));
+  });
+});

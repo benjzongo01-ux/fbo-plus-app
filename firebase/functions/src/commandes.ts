@@ -1,5 +1,6 @@
 import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { onAppel } from "./limites.js";
+import { preparerRepartition } from "./repartition.js";
 import { FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
 import { db, estPays, exigerConnexion, exigerMemePays, journaliser, OPTIONS_APPEL, PAYS_DEFAUT } from "./commun.js";
 
@@ -223,25 +224,57 @@ async function lignesAuPrixOfficiel(tx: Transaction, demandes: LigneDemandee[]):
  * - Validation sur l'ID : pas de client à livrer ni de réduction ; le distributeur paie le prix de
  *   validation (prix public moins la remise de son grade) plus les frais de validation.
  */
-function calculerMontants(lignes: LigneCommande[], remiseGrade: number, reductionDemandee: number, frais: number, mode?: string) {
+function calculerMontants(
+  lignes: LigneCommande[],
+  remiseGrade: number,
+  reductionDemandee: number,
+  frais: number,
+  mode?: string,
+  clientPaieLivraison = true,
+) {
   const sousTotal = lignes.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
   const margeBrute = Math.floor((sousTotal * remiseGrade) / 100);
   const validation = mode === "validation";
   const reduction = validation ? 0 : reductionDemandee;
+  if (reduction < 0) {
+    throw new HttpsError("invalid-argument", "Le prix du client ne peut pas dépasser le prix public.");
+  }
   if (reduction > margeBrute) {
-    throw new HttpsError("invalid-argument", `Réduction maximale : ${margeBrute} FCFA.`);
+    throw new HttpsError(
+      "invalid-argument",
+      `Le client ne peut pas payer moins que votre prix de validation (${sousTotal - margeBrute} FCFA).`,
+    );
   }
   const prixValidation = sousTotal - margeBrute;
+  // Livraison non facturée au client : les frais restent dus, ils sont pris sur le bénéfice.
+  const fraisClient = validation || clientPaieLivraison ? frais : 0;
   return {
     sousTotal,
     reduction,
     prixValidation,
+    // Ce que le distributeur a annoncé : le client paie ce prix pour les produits.
+    prixClient: validation ? prixValidation : sousTotal - reduction,
+    clientPaieLivraison: validation ? true : clientPaieLivraison,
     fraisLivraison: frais,
-    total: (validation ? prixValidation : sousTotal - reduction) + frais,
+    total: (validation ? prixValidation : sousTotal - reduction) + fraisClient,
     ccTotal: Math.round(lignes.reduce((s, l) => s + l.cc * l.quantite, 0) * 1000) / 1000,
     remiseGrade,
-    beneficeFbo: margeBrute - reduction,
+    beneficeFbo: margeBrute - reduction - (frais - fraisClient),
   };
+}
+
+/**
+ * Réduction accordée au client : le distributeur indique le prix que paie le client
+ * (« prixClient ») ; l'ancienne saisie d'une réduction reste acceptée.
+ */
+function reductionDemandee(d: Record<string, unknown>, lignes: LigneCommande[]): number {
+  if (d.prixClient === undefined || d.prixClient === null || d.prixClient === "") return lireMontant(d.reduction);
+  const sousTotal = lignes.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
+  return sousTotal - lireMontant(d.prixClient);
+}
+
+function clientPaieLivraison(d: Record<string, unknown>, parDefaut = true): boolean {
+  return typeof d.clientPaieLivraison === "boolean" ? d.clientPaieLivraison : parDefaut;
 }
 
 /**
@@ -361,7 +394,6 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
   const uid = exigerRole(req, ["fbo"]);
   const d = (req.data ?? {}) as Record<string, unknown>;
   const demandes = lireLignes(d.lignes);
-  const reduction = lireMontant(d.reduction);
   const cle = texte(d.cleIdempotence, 64);
   if (!/^[\w-]{8,64}$/.test(cle)) {
     throw new HttpsError("invalid-argument", "Clé d'idempotence invalide.");
@@ -410,9 +442,10 @@ export const creerCommande = onAppel("creerCommande", OPTIONS_APPEL, async (req)
     const montants = calculerMontants(
       lignes,
       REMISES[String(profil?.grade)] ?? REMISES["Client Privilégié (CP)"],
-      reduction,
+      reductionDemandee(d, lignes),
       frais,
       mode,
+      clientPaieLivraison(d),
     );
 
     const ecarts = new Map(lignes.map((l) => [l.produitId, l.quantite]));
@@ -471,7 +504,6 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
   const d = (req.data ?? {}) as Record<string, unknown>;
   const id = texte(d.id, 200);
   const demandes = lireLignes(d.lignes);
-  const reduction = lireMontant(d.reduction);
   const ref = db.doc(`orders/${id}`);
 
   await db.runTransaction(async (tx) => {
@@ -490,7 +522,14 @@ export const modifierCommande = onAppel("modifierCommande", OPTIONS_APPEL, async
     }
 
     const lignes = await lignesAuPrixOfficiel(tx, demandes);
-    const montants = calculerMontants(lignes, commande.remiseGrade, reduction, commande.fraisLivraison, commande.mode);
+    const montants = calculerMontants(
+      lignes,
+      commande.remiseGrade,
+      reductionDemandee(d, lignes),
+      commande.fraisLivraison,
+      commande.mode,
+      clientPaieLivraison(d, commande.clientPaieLivraison !== false),
+    );
 
     const ecarts = new Map<string, number>();
     for (const l of commande.lignes as LigneCommande[]) ecarts.set(l.produitId, -l.quantite);
@@ -568,7 +607,6 @@ const TRANSITIONS: Record<string, { vers: string; roles: string[] }> = {
   en_preparation: { vers: "prete", roles: ["gestionnaire_stock", ...ROLES_ADMIN] },
 };
 
-export const POINTS_CONTROLE = ["produits", "quantites", "peremption", "emballage"];
 
 /** Avance la commande d'une étape : confirmation, préparation, prête à livrer. */
 export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (req) => {
@@ -605,22 +643,13 @@ export const avancerCommande = onAppel("avancerCommande", OPTIONS_APPEL, async (
         frais = fraisDansFourchette(saisis, tarifs);
       }
       fraisFixes = {
-        ...calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode),
+        ...calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode, commande.clientPaieLivraison !== false),
         ...(commande.mode === "expedition" ? { "expedition.frais": frais } : {}),
         fraisAFixer: false,
       };
     }
-    let controleQualite: Record<string, unknown> | undefined;
-    if (transition.vers === "prete") {
-      const c = ((req.data as Record<string, unknown> | null)?.controle ?? {}) as Record<string, unknown>;
-      if (!POINTS_CONTROLE.every((p) => c[p] === true)) {
-        throw new HttpsError("failed-precondition", "Cochez les 4 points du contrôle qualité avant de marquer la commande prête.");
-      }
-      controleQualite = { par: uid, le: Timestamp.now(), points: POINTS_CONTROLE };
-    }
     tx.update(ref, {
       ...(fraisFixes ?? {}),
-      ...(controleQualite ? { controleQualite } : {}),
       statut: transition.vers,
       historiqueStatuts: FieldValue.arrayUnion(etapeHistorique(transition.vers, uid)),
       updatedAt: FieldValue.serverTimestamp(),
@@ -743,11 +772,13 @@ export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, asy
   const id = texte(d.id, 200);
   const montant = lireMontant(d.montantEncaisse);
   const preuvePhoto = texte(d.preuvePhoto);
-  const signature = texte(d.signature);
+  // La signature du client n'est plus demandée ; seule la photo de remise reste obligatoire.
+  const signatureSaisie = texte(d.signature);
   const dossier = `deliveries/${id}/${uid}/`;
-  if (!preuvePhoto.startsWith(dossier) || !signature.startsWith(dossier)) {
-    throw new HttpsError("invalid-argument", "Photo et signature obligatoires.");
+  if (!preuvePhoto.startsWith(dossier)) {
+    throw new HttpsError("invalid-argument", "Photo de la remise obligatoire.");
   }
+  const signature = signatureSaisie.startsWith(dossier) ? signatureSaisie : null;
   const refCommande = db.doc(`orders/${id}`);
   const refLivraison = db.doc(`deliveries/${id}`);
 
@@ -759,11 +790,13 @@ export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, asy
     if (livraison.statut !== "en_livraison") {
       throw new HttpsError("failed-precondition", "Cette mission n'est pas en cours.");
     }
-    if (montant !== livraison.montantAEncaisser) {
+    const commande = (await tx.get(refCommande)).data()!;
+    // Payé par mobile money : rien à encaisser en main propre, et l'argent est réparti tout de suite.
+    const payeMobile = commande.paiement?.statut === "confirme";
+    if (!payeMobile && montant !== livraison.montantAEncaisser) {
       throw new HttpsError("invalid-argument", `Montant attendu : ${livraison.montantAEncaisser} FCFA.`);
     }
-
-    const commande = (await tx.get(refCommande)).data()!;
+    const repartir = payeMobile ? await preparerRepartition(tx, refCommande, uid) : null;
     const stocks = await tx.getAll(
       ...(commande.lignes as LigneCommande[]).map((l) =>
         db.doc(`stock/${commande.entrepotId}_${l.produitId}`),
@@ -785,7 +818,10 @@ export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, asy
     });
     tx.update(refLivraison, {
       statut: "livree",
-      montantEncaisse: montant,
+      montantEncaisse: payeMobile ? 0 : montant,
+      encaissement: payeMobile ? "mobile_money" : "especes",
+      // Espèces : réparties quand l'administration confirme les avoir reçues du livreur.
+      especesRemises: payeMobile ? null : false,
       preuvePhoto,
       signature,
       livreeAt: FieldValue.serverTimestamp(),
@@ -796,6 +832,7 @@ export const terminerLivraison = onAppel("terminerLivraison", OPTIONS_APPEL, asy
       historiqueStatuts: FieldValue.arrayUnion(etapeHistorique("livree", uid)),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    repartir?.();
   });
 
   await journaliser("livraison_terminee", uid, id, { montant });
@@ -880,7 +917,7 @@ export const fixerFraisExpedition = onAppel("fixerFraisExpedition", OPTIONS_APPE
       throw new HttpsError("failed-precondition", "Les frais ne peuvent plus changer à cette étape.");
     }
     if (commande.mode === "livraison") fraisDansFourchette(frais, await tarifsDuPays(tx, commande.pays));
-    const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode);
+    const montants = calculerMontants(commande.lignes, commande.remiseGrade, commande.reduction, frais, commande.mode, commande.clientPaieLivraison !== false);
     tx.update(ref, {
       ...montants,
       fraisAFixer: false,

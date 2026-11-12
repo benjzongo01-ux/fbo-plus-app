@@ -715,17 +715,13 @@ describe("administration par pays", () => {
 });
 
 describe("contrôle qualité et réapprovisionnement", () => {
-  it("refuse « prête » sans les 4 points du contrôle qualité, et le trace", async () => {
+  it("une commande en préparation passe « prête » sans liste de contrôle à cocher", async () => {
     const u = await fbo();
     const gestionnaire = await compte("gestionnaire_stock");
     const { id } = await nouvelle(u);
     await adminDb().doc(`orders/${id}`).update({ statut: "en_preparation" });
-    expect(await codeErreur(gestionnaire.appeler("avancerCommande", { id }))).toBe("functions/failed-precondition");
-    expect(
-      await codeErreur(gestionnaire.appeler("avancerCommande", { id, controle: { ...CONTROLE_OK, peremption: false } })),
-    ).toBe("functions/failed-precondition");
-    await gestionnaire.appeler("avancerCommande", { id, controle: CONTROLE_OK });
-    expect((await commande(id)).controleQualite).toMatchObject({ par: gestionnaire.uid });
+    await gestionnaire.appeler("avancerCommande", { id });
+    expect((await commande(id)).statut).toBe("prete");
   });
 
   it("un stock sous le seuil ouvre une demande ; la réception remet le stock", async () => {
@@ -1031,7 +1027,8 @@ describe("suppression de compte", () => {
     expect((await adminDb().doc(`userSecrets/${u.uid}`).get()).exists).toBe(false);
     expect((await adminDb().doc(`boutiques/${u.uid}`).get()).exists).toBe(false);
     expect((await adminDb().doc(`users/${u.uid}`).get()).data()).toMatchObject({ statut: "supprime" });
-    expect((await adminDb().doc(`orders/${id}`).get()).exists).toBe(true);
+    expect((await adminDb().doc(`orders/${id}`).get()).exists).toBe(true);
+
   });
 });
 
