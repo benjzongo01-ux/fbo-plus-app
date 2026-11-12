@@ -68,7 +68,7 @@ fun IconeEntete(icone: ImageVector, description: String, pastille: Int, onClick:
 
 /** Accueil : solde du wallet et formation, côte à côte. */
 @Composable
-fun CartesAccueil(onWallet: () -> Unit, onFormations: () -> Unit) {
+fun CartesAccueil(onWallet: () -> Unit, onFormations: () -> Unit, margeLaterale: androidx.compose.ui.unit.Dp = 20.dp) {
     val uid = FirebaseAuth.getInstance().currentUser?.uid
     var solde by remember { mutableStateOf<Long?>(null) }
     DisposableEffect(uid) {
@@ -77,7 +77,7 @@ fun CartesAccueil(onWallet: () -> Unit, onFormations: () -> Unit) {
             .addSnapshotListener { d, _ -> solde = d?.getLong("solde") ?: 0L }
         onDispose { ecoute.remove() }
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = margeLaterale), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         CarteRaccourci(
             icone = Icons.Filled.AccountBalanceWallet,
             titre = "Wallet",

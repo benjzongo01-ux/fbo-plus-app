@@ -106,10 +106,11 @@ fun ProfilScreen(
 
     val moisActuel = remember { VentesRepository.moisAnneeAujourdhui() }
     val commandesDuJour by ventesViewModel.commandesDuJour.collectAsState()
-    val commandesDuMois = remember(commandesDuJour) {
+    val toutesCommandes by VentesRepository.commandes.collectAsState()
+    val commandesDuMois = remember(toutesCommandes) {
         VentesRepository.getCommandesDuMois(context, moisActuel)
     }
-    val beneficeDuMois = remember(commandesDuJour) {
+    val beneficeDuMois = remember(toutesCommandes) {
         VentesRepository.getStatMoisActuel(context).benefice
     }
     val caDuMois = commandesDuMois.sumOf { it.caTotal }
