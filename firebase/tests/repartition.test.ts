@@ -60,12 +60,14 @@ async function livrer(options: { prixClient?: number; clientPaieLivraison?: bool
 }
 
 describe("prix payé par le client", () => {
-  it("le distributeur indique le prix du client : la réduction est calculée, bornée par son prix de validation", async () => {
+  it("le distributeur indique le prix du client : refusé seulement sous son prix de validation", async () => {
     const u = await compte("fbo", { grade: "Manager (M)", idDistributeur: "221000555666", pays: SN });
     const base = { cleIdempotence: cle(), lignes: [{ produitId: produit, quantite: 2 }], pays: SN, pourQui: "moi", mode: "livraison", clientNom: "X", clientTelephone: "+221770000001", clientQuartier: "Q" };
     const { id } = await u.appeler("creerCommande", { ...base, prixClient: 40000, clientPaieLivraison: false });
     expect(await commande(id)).toMatchObject({ reduction: 4000, prixClient: 40000, clientPaieLivraison: false, total: 40000 });
-    expect(await codeErreur(u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 45000 }))).toBe("functions/invalid-argument");
+    // Au-dessus du prix public : permis, le surplus revient au distributeur.
+    const { id: au } = await u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 47000, clientPaieLivraison: false });
+    expect(await commande(au)).toMatchObject({ reduction: -3000, prixClient: 47000, total: 47000 });
     expect(await codeErreur(u.appeler("creerCommande", { ...base, cleIdempotence: cle(), prixClient: 22000 }))).toBe("functions/invalid-argument");
   });
 });
@@ -141,5 +143,16 @@ describe("sécurité des retraits", () => {
     const { id } = await u.appeler("demanderRetrait", { ...base, cleIdempotence: cle(), montant: 400000, pin: "4827" });
     expect((await adminDb().doc(`retraits/${id}`).get()).data()).toMatchObject({ nouveauNumero: true });
     expect(await codeErreur(u.appeler("demanderRetrait", { ...base, cleIdempotence: cle(), montant: 200000, pin: "4827" }))).toBe("functions/failed-precondition");
+  });
+});
+
+describe("prix au-dessus du prix public, envoyé comme réduction négative par l'application", () => {
+  it("le client paie plus, le supplément va au bénéfice", async () => {
+    const u = await compte("fbo", { grade: "Manager (M)", idDistributeur: "221000777888", pays: SN });
+    const { id } = await u.appeler("creerCommande", {
+      cleIdempotence: cle(), lignes: [{ produitId: produit, quantite: 2 }], pays: SN, pourQui: "moi", mode: "livraison",
+      clientNom: "X", clientTelephone: "+221770000002", clientQuartier: "Q", reduction: -2000,
+    });
+    expect(await commande(id)).toMatchObject({ reduction: -2000, prixClient: 46000, total: 46000 });
   });
 });
