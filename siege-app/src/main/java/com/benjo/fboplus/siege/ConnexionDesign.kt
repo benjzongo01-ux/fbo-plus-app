@@ -352,7 +352,7 @@ private fun EtapeEmail(
     val emailValide = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$").matches(email.trim())
     Column {
         Text(
-            if (livreur) "Espace correspondant" else "Bienvenue",
+            if (livreur) "Espace validation" else "Bienvenue",
             color = Color.White,
             fontSize = 28.sp,
             fontWeight = FontWeight.SemiBold,

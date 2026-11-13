@@ -59,8 +59,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 private val ID_FOREVER = Regex("""(?<!\d)\d{3}[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{3}(?!\d)""")
 private val LIGNE_TOTAL = Regex("""(?i)\b(net\s*a\s*payer|total)\b""")
 
-private data class LotTrouve(val id: String, val idForever: String, val pays: String, val nom: String, val montant: Long, val ecart: Long?)
-private data class Lecture(val total: Long?, val tva: Long?, val numero: String?, val lots: List<LotTrouve>)
+private data class LotTrouve(
+    val id: String, val idForever: String, val pays: String, val nom: String, val montant: Long,
+    val ecart: Long?, val cc: Double, val prixFactures: Map<String, Long>
+)
+private data class LigneLue(val ref: String, val designation: String, val quantite: Int, val montantHT: Long)
+private data class Lecture(
+    val total: Long?, val sousTotalHT: Long?, val tva: Long?, val airsi: Long?, val timbre: Long?,
+    val points: Double?, val numero: String?, val lignes: List<LigneLue>, val lots: List<LotTrouve>
+)
 
 @Composable
 fun ScannerRecu(attendus: List<Lot>, onFermer: () -> Unit) {
@@ -184,9 +191,19 @@ private fun ConfirmationRecu(texte: String, image: Bitmap, onRecommencer: () -> 
             val r = fonctions.getHttpsCallable("lireRecu").call(mapOf("texte" to texte)).await().getData() as Map<*, *>
             val lots = (r["lots"] as? List<*>).orEmpty().mapNotNull { l ->
                 val m = l as? Map<*, *> ?: return@mapNotNull null
-                LotTrouve(m["id"] as String, m["idForever"] as? String ?: "", m["pays"] as? String ?: "", m["nom"] as? String ?: "", (m["montant"] as? Number)?.toLong() ?: 0L, (m["ecart"] as? Number)?.toLong())
+                LotTrouve(
+                    m["id"] as String, m["idForever"] as? String ?: "", m["pays"] as? String ?: "", m["nom"] as? String ?: "",
+                    (m["montant"] as? Number)?.toLong() ?: 0L, (m["ecart"] as? Number)?.toLong(),
+                    (m["ccTotal"] as? Number)?.toDouble() ?: 0.0,
+                    (m["prixFactures"] as? Map<*, *>).orEmpty().mapNotNull { (k, v) -> (v as? Number)?.let { k.toString() to it.toLong() } }.toMap()
+                )
             }
-            lecture = Lecture((r["total"] as? Number)?.toLong(), (r["tva"] as? Number)?.toLong(), r["numero"] as? String, lots)
+            val lues = (r["lignes"] as? List<*>).orEmpty().mapNotNull { x ->
+                val m = x as? Map<*, *> ?: return@mapNotNull null
+                LigneLue(m["ref"] as? String ?: "", m["designation"] as? String ?: "", (m["quantite"] as? Number)?.toInt() ?: 0, (m["montantHT"] as? Number)?.toLong() ?: 0L)
+            }
+            fun n(cle: String) = (r[cle] as? Number)?.toLong()
+            lecture = Lecture(n("total"), n("sousTotalHT"), n("tva"), n("airsi"), n("timbre"), (r["pointsCaisse"] as? Number)?.toDouble(), r["numero"] as? String, lues, lots)
             choisi = lots.firstOrNull()
             montant = ((r["total"] as? Number)?.toLong() ?: lots.firstOrNull()?.montant ?: 0L).toString()
             numero = r["numero"] as? String ?: ""
@@ -238,7 +255,28 @@ private fun ConfirmationRecu(texte: String, image: Bitmap, onRecommencer: () -> 
                 Text("Attendu : ${fcfa(lot.montant)}", color = SGris, fontSize = 13.sp)
             }
         }
-        l.tva?.let { Text("TVA lue : ${fcfa(it)}", color = SGris, fontSize = 13.sp) }
+        // Détail lu sur le reçu : produits, taxes et points caisse, pour vérifier d'un coup d'œil.
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SSurface).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text("Lu sur le reçu", color = SOr, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            l.lignes.forEach { Text("${it.ref} · ${it.designation} × ${it.quantite} · ${fcfa(it.montantHT)} HT", color = Color.White, fontSize = 13.sp) }
+            if (l.lignes.isEmpty()) Text("Lignes de produits non lues : seul le total sera utilisé.", color = SGris, fontSize = 12.sp)
+            l.sousTotalHT?.let { Text("Sous-total HT : ${fcfa(it)}", color = SGris, fontSize = 13.sp) }
+            l.tva?.let { Text("TVA : ${fcfa(it)}", color = SGris, fontSize = 13.sp) }
+            l.airsi?.let { Text("AIRSI : ${fcfa(it)}", color = SGris, fontSize = 13.sp) }
+            l.timbre?.let { Text("Timbre : ${fcfa(it)}", color = SGris, fontSize = 13.sp) }
+            l.total?.let { Text("Grand total : ${fcfa(it)}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+            l.points?.let { p ->
+                val attendu = choisi?.cc ?: 0.0
+                val ok = kotlin.math.abs(p - attendu) < 0.0005
+                Text(
+                    "Points caisse : %.3f".format(java.util.Locale.FRANCE, p) + if (ok) " (conforme)" else " (attendu %.3f)".format(java.util.Locale.FRANCE, attendu),
+                    color = if (ok) SVert else SOrange, fontSize = 13.sp
+                )
+            }
+        }
         OutlinedTextField(
             value = montant, onValueChange = { montant = it.filter(Char::isDigit).take(9) },
             label = { Text("Montant payé au siège (FCFA)") }, singleLine = true,
@@ -267,7 +305,10 @@ private fun ConfirmationRecu(texte: String, image: Bitmap, onRecommencer: () -> 
                         FirebaseStorage.getInstance().reference.child(chemin)
                             .putBytes(octets, StorageMetadata.Builder().setContentType("image/jpeg").build()).await()
                         fonctions.getHttpsCallable("validerLotSiege").call(
-                            mapOf("id" to lot.id, "reference" to numero.trim(), "montantFacture" to (montant.toLongOrNull() ?: 0L), "recu" to chemin)
+                            mapOf(
+                                "id" to lot.id, "reference" to numero.trim(), "montantFacture" to (montant.toLongOrNull() ?: 0L),
+                                "recu" to chemin, "prixFactures" to lot.prixFactures
+                            )
                         ).await()
                         valide = "ID ${lot.idForever} · ${fcfa(montant.toLongOrNull() ?: 0L)} · reçu ${numero.ifBlank { "sans numéro" }}"
                     } catch (e: Exception) {
