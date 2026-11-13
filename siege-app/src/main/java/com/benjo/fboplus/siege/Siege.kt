@@ -77,9 +77,16 @@ fun EspaceSiege(onDeconnexion: () -> Unit) {
     var enCours by remember { mutableStateOf(false) }
 
     // Pays du correspondant (dans son jeton) : il ne voit que les validations de son pays.
+    // Session expirée ou compte supprimé : retour à la connexion au lieu de fermer l'application.
     LaunchedEffect(Unit) {
-        val claims = FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.await()?.claims
-        pays = claims?.get("pays") as? String ?: ""
+        try {
+            val claims = FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.await()?.claims
+            pays = claims?.get("pays") as? String ?: ""
+        } catch (e: com.google.firebase.FirebaseNetworkException) {
+            message = "Connexion instable : impossible de joindre le serveur. Réessayez dans un instant."
+        } catch (e: Exception) {
+            onDeconnexion()
+        }
     }
     DisposableEffect(pays) {
         val p = pays ?: return@DisposableEffect onDispose {}
