@@ -25,32 +25,97 @@ function exigerSiege(req: Parameters<typeof exigerConnexion>[0]) {
 
 const chiffres = (s: string) => s.replace(/\D/g, "");
 
-/** Montant écrit sur un reçu : « 22 880 », « 22.880 », « 22,880 FCFA »… (sans centimes en FCFA). */
-function montant(s: string): number | null {
-  const m = s.match(/(\d{1,3}(?:[ .  ,]\d{3})+|\d{3,9})(?:[.,]\d{1,2})?\s*(?:F|FCFA|XOF|CFA)?\b/gi);
+/** Nombre écrit sur un reçu : « 103 209 », « 103.209 », « 15 405 » (FCFA, sans centimes). */
+function nombre(s: string): number | null {
+  const m = s.match(/\d{1,3}(?:[ .\u00a0\u202f]\d{3})+|\d+/g);
   if (!m) return null;
-  const valeurs = m.map((x) => Number(chiffres(x.replace(/[.,]\d{1,2}\s*(?:F|FCFA|XOF|CFA)?$/i, "")))).filter((n) => n > 0);
-  return valeurs.length ? Math.max(...valeurs) : null;
+  const n = Number(chiffres(m[m.length - 1]));
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** Lecture d'un reçu de validation : texte reconnu sur le téléphone, ligne par ligne. */
+const normaliserRef = (ref: string) => ref.replace(/^0+/, "") || "0";
+
+export interface LigneRecu {
+  ref: string;
+  designation: string;
+  quantite: number;
+  prixUnitaireHT: number;
+  montantHT: number;
+}
+
+/**
+ * Lecture d'une facture de vente Forever (Burkina, Côte d'Ivoire…), texte reconnu sur le téléphone.
+ * Repères : ID (Num FBO), « Facture de vente » (numéro), lignes (article, libellé, quantité, prix
+ * unitaire HT, montant HT), Sous total / Total HT, TVA, AIRSI, timbre, Grand Total, Points caisse.
+ * Un libellé et sa valeur peuvent arriver sur deux lignes (colonnes du reçu) : on regarde la suivante.
+ */
 export function lireTexteRecu(texte: string) {
-  const lignes = texte.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lignes = texte.split(/\r?\n/).map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean);
   // ID Forever : 12 chiffres, parfois groupés (226-000-078-011, 226 000 078 011).
   const ids = [...texte.matchAll(/(?<!\d)(\d{3}[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{3})(?!\d)/g)].map((m) => chiffres(m[1]));
-  let total: number | null = null;
-  let tva: number | null = null;
+
+  /** Valeur d'un libellé : sur la même ligne (après le libellé), sinon sur la ligne suivante. */
+  function valeur(motif: RegExp): number | null {
+    for (let i = 0; i < lignes.length; i++) {
+      const m = lignes[i].match(motif);
+      if (!m) continue;
+      const reste = lignes[i].slice((m.index ?? 0) + m[0].length).replace(/\d{1,2}([.,]\d+)?\s*%/g, "");
+      const ici = nombre(reste);
+      if (ici !== null) return ici;
+      const suivante = lignes[i + 1];
+      if (suivante && /^[\d .:\u00a0\u202f]+(F|FCFA)?$/i.test(suivante)) return nombre(suivante);
+    }
+    return null;
+  }
+
+  const total = valeur(/GRAND\s*TOTAL\s*:?/i) ?? valeur(/NET\s*[AÀ]\s*PAYER\s*:?/i);
+  const sousTotalHT = valeur(/SOUS[\s-]?TOTAL\s*:?/i) ?? valeur(/TOTAL\s*HT\s*(BRUT)?\s*:?/i);
+  const tva = valeur(/(TOTAL\s*)?T\.?V\.?A\.?\s*(\d{1,2}\s*%)?\s*:?/i);
+  const airsi = valeur(/AIRSI\s*:?/i);
+  const timbre = valeur(/TAXE\s*D[EU]\s*TIMBRE\s*:?/i);
+
   let numero: string | null = null;
   for (const l of lignes) {
-    const haut = l.toUpperCase();
-    if (total === null && /\b(NET\s*A\s*PAYER|TOTAL\s*TTC|MONTANT\s*TTC|TOTAL)\b/.test(haut) && !/SOUS[\s-]?TOTAL/.test(haut)) total = montant(l);
-    if (tva === null && /\bT\.?V\.?A\b/.test(haut)) tva = montant(l.replace(/\d{1,2}([.,]\d+)?\s*%/g, ""));
-    if (numero === null) {
-      const n = haut.match(/\b(?:RE[CÇ]U|FACTURE|TICKET|N[O°º]\.?)\s*(?:N[O°º]\.?)?\s*[:#]?\s*([A-Z0-9-]{4,20})/);
-      if (n && /\d/.test(n[1])) numero = n[1];
+    const n = l.toUpperCase().match(/FACTURE\s*DE\s*VENTE\s*(?:N[°ºO]\.?)?\s*:?\s*([A-Z0-9-]{6,30})/);
+    if (n && /\d/.test(n[1])) { numero = n[1]; break; }
+  }
+  let pointsCaisse: number | null = null;
+  for (const l of lignes) {
+    const n = l.match(/POINTS?\s*CAISSES?\s*:?\s*(\d*[.,]\d+|\d+)/i);
+    if (n) { pointsCaisse = Number(n[1].replace(",", ".")); break; }
+  }
+
+  // Lignes de produits : « 621 FOREVER IVISION 2 23 040 46 080 », « 188 B12 PLUS 1,00 E 10 200 10 200 ».
+  const produits: LigneRecu[] = [];
+  const montantRe = String.raw`(\d{1,3}(?:[ .]\d{3})*)`;
+  const ligneRe = new RegExp(String.raw`^0*(\d{2,4})\s+(.+?)\s+(\d{1,3})(?:[.,]0{1,2})?\s+(?:[A-Z]\s+)?${montantRe}\s+${montantRe}$`);
+  for (const l of lignes) {
+    const m = l.toUpperCase().match(ligneRe);
+    if (!m) continue;
+    const quantite = Number(m[3]);
+    const prix = Number(chiffres(m[4]));
+    const montantHT = Number(chiffres(m[5]));
+    // Garde-fou : quantité × prix unitaire ≈ montant (sinon la ligne est mal lue).
+    if (quantite > 0 && Math.abs(quantite * prix - montantHT) <= quantite) {
+      produits.push({ ref: m[1], designation: m[2].trim(), quantite, prixUnitaireHT: prix, montantHT });
     }
   }
-  return { idsForever: [...new Set(ids)], total, tva, numero };
+  return { idsForever: [...new Set(ids)], numero, total, sousTotalHT, tva, airsi, timbre, pointsCaisse, lignes: produits };
+}
+
+/**
+ * Prix réellement payés par produit, taxes comprises : prix unitaire HT du reçu, augmenté au prorata
+ * de (Grand total / Sous-total HT). Associés aux produits du lot par la référence d'article.
+ */
+function prixFactures(lignesLot: Array<{ ref?: string; produitId?: string }>, lu: ReturnType<typeof lireTexteRecu>) {
+  const facteur = lu.total && lu.sousTotalHT ? lu.total / lu.sousTotalHT : null;
+  const resultat: Record<string, number> = {};
+  if (!facteur || facteur < 1 || facteur > 1.6) return resultat;
+  for (const ligne of lu.lignes) {
+    const produit = lignesLot.find((x) => x.ref && normaliserRef(String(x.ref)) === normaliserRef(ligne.ref));
+    if (produit?.produitId) resultat[produit.produitId] = Math.round(ligne.prixUnitaireHT * facteur);
+  }
+  return resultat;
 }
 
 /** Le correspondant dépose des lots au siège : leurs reçus deviennent attendus. */
@@ -104,6 +169,8 @@ export const lireRecu = onAppel("lireRecu", OPTIONS_APPEL, async (req) => {
       statut: l.statut,
       // Le total lu le plus proche du montant attendu passe en premier.
       ecart: lu.total !== null ? Math.abs(Number(l.montant) - lu.total) : null,
+      ecartCc: lu.pointsCaisse !== null ? Math.round(Math.abs(Number(l.ccTotal ?? 0) - lu.pointsCaisse) * 1000) / 1000 : null,
+      prixFactures: prixFactures(l.lignes ?? [], lu),
     }))
     .sort((a, b) => (a.ecart ?? 0) - (b.ecart ?? 0));
   return { ...lu, lots };
